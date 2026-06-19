@@ -11,18 +11,19 @@ dress, a red car in the dark.
 
 ## Live on GitHub Pages
 
-This repo deploys itself. The workflow in `.github/workflows/deploy.yml` publishes the
-site to GitHub Pages on every push to `main`. One-time setup:
+One-time setup (takes ~10 seconds, must be done by the repo owner):
 
-> **Repo → Settings → Pages → Build and deployment → Source: _GitHub Actions_.**
+> **Repo → Settings → Pages → Build and deployment**
+> **→ Source: _Deploy from a branch_ → Branch: `main` / `/ (root)` → Save.**
 
-After that, every push to `main` redeploys, and the city is live at:
+GitHub then serves the site at:
 
 ```
-https://masoudqashqai.github.io/inkfall/
+https://masoudqashqai.github.io/Inkfall/
 ```
 
-Open that URL on your phone — that's the whole experience.
+Every push to `main` automatically redeploys. Open that URL on your phone — that's the
+whole experience. (The `.nojekyll` file tells Pages to serve the files as-is.)
 
 ## Run it locally
 
