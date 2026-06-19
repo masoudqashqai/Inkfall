@@ -37,11 +37,22 @@ python3 -m http.server 8000   # then visit http://localhost:8000
 It also works opened straight from disk (`file://`) — no server required, since there
 are no external dependencies.
 
+## Three scenes, one long night
+
+Tapping walks you through a noir story that re-stages itself with an ink wipe:
+
+1. **The Street** — a trench-coat man under a streetlamp (cigarette smoke and ember),
+   the woman in red walking away, a parked red car, neon, manhole steam.
+2. **The Alley** — converging brick walls, fire escapes, a hanging bulb, a gunman in
+   the doorway with a red/yellow muzzle flash, blood on the bricks, blowing newspaper.
+3. **The Rooftop** — the city as a field of dirty stars, a water tower, power lines
+   with a crow, a sweeping searchlight, and a lone figure on the ledge.
+
 ## Controls — touch only
 
-- **Tap** — next caption line
+- **Tap** — next caption / next scene
 - **Drag** — look left/right (parallax across the city)
-- **Hold** — call down a lightning strike
+- **Hold** — call down a lightning strike (jagged bolt + flash)
 
 (Mouse also works for quick testing on a laptop.)
 
