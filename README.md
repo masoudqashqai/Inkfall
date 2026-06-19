@@ -9,28 +9,36 @@ black & white, rain that never stops, film grain, vignette — and the only thin
 keep their colour are the ones that *bleed*. Red neon, a yellow sign, a woman in a red
 dress, a red car in the dark.
 
-## Run it
+## Live on GitHub Pages
+
+This repo deploys itself. The workflow in `.github/workflows/deploy.yml` publishes the
+site to GitHub Pages on every push to `main`. One-time setup:
+
+> **Repo → Settings → Pages → Build and deployment → Source: _GitHub Actions_.**
+
+After that, every push to `main` redeploys, and the city is live at:
+
+```
+https://masoudqashqai.github.io/inkfall/
+```
+
+Open that URL on your phone — that's the whole experience.
+
+## Run it locally
 
 Because it loads ES modules over a CDN, open it through a web server (not `file://`):
 
 ```bash
-# from the repo root
-python3 -m http.server 8000
-# then visit http://localhost:8000  (or http://<your-computer-ip>:8000 from your phone)
+python3 -m http.server 8000   # then visit http://localhost:8000
 ```
 
-Or just open `index.html` with any static host (GitHub Pages, Netlify, Vercel, etc.).
-On **GitHub Pages**, enable Pages for this repo's branch and the city is live at the
-Pages URL — perfect for opening on a phone.
+## Controls — touch only
 
-## Controls
+- **Drag** anywhere — look around
+- **Tap** — start walking forward (toward where you're looking); **tap again** to stop
+- **Two fingers** — run
 
-| | Desktop | Phone |
-|---|---|---|
-| Walk | `W A S D` / arrows | left **joystick** |
-| Look | move the **mouse** (click to lock) | **drag** the right half of the screen |
-| Run | hold `Shift` | — |
-| Release cursor | `Esc` | — |
+(Mouse drag/click also works on a laptop for quick testing.)
 
 ## The noir grade
 
