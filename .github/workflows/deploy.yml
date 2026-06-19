@@ -27,6 +27,8 @@ jobs:
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
+        with:
+          enablement: true   # provision GitHub Pages automatically on first run
 
       - name: Upload site (repo root — index.html lives here)
         uses: actions/upload-pages-artifact@v3
