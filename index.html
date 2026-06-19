@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#000000" />
+<title>INKFALL — a hallucination of Sin City</title>
+<style>
+  :root { color-scheme: dark; }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; overflow: hidden; background: #000; font-family: "Courier New", monospace; }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; }
+
+  /* ---- title / intro overlay ---- */
+  #intro {
+    position: fixed; inset: 0; z-index: 30;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: radial-gradient(circle at 50% 40%, #161616 0%, #000 70%);
+    text-align: center; padding: 24px;
+    transition: opacity 0.8s ease;
+  }
+  #intro h1 {
+    color: #fff; font-size: clamp(40px, 13vw, 120px); letter-spacing: 0.08em;
+    font-weight: 900; text-shadow: 0 0 28px rgba(255,255,255,0.25);
+    transform: skewX(-6deg);
+  }
+  #intro h1 .b { color: #e10000; text-shadow: 0 0 30px rgba(225,0,0,0.7); }
+  #intro p { color: #9a9a9a; margin-top: 14px; font-size: clamp(12px, 3.4vw, 16px); letter-spacing: 0.18em; }
+  #intro .sub { color: #5a5a5a; margin-top: 6px; font-size: clamp(10px, 2.8vw, 13px); letter-spacing: 0.12em; max-width: 480px; line-height: 1.6; }
+  #enter {
+    margin-top: 38px; padding: 16px 40px; cursor: pointer;
+    background: transparent; color: #fff; border: 1px solid #fff;
+    font-family: inherit; font-size: 16px; letter-spacing: 0.3em; font-weight: 700;
+    transition: all 0.25s ease;
+  }
+  #enter:hover, #enter:active { background: #e10000; border-color: #e10000; color: #fff; box-shadow: 0 0 30px rgba(225,0,0,0.6); }
+
+  /* ---- HUD ---- */
+  #hud {
+    position: fixed; left: 14px; bottom: 14px; z-index: 10;
+    color: #c8c8c8; font-size: 11px; letter-spacing: 0.12em; line-height: 1.7;
+    text-shadow: 0 0 6px #000; pointer-events: none; opacity: 0.85;
+  }
+  #hud b { color: #e10000; }
+  #hint {
+    position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 10;
+    color: #8a8a8a; font-size: 11px; letter-spacing: 0.2em; text-shadow: 0 0 6px #000;
+    pointer-events: none; text-align: center;
+  }
+
+  /* ---- mobile look hint zones (invisible, just for feel) ---- */
+  #touchzones { position: fixed; inset: 0; z-index: 5; display: none; }
+  .tz { position: absolute; bottom: 0; top: 0; width: 50%; }
+  #tzL { left: 0; } #tzR { right: 0; }
+
+  /* virtual joystick */
+  #joy { position: fixed; z-index: 8; width: 120px; height: 120px; left: 24px; bottom: 90px;
+         border-radius: 50%; border: 1px solid rgba(255,255,255,0.18); display: none; touch-action: none; }
+  #joyKnob { position: absolute; width: 52px; height: 52px; left: 34px; top: 34px;
+             border-radius: 50%; background: rgba(225,0,0,0.55); box-shadow: 0 0 18px rgba(225,0,0,0.5); }
+
+  .mobile #touchzones { display: block; }
+  .mobile #joy { display: block; }
+  .mobile #hud .desk { display: none; }
+  .desktop #hud .mob { display: none; }
+
+  #loading { position: fixed; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center;
+             background: #000; color: #555; letter-spacing: 0.3em; font-size: 13px; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<div id="loading">CONJURING THE CITY…</div>
+
+<div id="touchzones"><div class="tz" id="tzL"></div><div class="tz" id="tzR"></div></div>
+<div id="joy"><div id="joyKnob"></div></div>
+
+<div id="hint"></div>
+<div id="hud">
+  <div class="desk"><b>WASD</b> walk &nbsp; <b>MOUSE</b> look &nbsp; <b>SHIFT</b> run &nbsp; <b>ESC</b> release</div>
+  <div class="mob"><b>LEFT</b> joystick to walk &nbsp; <b>RIGHT</b> drag to look</div>
+</div>
+
+<div id="intro">
+  <h1>INK<span class="b">FALL</span></h1>
+  <p>A HALLUCINATION OF SIN CITY</p>
+  <div class="sub">The town drinks the rain. Everything is black and white — except the things that bleed. Walk the dead streets of Basin City.</div>
+  <button id="enter">ENTER THE CITY</button>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+const IS_MOBILE = /Android|iPhone|iPad|iPod|Mobile|Touch/i.test(navigator.userAgent) || ('ontouchstart' in window && window.innerWidth < 1024);
+document.body.classList.add(IS_MOBILE ? 'mobile' : 'desktop');
+
+// ---------------------------------------------------------------------------
+// Renderer / scene / camera
+// ---------------------------------------------------------------------------
+const renderer = new THREE.WebGLRenderer({ antialias: !IS_MOBILE, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, IS_MOBILE ? 2 : 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.getElementById('app').appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x05060a);
+scene.fog = new THREE.FogExp2(0x05060a, 0.018);
+
+const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 600);
+camera.position.set(0, 2.4, 12);
+
+// ---------------------------------------------------------------------------
+// Lights — a bruised moon, hard rim, and a few colored signs
+// ---------------------------------------------------------------------------
+scene.add(new THREE.AmbientLight(0x202833, 0.6));
+
+const moon = new THREE.DirectionalLight(0xbfd4ff, 1.1);
+moon.position.set(-40, 70, -30);
+moon.castShadow = true;
+moon.shadow.mapSize.set(IS_MOBILE ? 1024 : 2048, IS_MOBILE ? 1024 : 2048);
+moon.shadow.camera.near = 1; moon.shadow.camera.far = 220;
+moon.shadow.camera.left = -90; moon.shadow.camera.right = 90;
+moon.shadow.camera.top = 90; moon.shadow.camera.bottom = -90;
+moon.shadow.bias = -0.0004;
+scene.add(moon);
+
+// hard back rim so silhouettes pop like ink
+const rim = new THREE.DirectionalLight(0xffffff, 0.5);
+rim.position.set(30, 20, 40);
+scene.add(rim);
+
+// ---------------------------------------------------------------------------
+// Wet street
+// ---------------------------------------------------------------------------
+const streetGeo = new THREE.PlaneGeometry(400, 400, 1, 1);
+const streetMat = new THREE.MeshStandardMaterial({
+  color: 0x0a0c10, roughness: 0.18, metalness: 0.7,
+});
+const street = new THREE.Mesh(streetGeo, streetMat);
+street.rotation.x = -Math.PI / 2;
+street.receiveShadow = true;
+scene.add(street);
+
+// faint road markings (white, will read as white in the noir grade)
+const markMat = new THREE.MeshStandardMaterial({ color: 0x9a9a9a, roughness: 0.6, metalness: 0.1, emissive: 0x222222 });
+for (let i = -8; i < 24; i++) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(0.35, 3.2), markMat);
+  m.rotation.x = -Math.PI / 2;
+  m.position.set(0, 0.011, -i * 9 + 8);
+  scene.add(m);
+}
+
+// ---------------------------------------------------------------------------
+// The city — instanced black towers lining an avenue
+// ---------------------------------------------------------------------------
+const buildingMat = new THREE.MeshStandardMaterial({ color: 0x070708, roughness: 0.85, metalness: 0.1 });
+// lit windows: unlit squares whose per-instance colour sets brightness/tint
+const windowMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
+
+const box = new THREE.BoxGeometry(1, 1, 1);
+const COUNT = IS_MOBILE ? 120 : 220;
+const towers = new THREE.InstancedMesh(box, buildingMat, COUNT);
+towers.castShadow = true; towers.receiveShadow = true;
+const dummy = new THREE.Object3D();
+
+const rng = mulberry32(20051993);
+const towerData = [];
+let idx = 0;
+for (let side = 0; side < 2; side++) {
+  const sx = side === 0 ? -1 : 1;
+  let z = 14;
+  while (z > -180 && idx < COUNT) {
+    const depth = 6 + rng() * 8;
+    const width = 7 + rng() * 9;
+    const height = 14 + Math.pow(rng(), 1.6) * 70;
+    const offset = 9 + rng() * 5; // distance from street centre
+    const x = sx * (offset + width / 2) + (rng() - 0.5) * 2;
+    dummy.position.set(x, height / 2, z - depth / 2);
+    dummy.scale.set(width, height, depth);
+    dummy.rotation.y = (rng() - 0.5) * 0.05;
+    dummy.updateMatrix();
+    towers.setMatrixAt(idx, dummy.matrix);
+    towerData.push({ x, z: z - depth / 2, width, height, depth });
+    idx++;
+    z -= depth + 1.5 + rng() * 4;
+  }
+}
+towers.count = idx;
+scene.add(towers);
+
+// scatter lit windows over facades that face the street
+const WINDOWS = IS_MOBILE ? 700 : 1600;
+const winMesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.9, 1.2), windowMat, WINDOWS);
+const winColor = new THREE.Color();
+let w = 0;
+for (const t of towerData) {
+  const faceSign = t.x < 0 ? 1 : -1; // face toward avenue (x=0)
+  const rows = Math.floor(t.height / 4);
+  const cols = Math.floor(t.width / 3);
+  for (let r = 1; r < rows && w < WINDOWS; r++) {
+    for (let c = 0; c < cols && w < WINDOWS; c++) {
+      if (rng() > 0.32) continue;
+      const wx = t.x + faceSign * (t.width / 2 + 0.05);
+      const wy = r * 4 + 1.5;
+      const wz = t.z - t.width / 2 + 1.5 + c * 3 + (rng() - 0.5);
+      dummy.position.set(wx, wy, t.z + (c - cols / 2) * 3 * 0.0 + (rng() - 0.5) * t.depth * 0.5);
+      dummy.position.x = wx; dummy.position.y = wy;
+      dummy.position.z = t.z + (rng() - 0.5) * t.depth;
+      dummy.rotation.set(0, faceSign > 0 ? -Math.PI / 2 : Math.PI / 2, 0);
+      dummy.scale.set(1, 1, 1);
+      dummy.updateMatrix();
+      winMesh.setMatrixAt(w, dummy.matrix);
+      // mostly cold white, a few warm — most are "off" (dim)
+      const on = rng();
+      if (on > 0.78) winColor.setHex(0xfff2cc); else winColor.setHex(0xcfe0ff);
+      winColor.multiplyScalar(on > 0.55 ? 1.0 : 0.12);
+      winMesh.setColorAt(w, winColor);
+      w++;
+    }
+  }
+}
+winMesh.count = w;
+scene.add(winMesh);
+
+// ---------------------------------------------------------------------------
+// The bleeding things — selective RED & YELLOW (these survive the B/W grade)
+// ---------------------------------------------------------------------------
+const signs = [];
+function neonSign(color, x, y, z, sx, sy, rotY) {
+  const mat = new THREE.MeshBasicMaterial({ color });
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(sx, sy), mat);
+  m.position.set(x, y, z); m.rotation.y = rotY;
+  scene.add(m);
+  // glow light
+  const pl = new THREE.PointLight(color, 2.2, 26, 2);
+  pl.position.set(x, y, z);
+  scene.add(pl);
+  signs.push({ mesh: m, light: pl, base: 2.2, color });
+  return m;
+}
+neonSign(0xff0010, -10.5, 16, -8, 5, 2.2, Math.PI / 2);   // RED bar sign
+neonSign(0xffd500, 11, 24, -34, 4, 5, -Math.PI / 2);      // YELLOW vertical sign
+neonSign(0xff0010, 10.8, 9, -60, 6, 1.4, -Math.PI / 2);   // RED
+neonSign(0xffd500, -10.6, 30, -90, 3, 7, Math.PI / 2);    // YELLOW
+
+// A lone woman in red — the only colour on the street, far down the avenue
+const figure = new THREE.Group();
+{
+  const red = new THREE.MeshStandardMaterial({ color: 0xd6000c, roughness: 0.5, emissive: 0x3a0003, emissiveIntensity: 0.6 });
+  const dress = new THREE.Mesh(new THREE.ConeGeometry(0.55, 1.5, 16), red);
+  dress.position.y = 0.75; dress.castShadow = true;
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.3, 0.7, 12), red);
+  torso.position.y = 1.7; torso.castShadow = true;
+  const skinMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, roughness: 0.7 });
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 16), skinMat);
+  head.position.y = 2.25; head.castShadow = true;
+  figure.add(dress, torso, head);
+  figure.position.set(1.5, 0, -40);
+  scene.add(figure);
+}
+
+// A red car parked in the dark
+{
+  const red = new THREE.MeshStandardMaterial({ color: 0xc60010, roughness: 0.3, metalness: 0.4 });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.7, 5), red);
+  body.position.y = 0.7; body.castShadow = true;
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.6, 2.4), red);
+  cabin.position.set(0, 1.25, -0.2); cabin.castShadow = true;
+  const tireMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
+  const car = new THREE.Group();
+  car.add(body, cabin);
+  for (const [tx, tz] of [[-1.05, 1.6], [1.05, 1.6], [-1.05, -1.6], [1.05, -1.6]]) {
+    const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.35, 14), tireMat);
+    tire.rotation.z = Math.PI / 2; tire.position.set(tx, 0.45, tz); car.add(tire);
+  }
+  car.position.set(-6.5, 0, -22); car.rotation.y = 0.25;
+  scene.add(car);
+}
+
+// ---------------------------------------------------------------------------
+// Rain — the city always weeps
+// ---------------------------------------------------------------------------
+const RAIN = IS_MOBILE ? 4000 : 9000;
+const rainGeo = new THREE.BufferGeometry();
+const rainPos = new Float32Array(RAIN * 3);
+const rainVel = new Float32Array(RAIN);
+for (let i = 0; i < RAIN; i++) {
+  rainPos[i * 3] = (Math.random() - 0.5) * 160;
+  rainPos[i * 3 + 1] = Math.random() * 90;
+  rainPos[i * 3 + 2] = (Math.random() - 0.5) * 160 - 40;
+  rainVel[i] = 0.5 + Math.random() * 0.8;
+}
+rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+const rainMat = new THREE.PointsMaterial({ color: 0xaab4c8, size: 0.06, transparent: true, opacity: 0.5, depthWrite: false });
+const rain = new THREE.Points(rainGeo, rainMat);
+scene.add(rain);
+
+// drifting ground mist
+const mistTex = makeMistTexture();
+const mistMat = new THREE.SpriteMaterial({ map: mistTex, color: 0x445066, transparent: true, opacity: 0.10, depthWrite: false });
+const mists = [];
+for (let i = 0; i < 14; i++) {
+  const s = new THREE.Sprite(mistMat);
+  s.scale.set(40, 40, 1);
+  s.position.set((Math.random() - 0.5) * 80, 4 + Math.random() * 6, -Math.random() * 140 + 10);
+  scene.add(s); mists.push(s);
+}
+
+// ---------------------------------------------------------------------------
+// Post-processing — the Frank Miller grade
+// (high-contrast B/W that PRESERVES red & yellow, plus grain + vignette)
+// ---------------------------------------------------------------------------
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+
+const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.7, 0.6, 0.2);
+composer.addPass(bloom);
+
+const NoirShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    time: { value: 0 },
+    grain: { value: 0.10 },
+    contrast: { value: 1.55 },
+    vignette: { value: 1.15 },
+    flash: { value: 0.0 },
+    keepYellow: { value: 1.0 },
+  },
+  vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+  fragmentShader: `
+    uniform sampler2D tDiffuse; uniform float time, grain, contrast, vignette, flash, keepYellow;
+    varying vec2 vUv;
+    float rand(vec2 c){ return fract(sin(dot(c, vec2(12.9898,78.233)))*43758.5453); }
+    void main(){
+      vec3 c = texture2D(tDiffuse, vUv).rgb;
+      float l = dot(c, vec3(0.299,0.587,0.114));
+      l = clamp((l-0.5)*contrast+0.5, 0.0, 1.0);
+      l = pow(l, 0.92);
+      // selective colour: keep things that bleed red, optionally yellow
+      float redness = clamp((c.r - max(c.g,c.b))*3.0, 0.0, 1.0);
+      float yellowness = clamp((min(c.r,c.g) - c.b)*2.2, 0.0, 1.0) * keepYellow;
+      float keep = clamp(max(redness, yellowness), 0.0, 1.0);
+      keep = smoothstep(0.15, 0.6, keep);
+      vec3 col = mix(c, c*1.15, 0.0); // keep colour vivid
+      vec3 outc = mix(vec3(l), col, keep);
+      // lightning flash
+      outc += flash * (0.6 - dot(vUv-0.5, vUv-0.5));
+      // film grain
+      float g = (rand(vUv + fract(time)) - 0.5) * grain;
+      outc += g;
+      // vignette
+      vec2 d = vUv - 0.5;
+      outc *= 1.0 - dot(d,d) * vignette;
+      gl_FragColor = vec4(clamp(outc,0.0,1.0), 1.0);
+    }`,
+};
+const noirPass = new ShaderPass(NoirShader);
+composer.addPass(noirPass);
+
+// ---------------------------------------------------------------------------
+// First-person controller (desktop pointer-lock + mobile joystick/drag)
+// ---------------------------------------------------------------------------
+const move = { f: 0, b: 0, l: 0, r: 0, run: false };
+const look = { yaw: 0, pitch: 0 };
+const velocity = new THREE.Vector3();
+let locked = false;
+
+addEventListener('keydown', e => {
+  switch (e.code) {
+    case 'KeyW': case 'ArrowUp': move.f = 1; break;
+    case 'KeyS': case 'ArrowDown': move.b = 1; break;
+    case 'KeyA': case 'ArrowLeft': move.l = 1; break;
+    case 'KeyD': case 'ArrowRight': move.r = 1; break;
+    case 'ShiftLeft': case 'ShiftRight': move.run = true; break;
+  }
+});
+addEventListener('keyup', e => {
+  switch (e.code) {
+    case 'KeyW': case 'ArrowUp': move.f = 0; break;
+    case 'KeyS': case 'ArrowDown': move.b = 0; break;
+    case 'KeyA': case 'ArrowLeft': move.l = 0; break;
+    case 'KeyD': case 'ArrowRight': move.r = 0; break;
+    case 'ShiftLeft': case 'ShiftRight': move.run = false; break;
+  }
+});
+
+// desktop mouse-look via pointer lock
+renderer.domElement.addEventListener('click', () => { if (!IS_MOBILE && started) renderer.domElement.requestPointerLock(); });
+document.addEventListener('pointerlockchange', () => { locked = document.pointerLockElement === renderer.domElement; });
+addEventListener('mousemove', e => {
+  if (!locked) return;
+  look.yaw -= e.movementX * 0.0022;
+  look.pitch -= e.movementY * 0.0022;
+  look.pitch = Math.max(-1.2, Math.min(1.2, look.pitch));
+});
+
+// mobile: right half drag to look, left joystick to move
+let lookId = null, lookLast = null;
+const tzR = document.getElementById('tzR');
+tzR.addEventListener('touchstart', e => { const t = e.changedTouches[0]; lookId = t.identifier; lookLast = { x: t.clientX, y: t.clientY }; }, { passive: true });
+tzR.addEventListener('touchmove', e => {
+  for (const t of e.changedTouches) {
+    if (t.identifier !== lookId) continue;
+    look.yaw -= (t.clientX - lookLast.x) * 0.005;
+    look.pitch -= (t.clientY - lookLast.y) * 0.005;
+    look.pitch = Math.max(-1.2, Math.min(1.2, look.pitch));
+    lookLast = { x: t.clientX, y: t.clientY };
+  }
+}, { passive: true });
+tzR.addEventListener('touchend', () => { lookId = null; }, { passive: true });
+
+// joystick
+const joy = document.getElementById('joy'), knob = document.getElementById('joyKnob');
+let joyId = null, joyCenter = null;
+joy.addEventListener('touchstart', e => {
+  const t = e.changedTouches[0]; joyId = t.identifier;
+  const r = joy.getBoundingClientRect(); joyCenter = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+}, { passive: true });
+joy.addEventListener('touchmove', e => {
+  for (const t of e.changedTouches) {
+    if (t.identifier !== joyId) continue;
+    let dx = t.clientX - joyCenter.x, dy = t.clientY - joyCenter.y;
+    const max = 40, d = Math.hypot(dx, dy);
+    if (d > max) { dx *= max / d; dy *= max / d; }
+    knob.style.transform = `translate(${dx}px,${dy}px)`;
+    move.f = dy < 0 ? -dy / max : 0; move.b = dy > 0 ? dy / max : 0;
+    move.l = dx < 0 ? -dx / max : 0; move.r = dx > 0 ? dx / max : 0;
+  }
+}, { passive: true });
+joy.addEventListener('touchend', () => { joyId = null; move.f = move.b = move.l = move.r = 0; knob.style.transform = 'translate(0,0)'; }, { passive: true });
+
+// ---------------------------------------------------------------------------
+// Intro / start
+// ---------------------------------------------------------------------------
+let started = false;
+const intro = document.getElementById('intro');
+document.getElementById('enter').addEventListener('click', () => {
+  started = true;
+  intro.style.opacity = '0';
+  setTimeout(() => intro.style.display = 'none', 800);
+  if (!IS_MOBILE) renderer.domElement.requestPointerLock();
+});
+
+// ---------------------------------------------------------------------------
+// Lightning + sign flicker
+// ---------------------------------------------------------------------------
+let nextBolt = 4 + Math.random() * 6, flashT = 0;
+
+// ---------------------------------------------------------------------------
+// Loop
+// ---------------------------------------------------------------------------
+const clock = new THREE.Clock();
+document.getElementById('loading').style.display = 'none';
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+
+  // camera orientation
+  camera.rotation.order = 'YXZ';
+  camera.rotation.y = look.yaw;
+  camera.rotation.x = look.pitch;
+
+  // movement relative to facing (no flying — stay on the street)
+  if (started) {
+    const speed = (move.run ? 18 : 8);
+    const forward = (move.f - move.b);
+    const strafe = (move.r - move.l);
+    const dir = new THREE.Vector3();
+    const fwd = new THREE.Vector3(-Math.sin(look.yaw), 0, -Math.cos(look.yaw));
+    const right = new THREE.Vector3(Math.cos(look.yaw), 0, -Math.sin(look.yaw));
+    dir.addScaledVector(fwd, forward).addScaledVector(right, strafe);
+    if (dir.lengthSq() > 0) dir.normalize();
+    velocity.lerp(dir.multiplyScalar(speed), 0.15);
+    camera.position.addScaledVector(velocity, dt);
+    camera.position.y = 2.4 + Math.sin(t * 9) * (velocity.length() > 0.5 ? 0.06 : 0) ; // head bob
+    // soft bounds so you don't walk into the void
+    camera.position.x = Math.max(-7.5, Math.min(7.5, camera.position.x));
+    camera.position.z = Math.max(-170, Math.min(13, camera.position.z));
+  }
+
+  // rain fall
+  const rp = rainGeo.attributes.position.array;
+  for (let i = 0; i < RAIN; i++) {
+    rp[i * 3 + 1] -= rainVel[i] * 60 * dt;
+    rp[i * 3] -= 8 * dt; // wind slant
+    if (rp[i * 3 + 1] < 0) {
+      rp[i * 3 + 1] = 90;
+      rp[i * 3] = camera.position.x + (Math.random() - 0.5) * 160;
+      rp[i * 3 + 2] = camera.position.z + (Math.random() - 0.5) * 160;
+    }
+  }
+  rainGeo.attributes.position.needsUpdate = true;
+
+  // mist drift
+  for (const m of mists) { m.position.x += dt * 1.5; if (m.position.x > 60) m.position.x = -60; }
+
+  // neon flicker
+  for (const s of signs) {
+    const fl = 0.7 + 0.3 * Math.sin(t * 13 + s.mesh.position.z) + (Math.random() < 0.01 ? -0.6 : 0);
+    s.light.intensity = s.base * Math.max(0.15, fl);
+    s.mesh.material.color.setHex(s.color).multiplyScalar(0.6 + 0.4 * Math.max(0.15, fl));
+  }
+
+  // the woman in red sways
+  figure.rotation.y = Math.sin(t * 0.5) * 0.3;
+
+  // lightning
+  nextBolt -= dt;
+  if (nextBolt <= 0) { flashT = 0.18; nextBolt = 5 + Math.random() * 9; }
+  if (flashT > 0) { flashT -= dt; }
+  const flashVal = Math.max(0, flashT) * (Math.random() > 0.5 ? 1 : 0.4);
+  noirPass.uniforms.flash.value = flashVal * 4.0;
+  moon.intensity = 1.1 + flashVal * 18;
+
+  noirPass.uniforms.time.value = t;
+  composer.render();
+}
+animate();
+
+// ---------------------------------------------------------------------------
+// Resize
+// ---------------------------------------------------------------------------
+addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ---------------------------------------------------------------------------
+// helpers
+// ---------------------------------------------------------------------------
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function makeMistTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, 'rgba(255,255,255,0.5)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 128);
+  const tex = new THREE.CanvasTexture(c); return tex;
+}
+</script>
+</body>
+</html>
