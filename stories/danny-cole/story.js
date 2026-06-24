@@ -5,6 +5,20 @@ export default {
   title: 'INKFALL',
   subtitle: 'THE LAST DEAL OF DANNY COLE',
   blurb: 'A small man with a big debt goes looking for easy money in the underground casinos of Basin City. The house always wins. Tap through his last bad night.',
+  audio: {
+    music: 'sad_jazz.wav', musicVol: 0.5, rain: 'rain.mp3', rainVol: 0.16,
+    sfx: {
+      gunshot: { src: 'gunshot.mp3', vol: 0.95, n: 3 },
+      shell: { src: 'shell.mp3', vol: 0.5, n: 4 },
+      hammer: { src: 'hammer.mp3', vol: 0.9, n: 2 },
+      footstep: { src: 'footstep.mp3', vol: 0.5 },
+      lidopen: { src: 'lidopen.mp3', vol: 0.8 },
+      flint: { src: 'flint.mp3', vol: 0.8 },
+      neon: { src: 'neon_crackle.mp3', vol: 0.3 },
+      thunder: { src: 'thunder.mp3', vol: 0.5 },
+      whoosh: { src: 'whoosh.mp3', vol: 0.5 },
+    },
+  },
   scenes: [
 
     { // 1 · THE ITCH
