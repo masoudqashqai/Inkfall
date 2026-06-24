@@ -99,3 +99,42 @@ jobs:
           else
             echo "No preview folder '$slug' to remove."
           fi
+
+  # Keep the live preview index in the default branch README in sync. Runs after
+  # a publish or a cleanup. The commit carries [skip ci] so it never loops.
+  index:
+    needs: [publish, cleanup]
+    if: ${{ always() && (needs.publish.result == 'success' || needs.cleanup.result == 'success') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          fetch-depth: 0
+
+      - name: Update preview index
+        run: |
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          repo="${{ github.event.repository.name }}"
+          base="https://${owner}.github.io/${repo}/"
+          manifest=".github/previews.json"
+          if [ "${{ github.event_name }}" = "delete" ]; then
+            branch="${{ github.event.ref }}"
+            node .github/scripts/preview-index.mjs remove "$manifest" "$branch"
+          else
+            branch="${GITHUB_REF_NAME}"
+            slug="${branch//\//-}"
+            if [ "$branch" = "main" ]; then url="$base"; else url="${base}${slug}/"; fi
+            node .github/scripts/preview-index.mjs upsert "$manifest" "$branch" "$url" "${GITHUB_SHA:0:7}" "$(date -u '+%Y-%m-%d %H:%M')"
+          fi
+          node .github/scripts/preview-index.mjs render "$manifest" README.md
+          if git diff --quiet; then
+            echo "Index already up to date."
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+          git add "$manifest" README.md
+          git commit -m "docs: update live preview index [skip ci]"
+          git push origin HEAD:${{ github.event.repository.default_branch }}
