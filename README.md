@@ -1,116 +1,101 @@
-# INKFALL — a noir story engine
+# INKFALL, a noir story engine
 
-A tiny **framework for noir comic scenes**, and a story told with it. Two plain files —
-`index.html` (the engine) and `story.js` (the content) — drawn on an HTML5 `<canvas>`
-with no libraries, no build step, and no internet at runtime. Works on any phone, even
-offline.
-
-The idea (the whole point): the **engine** owns the *look* — a fixed black-and-white
-palette where only the things that bleed keep their colour, declared light sources, rain,
-film grain, vignette, lightning, scene transitions, and comic-caption narration. The
-**story is just data** (`window.INKFALL_STORY` in `story.js`). To tell a different tale
-you edit that data, not the engine.
+A small framework for noir comic scenes, and the stories told with it. Drawn on an HTML5
+`<canvas>` with no libraries and no build step. The engine owns the look (a fixed black and
+white palette where only the things that bleed keep their colour, declared light sources,
+rain, film grain, vignette, lightning, scene transitions, comic captions). A story is just
+data. To tell a different tale you edit data, not the engine.
 
 ```
 ┌─────────────────────────────┐        ┌──────────────────────────────┐
-│  NOIR ENGINE (the grammar)  │  ◀───  │  STORY (pure data)           │
-│  palette · lights · rain    │        │  scenes → backdrop, lights,  │
+│  NOIR ENGINE (the grammar)  │  ◀───  │  STORIES (pure data)         │
+│  palette · lighting · rain  │        │  scenes → backdrop, lights,  │
 │  grain · vignette · bolts   │        │  cast, script (the lines)    │
 │  transitions · captions     │        └──────────────────────────────┘
 └─────────────────────────────┘
 ```
 
+## Structure
+
+The engine is split into small native ES module files. See [`AGENTS.md`](AGENTS.md) for the
+full map and [`stories/SCHEMA.md`](stories/SCHEMA.md) for the story data shape. In short:
+
+- `index.html`, a thin shell that loads `styles/inkfall.css` and `src/boot.js`
+- `src/engine/`, the loop, camera, compositor (the world drawn to the main canvas + an offscreen additive light buffer)
+- `src/render/`, the lighting + shadow service and the render passes (sky, lighting, weather, post, transition)
+- `src/style/`, the palette and the shared materials (the central look knobs)
+- `src/objects/`, the lightweight object model (Actor, Mover, Prop, Effect, Light) + the registry
+- `src/library/`, the art by category, each self registering on import
+- `src/scene/`, the Scene and the Manager (flow, transitions, narration)
+- `stories/`, the tales (`manifest.js` + one folder per story) and `SCHEMA.md`
+- `assets/audio/`, shared sounds, declared per story
+- `_legacy/`, older versions, archived
+
+## Run it
+
+Two ways:
+
+- **Serve it (for editing).** Native ES modules need an HTTP origin, so `index.html` does not
+  open straight from disk. Run a static server and open it:
+
+  ```
+  python3 -m http.server 8000   # then open http://localhost:8000/
+  ```
+
+- **Double-click, no server.** Run `node build.mjs` once. It inlines the whole module graph and
+  the CSS into a single standalone `inkfall.html` that opens directly from `file://`, no server
+  and no dependencies. Rebuild after you change the source. (The reason the modular `index.html`
+  needs a server but `inkfall.html` does not: browsers block ES module loading over `file://`,
+  while a single classic script is allowed. It was never about the asset paths.)
+
 ## Live on GitHub Pages
 
-> **Repo → Settings → Pages → Source: _Deploy from a branch_ → `main` / `/(root)` → Save.**
+> Repo, Settings, Pages, Source: Deploy from a branch, `main` / `/(root)`, Save.
 
-Then it's live at `https://masoudqashqai.github.io/Inkfall/` and every push to `main`
-redeploys. The browser/CDN caches the old page, so after a push either hard-refresh or
-open `…/Inkfall/?v=N` (any new number) to force the latest. A small **build tag** in the
-bottom-left corner tells you which version you're actually running.
+Every push to `main` redeploys. There is no build step, the repo is the static site, and
+`.nojekyll` keeps file paths served as is. A small build tag in the bottom left corner tells
+you which version is running.
 
-Locally: `python3 -m http.server 8000`, or just open `index.html` from disk.
+## Controls (touch and mouse)
 
-## Controls — touch only
+- Tap, next caption or next scene
+- Drag, look across the scene (parallax)
+- Hold, call down a lightning strike
 
-- **Tap** — next caption / next scene
-- **Drag** — look across the scene (parallax)
-- **Hold** — call down a lightning strike
+## The bundled stories
 
-## The default story
+- A Hallucination of Sin City, the original wordless noir mood piece: a woman in red, a lit
+  cigarette, two shots in an alley, a rooftop where the rain lies about washing it clean.
+- The Last Deal of Danny Cole, a small man with a big debt loses everything in the underground
+  casinos, kills a man by accident, and is gunned down by the mob. Five scenes.
 
-`story.js` ships with **“The Last Deal of Danny Cole”** — a small man tries to get rich
-in the underground casinos of Basin City, loses everything, kills a man by accident in
-the alley, and is gunned down by the mob. Five scenes: **The Itch → The Table → The Loss
-→ The Accident → The Reckoning.**
+## Writing a story
 
-## Writing a story — two ways
+Create `stories/<id>/story.js` that does `export default { ... }` (see
+[`stories/SCHEMA.md`](stories/SCHEMA.md)) and add an entry to `stories/manifest.js`. It appears
+on the intro picker and is lazy loaded on selection. Or tap the STORY button to edit the current
+story as JSON and play it live (it is remembered in your browser). Stories are pure data, so the
+editor works for any of them.
 
-**1. Edit `story.js`.** The whole tale is the data in `window.INKFALL_STORY`. Change a
-line, add a scene, swap a backdrop — no engine code involved.
-
-**2. Use the in-app editor.** Tap **✎ STORY** (top-right). It opens the current story as
-JSON; edit or paste a new one and hit **▶ PLAY** to run it instantly. What you play is
-saved in your browser (`localStorage`), so it survives a refresh; **DEFAULT** restores
-Danny Cole. This is the fastest way to feed it a story from your phone.
-
-A story is a list of scenes. Each scene names a **backdrop**, declares its **lights**,
-places a **cast** of actors at normalized `x` (0 = left, 1 = right), and lists a
-**script** of caption lines. A line can fire effects (`muzzle`, `blood`, `lightning`),
-and a cast member can be revealed or hidden by those effects via `onFlag` / `hideOnFlag`
-(e.g. a standing man `hideOnFlag: 'blood'` and a body `onFlag: 'blood'` swap on the shot).
-
-Story data is plain JSON — colours are **hex strings** (`'#ffd400'`), not `PALETTE.*` or
-any JavaScript, so it pastes straight into the in-app editor:
-
-```js
-{
-  title: 'THE&nbsp;STREET',
-  ground: 0.8,                          // where the street meets the wall (0..1 of height)
-  keyLight: { x: 0.3, y: 0.5 },         // direction figures are rim-lit from
-  backdrop: { type: 'skyline', seed: 20051993, layers: [...], reflect: [...] },
-  lights: [
-    { type: 'lamp', x: 0.30, flicker: true },
-    { type: 'neon', x: 0.66, y: 0.30, w: 40, h: 120, color: '#ffd400', label: 'XXX' },
-  ],
-  cast: [
-    { actor: 'redCar',     x: 0.84, scale: 0.7 },
-    { actor: 'womanInRed', x: 0.62, scale: 0.8 },
-    { actor: 'trenchMan',  x: 0.34, smoke: true },
-  ],
-  script: [
-    { text: 'She walks past in a dress the colour of <b>fresh blood</b>.' },
-    { text: 'Two shots. The bricks wear <b>red</b>.', fx: ['muzzle', 'blood', 'lightning'] },
-  ],
-}
-```
-
-**Built-in backdrops:** `skyline`, `alley`, `rooftop`, `room` (interior — sets
-`indoor: true`, so rain and lightning don't fall inside).
-**Built-in light types:** `lamp`, `neon`, `bulb`, `glow`.
-**Built-in actors:**
-- *people* — `trenchMan` (detective), `thug`, `boss`, `gunman`, `dealer`, `womanInRed`, `singer`
-- *weapons* — `knife` (`bloody:true` for a drip), `pistol`, `tommyGun`
-- *casino* — `cardTable`, `slotMachine`, `rouletteWheel`, `drink` (`kind:'martini'|'whiskey'`), `cash`
-- *street/props* — `redCar`, `barrelFire`, `fireHydrant`, `payphone`, `streetSign`, `cat`, `steam`, `crow`, `waterTower`, `newspaper`, `searchlight`
-- *aftermath* — `bloodSplat`, `bodyOnGround`, `chalkOutline`
-
-Common cast options: `x` (0..1), `y` (0..1, for floating props), `scale`, `dy` (vertical
-nudge in units), `par` (parallax factor), `flip`, plus actor-specific ones noted above.
-
-Inline `<b>…</b>` in a line renders **red**, like a Sin City caption.
+A story is a list of scenes. Each scene names a backdrop, declares its lights, places a cast of
+objects at normalized `x` (0 = left, 1 = right), and lists a script of caption lines. A line can
+fire effects (`muzzle`, `blood`, `lightning`, `lighter`), and a cast member can be revealed or
+hidden by those effects via `onFlag` / `hideOnFlag`. Inline `<b>...</b>` renders red.
 
 ## Extending the engine
 
-Add a prop once and every story can use it by name:
+Add an object once and every story can place it by name. In a `src/library/**` file:
 
 ```js
-Noir.registerActor('streetSign', (e, p) => {
-  const c = e.ctx, X = e.X(p);          // e = engine env: ctx, W, H, t, gy, unit, palette…
-  // ...draw using e.palette so it stays on-style...
+defineProp('streetSign', function (e) {
+  const c = e.ctx, X = e.X(this);     // `this` = the placed instance, `e` = the frame
+  // draw using the shared shading + e.groundShadow so it stays on style
 });
 ```
 
-Backdrops are `{ build(e, sc), draw(e, sc) }` (build precomputes geometry on resize).
+To emit light, pass `emitLight(e)` that calls `e.addLight({ x, y, col, r, I, ... })`, and the
+lighting pass draws its halo and floor reflection. Backdrops are
+`defineBackdrop(name, data => ({ build(e), draw(e), indoor? }))`. See [`AGENTS.md`](AGENTS.md) for
+the conventions and the planned animation system.
 
-It's a hallucination, not the comic — a mood, and a machine for making more of them.
+It is a hallucination, not the comic. A mood, and a machine for making more of them.

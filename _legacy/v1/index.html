@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#000000" />
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
 <title>INKFALL — a noir story engine</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -28,24 +30,15 @@
 <div id="build"></div>
 <button id="editbtn">✎ STORY</button>
 <button id="mute" title="sound">♪</button>
-<button id="shoot" title="save a poster of this frame">❏</button>
 <div id="scenenav"></div>
-
-<div id="poster">
-  <img id="posterimg" alt="Inkfall poster" />
-  <div class="poster-row">
-    <a id="posterdl" download="inkfall.png">SAVE</a>
-    <button id="posterclose">BACK TO THE RAIN</button>
-  </div>
-</div>
 <div id="editor">
   <div class="ed-head">STORY EDITOR — JSON</div>
   <textarea id="ed-text" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
   <div id="ed-err"></div>
-  <div class="ed-help">backdrops: skyline · alley · rooftop · room &nbsp;|&nbsp; lights: lamp · neon · bulb · glow &nbsp;|&nbsp; people: trenchMan · thug · boss · gunman · dealer · womanInRed · singer &nbsp;|&nbsp; animals: cat · crow &nbsp;|&nbsp; movers: redCar &nbsp;|&nbsp; weapons: knife · pistol · tommyGun &nbsp;|&nbsp; casino: cardTable · slotMachine · rouletteWheel · drink · cash &nbsp;|&nbsp; street: trafficLight · barrelFire · fireHydrant · payphone · streetSign · waterTower · dumpster · manhole &nbsp;|&nbsp; effects: steam · searchlight · newspaper · bloodSplat · bodyOnGround · chalkOutline · bloodDrain &nbsp;|&nbsp; line fx: muzzle · blood · lightning · hammer · lighter &nbsp;|&nbsp; reveal/hide with onFlag / hideOnFlag</div>
+  <div class="ed-help">backdrops: skyline · alley · rooftop · room &nbsp;|&nbsp; lights: lamp · neon · bulb · glow &nbsp;|&nbsp; people: trenchMan · thug · boss · gunman · dealer · womanInRed · singer &nbsp;|&nbsp; weapons: knife · pistol · tommyGun &nbsp;|&nbsp; casino: cardTable · slotMachine · rouletteWheel · drink · cash &nbsp;|&nbsp; props: redCar · trafficLight · barrelFire · fireHydrant · payphone · streetSign · cat · steam · crow · waterTower · newspaper · searchlight · bloodSplat · bodyOnGround · chalkOutline &nbsp;|&nbsp; line fx: muzzle · blood · lightning &nbsp;|&nbsp; reveal/hide with onFlag / hideOnFlag</div>
   <div class="ed-btns"><button id="ed-play">▶ PLAY</button><button id="ed-reset">DEFAULT</button><button id="ed-close">CLOSE</button></div>
 </div>
 
-<script type="module" src="src/boot.js"></script>
+<script type="module" src="src/main.js"></script>
 </body>
 </html>

@@ -1,23 +1,17 @@
 /* =====================================================================================
-   INKFALL — the default story (pure data; no engine code here).
-   Loaded by index.html as window.INKFALL_STORY, and editable live via the in-app editor.
+   INKFALL — STORY: "The Last Deal of Danny Cole" (pure data; no engine code here).
+   `export default` a story object; the manifest lazy-loads it on selection, and it is
+   also editable live via the in-app editor.
 
-   A story = { title, subtitle, blurb, scenes: [ ... ] }.
-   A scene = {
-     title, ground (0..1), keyLight {x,y}, moon {x,y},
-     backdrop: { type, ...options },        // skyline | alley | rooftop | room
-     lights:  [ { type, ... } ],            // lamp | neon | bulb | glow
-     cast:    [ { actor, x, scale, ... } ], // x is 0..1 across the screen
-     script:  [ { text, fx? } ],            // fx: 'muzzle' | 'blood' | 'lightning'
-   }
-   Reveal/hide a cast member with onFlag / hideOnFlag (flags are set by a line's fx).
-   Wrap words in <b>…</b> to print them in blood red.
+   A story = { title, subtitle, blurb, audio?, scenes: [...] }. See stories/SCHEMA.md for
+   the full shape. Reveal/hide a cast member with onFlag / hideOnFlag (flags are set by a
+   line's fx). Wrap words in <b>…</b> to print them in blood red.
 
    THE TALE: Danny Cole tries to get rich in the underground casinos of Basin City,
    loses everything, kills a man by accident in the alley, and is gunned down by the
    mob. Five scenes, one bad night.
    ===================================================================================== */
-window.INKFALL_STORY = {
+export default {
   title: 'INKFALL',
   subtitle: 'THE LAST DEAL OF DANNY COLE',
   blurb: 'A small man with a big debt goes looking for easy money in the underground casinos of Basin City. The house always wins. Tap through his last bad night.',
