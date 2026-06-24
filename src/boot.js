@@ -9,7 +9,7 @@ import './library/index.js';
 import { STORIES } from '../stories/manifest.js';
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 30 · trafficlight + mobile'
+const BUILD = 'v2 build 31 · mobile flicker fix'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 
