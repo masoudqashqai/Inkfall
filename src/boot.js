@@ -9,7 +9,7 @@ import './library/index.js';
 import { STORIES } from '../stories/manifest.js';
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 36 · bigger UI everywhere'
+const BUILD = 'v2 build 37 · bigger intro'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 
