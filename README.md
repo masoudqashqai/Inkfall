@@ -1,70 +1,89 @@
-# INKFALL — a hallucination of *Sin City*
+# INKFALL — a noir story engine
 
-A 2D noir tableau that runs in any phone or desktop browser. No build step, no install,
-no libraries, no internet needed at runtime — it's a single `index.html` drawn entirely
-on an HTML5 `<canvas>`.
+A tiny **framework for noir comic scenes**, and a story told with it. One single
+`index.html`, drawn on an HTML5 `<canvas>` — no libraries, no build step, no internet at
+runtime. Works on any phone, even offline.
 
-The look is a dream of Frank Miller's **Sin City** / Basin City: stark high-contrast
-black & white, rain that never stops, film grain and a heavy vignette — and the only
-things that keep their colour are the ones that *bleed*. A woman in a red dress walking
-away, red & yellow neon humming over the street, the ember of a cigarette.
+The idea (the whole point): the **engine** owns the *look* — a fixed black-and-white
+palette where only the things that bleed keep their colour, declared light sources, rain,
+film grain, vignette, lightning, scene transitions, and comic-caption narration. The
+**story is just data**. To tell a different tale you edit the `STORY` object, not the
+engine.
 
-You stand on the wet street as a trench-coat figure under a streetlamp while
-hard-boiled captions narrate the night.
+```
+┌─────────────────────────────┐        ┌──────────────────────────────┐
+│  NOIR ENGINE (the grammar)  │  ◀───  │  STORY (pure data)           │
+│  palette · lights · rain    │        │  scenes → backdrop, lights,  │
+│  grain · vignette · bolts   │        │  cast, script (the lines)    │
+│  transitions · captions     │        └──────────────────────────────┘
+└─────────────────────────────┘
+```
 
 ## Live on GitHub Pages
 
-One-time setup (takes ~10 seconds, must be done by the repo owner):
+> **Repo → Settings → Pages → Source: _Deploy from a branch_ → `main` / `/(root)` → Save.**
 
-> **Repo → Settings → Pages → Build and deployment**
-> **→ Source: _Deploy from a branch_ → Branch: `main` / `/ (root)` → Save.**
+Then it's live at `https://masoudqashqai.github.io/Inkfall/` and every push to `main`
+redeploys. (Hard-refresh on your phone after a push — the browser caches the old page.)
 
-GitHub then serves the site at:
-
-```
-https://masoudqashqai.github.io/Inkfall/
-```
-
-Every push to `main` automatically redeploys. Open that URL on your phone — that's the
-whole experience.
-
-## Run it locally
-
-```bash
-python3 -m http.server 8000   # then visit http://localhost:8000
-```
-
-It also works opened straight from disk (`file://`) — no server required, since there
-are no external dependencies.
-
-## Three scenes, one long night
-
-Tapping walks you through a noir story that re-stages itself with an ink wipe:
-
-1. **The Street** — a trench-coat man under a streetlamp (cigarette smoke and ember),
-   the woman in red walking away, a parked red car, neon, manhole steam.
-2. **The Alley** — converging brick walls, fire escapes, a hanging bulb, a gunman in
-   the doorway with a red/yellow muzzle flash, blood on the bricks, blowing newspaper.
-3. **The Rooftop** — the city as a field of dirty stars, a water tower, power lines
-   with a crow, a sweeping searchlight, and a lone figure on the ledge.
+Locally: `python3 -m http.server 8000`, or just open `index.html` from disk.
 
 ## Controls — touch only
 
 - **Tap** — next caption / next scene
-- **Drag** — look left/right (parallax across the city)
-- **Hold** — call down a lightning strike (jagged bolt + flash)
+- **Drag** — look across the scene (parallax)
+- **Hold** — call down a lightning strike
 
-(Mouse also works for quick testing on a laptop.)
+## Writing a story
 
-## How the noir look is made
+A story is a list of scenes. Each scene names a **backdrop**, declares its **lights**,
+places a **cast** of actors at normalized `x` (0 = left, 1 = right), and lists a
+**script** of caption lines. A line can fire effects (`muzzle`, `blood`, `lightning`).
 
-Everything is hand-drawn on a 2D canvas, so the selective colour is trivial: the whole
-palette is grayscale **except** the things drawn in red/yellow (the dress, the neon, the
-cigarette ember). On top of that:
+```js
+{
+  title: 'THE&nbsp;STREET',
+  ground: 0.8,                          // where the street meets the wall (0..1 of height)
+  keyLight: { x: 0.3, y: 0.5 },         // direction figures are rim-lit from
+  backdrop: { type: 'skyline', seed: 20051993, layers: [...], reflect: [...] },
+  lights: [
+    { type: 'lamp', x: 0.30, flicker: true },
+    { type: 'neon', x: 0.66, y: 0.30, w: 40, h: 120, color: PALETTE.amber, label: 'XXX' },
+  ],
+  cast: [
+    { actor: 'redCar',     x: 0.84, scale: 0.7 },
+    { actor: 'womanInRed', x: 0.62, scale: 0.8 },
+    { actor: 'trenchMan',  x: 0.34, smoke: true },
+  ],
+  script: [
+    { text: 'She walks past in a dress the colour of <b>fresh blood</b>.' },
+    { text: 'Two shots. The bricks wear <b>red</b>.', fx: ['muzzle', 'blood', 'lightning'] },
+  ],
+}
+```
 
-- a seeded, parallaxing city skyline (3 depth layers) with scattered lit windows,
-- slanted rain, a cone-of-light streetlamp, a bruised crescent moon,
-- procedural film grain, a radial vignette, and timed lightning flashes,
-- comic-panel caption boxes with original hard-boiled narration.
+**Built-in backdrops:** `skyline`, `alley`, `rooftop`.
+**Built-in light types:** `lamp`, `neon`, `bulb`, `glow`.
+**Built-in actors:** `trenchMan`, `womanInRed`, `gunman`, `redCar`, `steam`,
+`bloodSplat`, `crow`, `waterTower`, `newspaper`, `searchlight`.
 
-It's a hallucination, not the comic — a mood, not a port.
+Inline `<b>…</b>` in a line renders **red**, like a Sin City caption.
+
+## Extending the engine
+
+Add a prop once and every story can use it by name:
+
+```js
+Noir.registerActor('streetSign', (e, p) => {
+  const c = e.ctx, X = e.X(p);          // e = engine env: ctx, W, H, t, gy, unit, palette…
+  // ...draw using e.palette so it stays on-style...
+});
+```
+
+Backdrops are `{ build(e, sc), draw(e, sc) }` (build precomputes geometry on resize).
+
+## The current story
+
+Three scenes, cycling: **The Street** → **The Alley** → **The Rooftop**, each re-staged
+with an ink-wipe as you tap through hard-boiled narration. It's a hallucination, not the
+comic — a mood, and a machine for making more of them.
