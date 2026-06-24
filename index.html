@@ -202,8 +202,16 @@ const Noir = {
     const c = this.ctx, fl = (Math.sin(this.t * 9 + seed) > -0.7) ? (0.7 + 0.3 * Math.sin(this.t * 25 + seed)) : 0.16;
     c.save(); c.strokeStyle = color; c.lineWidth = 3; c.shadowColor = color; c.shadowBlur = 18 * fl;
     c.globalAlpha = 0.35 + 0.65 * fl; c.strokeRect(x, y, w, h);
-    c.fillStyle = color; c.font = `bold ${Math.floor(h * 0.5)}px "Courier New",monospace`; c.textAlign = 'center'; c.textBaseline = 'middle';
-    c.fillText(label, x + w / 2, y + h / 2 + 1); c.restore(); c.shadowBlur = 0; c.globalAlpha = 1;
+    c.fillStyle = color; c.textAlign = 'center'; c.textBaseline = 'middle';
+    const n = Math.max(1, label.length);
+    if (h > w * 1.5) {                                   // tall sign → stack letters vertically
+      const fs = Math.min(w * 0.66, (h - 8) / n); c.font = `bold ${fs}px "Courier New",monospace`;
+      for (let i = 0; i < n; i++) c.fillText(label[i], x + w / 2, y + (i + 0.5) * h / n);
+    } else {                                             // wide sign → fit text to the box
+      const fs = Math.min(h * 0.6, (w - 10) / n * 1.7); c.font = `bold ${fs}px "Courier New",monospace`;
+      c.fillText(label, x + w / 2, y + h / 2 + 1);
+    }
+    c.restore(); c.shadowBlur = 0; c.globalAlpha = 1;
   },
   _bulb(x, y, fl) {
     const c = this.ctx; c.strokeStyle = PALETTE.ink; c.lineWidth = 1; c.beginPath(); c.moveTo(x, y - 95); c.lineTo(x, y); c.stroke();
@@ -327,7 +335,12 @@ const Noir = {
 // =====================================================================================
 const TWO_PI = Math.PI * 2;
 function rimSign(e, p) { return (e.keyLight.x < p.x) ? -1 : 1; }       // which edge catches the light
-function bodyGrad(c, h, s) { const g = c.createLinearGradient(0, -h * s, 0, 0); g.addColorStop(0, '#0b0c10'); g.addColorStop(1, '#020203'); return g; }
+function bodyGrad(c, h, s, rim) {   // horizontal "form" light: a lit charcoal edge on the key-light side
+  rim = rim || 1;
+  const g = c.createLinearGradient(rim * 34 * s, 0, -rim * 34 * s, 0);
+  g.addColorStop(0, '#3a4049'); g.addColorStop(0.42, '#181b21'); g.addColorStop(1, '#080909');
+  return g;
+}
 function shadowPool(c, x, y, rx, ry) { c.save(); c.globalAlpha = 0.32; c.fillStyle = '#000'; c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, TWO_PI); c.fill(); c.restore(); }
 function ember(c, x, y, s, t) { const em = 0.6 + 0.4 * Math.sin(t * ANIM.emberSpeed); c.save(); c.fillStyle = `rgba(255,60,30,${0.7 + 0.3 * em})`; c.shadowColor = PALETTE.ember; c.shadowBlur = 10 * em; c.beginPath(); c.arc(x, y, 1.9 * s, 0, TWO_PI); c.fill(); c.restore(); }
 function cigSmoke(c, x, y, s, t) {  // soft rising puffs, not a hard line
@@ -338,17 +351,17 @@ function cigSmoke(c, x, y, s, t) {  // soft rising puffs, not a hard line
 function drawFedora(c, cx, cy, r, rim) {                 // a proper snap-brim fedora
   c.save(); c.translate(cx, cy);
   c.fillStyle = PALETTE.ink;
-  c.beginPath(); c.ellipse(0, 0, r * 1.5, r * 0.34, 0, 0, TWO_PI); c.fill();             // brim
-  c.beginPath();                                                                          // domed crown w/ centre dent
-  c.moveTo(-r * 0.9, 0);
-  c.quadraticCurveTo(-r * 0.96, -r * 0.92, -r * 0.42, -r * 1.0);
-  c.quadraticCurveTo(-r * 0.15, -r * 1.1, 0, -r * 0.9);
-  c.quadraticCurveTo(r * 0.15, -r * 1.1, r * 0.42, -r * 1.0);
-  c.quadraticCurveTo(r * 0.96, -r * 0.92, r * 0.9, 0);
+  c.beginPath(); c.ellipse(0, r * 0.06, r * 1.62, r * 0.32, 0, 0, TWO_PI); c.fill();      // wide brim, front snapped down
+  c.beginPath();                                                                          // lower domed crown w/ centre dent
+  c.moveTo(-r * 0.8, -r * 0.04);
+  c.quadraticCurveTo(-r * 0.86, -r * 0.82, -r * 0.4, -r * 0.9);
+  c.quadraticCurveTo(-r * 0.16, -r * 1.0, 0, -r * 0.82);
+  c.quadraticCurveTo(r * 0.16, -r * 1.0, r * 0.4, -r * 0.9);
+  c.quadraticCurveTo(r * 0.86, -r * 0.82, r * 0.8, -r * 0.04);
   c.closePath(); c.fill();
-  c.fillStyle = '#10121a'; c.fillRect(-r * 0.9, -r * 0.18, r * 1.8, r * 0.2);            // hat band
-  c.strokeStyle = 'rgba(200,210,230,0.3)'; c.lineWidth = 1;                              // light catch on the lit brim edge
-  c.beginPath(); c.moveTo(rim * r * 1.4, -r * 0.04); c.quadraticCurveTo(rim * r * 0.8, -r * 0.32, 0, -r * 0.3); c.stroke();
+  c.fillStyle = '#10121a'; c.fillRect(-r * 0.8, -r * 0.16, r * 1.6, r * 0.16);           // hat band
+  c.strokeStyle = 'rgba(200,210,230,0.28)'; c.lineWidth = 1;                             // faint light catch on the crown's lit side
+  c.beginPath(); c.moveTo(rim * r * 0.7, -r * 0.86); c.quadraticCurveTo(rim * r * 0.86, -r * 0.5, rim * r * 0.78, -r * 0.08); c.stroke();
   c.restore();
 }
 function drawPistol(c, x, y, s) {
@@ -371,19 +384,17 @@ Noir.registerActor('trenchMan', (e, p) => {                 // the detective: tr
   shadowPool(c, 0, 6 * s, 36 * s, 8 * s);
   c.fillStyle = '#050608'; c.fillRect(-13 * s, -32 * s, 11 * s, 32 * s); c.fillRect(3 * s, -32 * s, 11 * s, 32 * s);
   c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-9 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(10 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.fill();
-  c.fillStyle = bodyGrad(c, 96, s);
+  c.fillStyle = bodyGrad(c, 96, s, rim);
   c.beginPath(); c.moveTo(-22 * s, -36 * s); c.lineTo(-18 * s, -92 * s); c.lineTo(18 * s, -92 * s); c.lineTo(22 * s, -36 * s); c.quadraticCurveTo(0, -28 * s, -22 * s, -36 * s); c.closePath(); c.fill();
   c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 1.5 * s; c.beginPath(); c.moveTo(2 * s, -90 * s); c.lineTo(5 * s, -38 * s); c.stroke();
   c.fillStyle = '#0c0d10'; c.fillRect(-20 * s, -58 * s, 40 * s, 6 * s); c.fillStyle = '#26282e'; c.fillRect(-4 * s, -58 * s, 8 * s, 6 * s);  // belt + buckle
-  c.fillStyle = bodyGrad(c, 24, s);
+  c.fillStyle = bodyGrad(c, 24, s, rim);
   c.beginPath(); c.moveTo(-26 * s, -90 * s); c.quadraticCurveTo(0, -104 * s, 26 * s, -90 * s); c.lineTo(18 * s, -84 * s); c.quadraticCurveTo(0, -94 * s, -18 * s, -84 * s); c.closePath(); c.fill();
   c.fillStyle = PALETTE.ink; c.beginPath(); c.moveTo(-10 * s, -96 * s); c.lineTo(-2 * s, -107 * s); c.lineTo(-1 * s, -92 * s); c.closePath(); c.moveTo(10 * s, -96 * s); c.lineTo(2 * s, -107 * s); c.lineTo(1 * s, -92 * s); c.closePath(); c.fill();
   c.fillStyle = '#15161a'; c.fillRect(-6 * s, -104 * s, 12 * s, 10 * s);
   c.fillStyle = '#1a1b20'; c.beginPath(); c.arc(0, -112 * s, 10 * s, 0, TWO_PI); c.fill();
   c.fillStyle = PALETTE.ink; c.beginPath(); c.arc(0, -112 * s, 10 * s, Math.PI * 1.15, Math.PI * 1.95); c.fill();
   drawFedora(c, 0, -120 * s, 13 * s, rim);
-  c.strokeStyle = 'rgba(210,220,240,0.5)'; c.lineWidth = 1.6 * s;
-  c.beginPath(); c.moveTo(rim * 22 * s, -38 * s); c.lineTo(rim * 18 * s, -90 * s); c.stroke();
   if (p.smoke) cigSmoke(c, 12 * s, -104 * s, s, t);
   ember(c, 13 * s, -104 * s, s, t);
   c.restore();
@@ -395,17 +406,16 @@ Noir.registerActor('thug', (e, p) => {                      // the heavy: broad,
   shadowPool(c, 0, 6 * s, 44 * s, 9 * s);
   c.fillStyle = '#050608'; c.fillRect(-18 * s, -36 * s, 15 * s, 36 * s); c.fillRect(3 * s, -36 * s, 15 * s, 36 * s);
   c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-11 * s, -1 * s, 12 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(12 * s, -1 * s, 12 * s, 4 * s, 0, 0, TWO_PI); c.fill();
-  c.fillStyle = bodyGrad(c, 82, s);
+  c.fillStyle = bodyGrad(c, 82, s, rim);
   c.beginPath(); c.moveTo(-30 * s, -36 * s); c.lineTo(-34 * s, -78 * s); c.quadraticCurveTo(0, -96 * s, 34 * s, -78 * s); c.lineTo(30 * s, -36 * s); c.quadraticCurveTo(0, -28 * s, -30 * s, -36 * s); c.closePath(); c.fill();
   c.fillStyle = '#cfcdc3'; c.beginPath(); c.moveTo(-6 * s, -82 * s); c.lineTo(6 * s, -82 * s); c.lineTo(3 * s, -54 * s); c.lineTo(-3 * s, -54 * s); c.closePath(); c.fill();
   c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(-2.5 * s, -80 * s); c.lineTo(2.5 * s, -80 * s); c.lineTo(1.5 * s, -56 * s); c.lineTo(-1.5 * s, -56 * s); c.closePath(); c.fill();
-  c.fillStyle = bodyGrad(c, 36, s); c.beginPath(); c.moveTo(-12 * s, -84 * s); c.lineTo(-6 * s, -82 * s); c.lineTo(-7 * s, -52 * s); c.lineTo(-16 * s, -56 * s); c.closePath(); c.moveTo(12 * s, -84 * s); c.lineTo(6 * s, -82 * s); c.lineTo(7 * s, -52 * s); c.lineTo(16 * s, -56 * s); c.closePath(); c.fill();
+  c.fillStyle = bodyGrad(c, 36, s, rim); c.beginPath(); c.moveTo(-12 * s, -84 * s); c.lineTo(-6 * s, -82 * s); c.lineTo(-7 * s, -52 * s); c.lineTo(-16 * s, -56 * s); c.closePath(); c.moveTo(12 * s, -84 * s); c.lineTo(6 * s, -82 * s); c.lineTo(7 * s, -52 * s); c.lineTo(16 * s, -56 * s); c.closePath(); c.fill();
   c.fillStyle = PALETTE.ink; c.fillRect(-34 * s, -80 * s, 9 * s, 42 * s); c.fillRect(25 * s, -80 * s, 9 * s, 42 * s);
   c.beginPath(); c.arc(-30 * s, -36 * s, 7 * s, 0, TWO_PI); c.arc(30 * s, -36 * s, 7 * s, 0, TWO_PI); c.fill();
   c.fillStyle = '#1a1b20'; c.beginPath(); c.arc(0, -90 * s, 11 * s, 0, TWO_PI); c.fill();
   c.fillStyle = PALETTE.ink; c.beginPath(); c.arc(0, -90 * s, 11 * s, Math.PI * 1.1, Math.PI * 2.0); c.fill();
   c.beginPath(); c.arc(0, -98 * s, 11 * s, Math.PI, 0); c.fill(); c.beginPath(); c.ellipse(-9 * s, -98 * s, 9 * s, 3 * s, 0, 0, TWO_PI); c.fill();  // flat cap + brim
-  c.strokeStyle = 'rgba(220,228,245,0.7)'; c.lineWidth = 2 * s; c.beginPath(); c.moveTo(rim * 34 * s, -76 * s); c.lineTo(rim * 30 * s, -38 * s); c.stroke();
   c.restore();
 });
 
@@ -415,7 +425,7 @@ Noir.registerActor('boss', (e, p) => {                      // mob boss: pinstri
   shadowPool(c, 0, 6 * s, 34 * s, 8 * s);
   c.fillStyle = '#050608'; c.fillRect(-13 * s, -32 * s, 11 * s, 32 * s); c.fillRect(3 * s, -32 * s, 11 * s, 32 * s);
   c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-9 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(10 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.fill();
-  c.fillStyle = bodyGrad(c, 92, s);
+  c.fillStyle = bodyGrad(c, 92, s, rim);
   c.beginPath(); c.moveTo(-24 * s, -34 * s); c.lineTo(-20 * s, -88 * s); c.quadraticCurveTo(0, -100 * s, 20 * s, -88 * s); c.lineTo(24 * s, -34 * s); c.quadraticCurveTo(0, -28 * s, -24 * s, -34 * s); c.closePath(); c.fill();
   c.strokeStyle = 'rgba(150,160,180,0.16)'; c.lineWidth = 1; for (let i = -3; i <= 3; i++) { c.beginPath(); c.moveTo(i * 6 * s, -88 * s); c.lineTo(i * 6 * s + i * 1.2 * s, -34 * s); c.stroke(); }
   c.fillStyle = '#cfcdc3'; c.beginPath(); c.moveTo(-5 * s, -88 * s); c.lineTo(5 * s, -88 * s); c.lineTo(3 * s, -60 * s); c.lineTo(-3 * s, -60 * s); c.closePath(); c.fill();
@@ -427,7 +437,6 @@ Noir.registerActor('boss', (e, p) => {                      // mob boss: pinstri
   c.fillStyle = '#3a2a1c'; c.fillRect(6 * s, -104 * s, 13 * s, 3 * s);
   cigSmoke(c, 19 * s, -104 * s, s, t);
   c.save(); c.fillStyle = 'rgba(255,80,30,0.95)'; c.shadowColor = PALETTE.ember; c.shadowBlur = 12; c.beginPath(); c.arc(19 * s, -102.5 * s, 2.4 * s, 0, TWO_PI); c.fill(); c.restore();
-  c.strokeStyle = 'rgba(220,228,245,0.7)'; c.lineWidth = 2 * s; c.beginPath(); c.moveTo(rim * 24 * s, -36 * s); c.lineTo(rim * 20 * s, -86 * s); c.stroke();
   c.restore();
 });
 
@@ -437,7 +446,7 @@ Noir.registerActor('gunman', (e, p) => {                    // shooter, arm exte
   shadowPool(c, 0, 6 * s, 32 * s, 8 * s);
   c.fillStyle = '#050608'; c.fillRect(-12 * s, -32 * s, 10 * s, 32 * s); c.fillRect(4 * s, -32 * s, 10 * s, 32 * s);
   c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-8 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(11 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.fill();
-  c.fillStyle = bodyGrad(c, 88, s);
+  c.fillStyle = bodyGrad(c, 88, s, rim);
   c.beginPath(); c.moveTo(-20 * s, -34 * s); c.lineTo(-16 * s, -86 * s); c.quadraticCurveTo(0, -98 * s, 16 * s, -86 * s); c.lineTo(20 * s, -34 * s); c.quadraticCurveTo(0, -28 * s, -20 * s, -34 * s); c.closePath(); c.fill();
   c.fillStyle = '#1a1b20'; c.beginPath(); c.arc(0, -104 * s, 9 * s, 0, TWO_PI); c.fill();
   c.fillStyle = PALETTE.ink; c.beginPath(); c.arc(0, -104 * s, 9 * s, Math.PI * 1.1, Math.PI * 2.0); c.fill();
@@ -445,7 +454,6 @@ Noir.registerActor('gunman', (e, p) => {                    // shooter, arm exte
   c.strokeStyle = PALETTE.ink; c.lineWidth = 8 * s; c.lineCap = 'round'; c.beginPath(); c.moveTo(6 * s, -86 * s); c.lineTo(34 * s, -82 * s); c.stroke();
   drawPistol(c, 38 * s, -82 * s, s);
   if (flash > 0) muzzleFlash(c, 54 * s, -83 * s, s, flash);
-  c.strokeStyle = 'rgba(220,228,245,0.7)'; c.lineWidth = 2 * s; c.beginPath(); c.moveTo(-20 * s, -36 * s); c.lineTo(-16 * s, -84 * s); c.stroke();
   c.restore();
 });
 
@@ -567,9 +575,9 @@ Noir.registerActor('cardTable', (e, p) => {
 });
 
 Noir.registerActor('dealer', (e, p) => {
-  const c = e.ctx, s = e.scaleOf(p), X = e.X(p), gy = e.gy + (p.dy || 0) * e.unit;
+  const c = e.ctx, s = e.scaleOf(p), X = e.X(p), gy = e.gy + (p.dy || 0) * e.unit, rim = rimSign(e, p);
   c.save(); c.translate(X, gy);
-  c.fillStyle = bodyGrad(c, 92, s); c.beginPath(); c.moveTo(-18 * s, 0); c.lineTo(-16 * s, -92 * s); c.quadraticCurveTo(0, -100 * s, 16 * s, -92 * s); c.lineTo(18 * s, 0); c.closePath(); c.fill();
+  c.fillStyle = bodyGrad(c, 92, s, rim); c.beginPath(); c.moveTo(-18 * s, 0); c.lineTo(-16 * s, -92 * s); c.quadraticCurveTo(0, -100 * s, 16 * s, -92 * s); c.lineTo(18 * s, 0); c.closePath(); c.fill();
   c.fillStyle = '#d8d6cc'; c.beginPath(); c.moveTo(-7 * s, -92 * s); c.lineTo(7 * s, -92 * s); c.lineTo(5 * s, -44 * s); c.lineTo(-5 * s, -44 * s); c.closePath(); c.fill();
   c.fillStyle = '#0a0b0e'; c.beginPath(); c.moveTo(-14 * s, -92 * s); c.lineTo(-7 * s, -92 * s); c.lineTo(-5 * s, -44 * s); c.lineTo(-16 * s, -48 * s); c.closePath(); c.moveTo(14 * s, -92 * s); c.lineTo(7 * s, -92 * s); c.lineTo(5 * s, -44 * s); c.lineTo(16 * s, -48 * s); c.closePath(); c.fill();
   c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(-5 * s, -92 * s); c.lineTo(0, -90 * s); c.lineTo(-5 * s, -88 * s); c.closePath(); c.moveTo(5 * s, -92 * s); c.lineTo(0, -90 * s); c.lineTo(5 * s, -88 * s); c.closePath(); c.fill();
@@ -825,7 +833,7 @@ Noir.registerBackdrop('room', {                       // an interior — back wa
 //  BOOT — the story lives in story.js (window.INKFALL_STORY). The editor can replace it
 //  live, and anything you play is remembered in localStorage.
 // =====================================================================================
-const BUILD = 'build 8 · fedora + dry casino';
+const BUILD = 'build 9 · form light + neon fit';
 console.log('INKFALL', BUILD);
 document.getElementById('build').textContent = BUILD;
 
