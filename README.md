@@ -81,9 +81,15 @@ and a cast member can be revealed or hidden by those effects via `onFlag` / `hid
 
 **Built-in backdrops:** `skyline`, `alley`, `rooftop`, `room`.
 **Built-in light types:** `lamp`, `neon`, `bulb`, `glow`.
-**Built-in actors:** `trenchMan`, `womanInRed`, `gunman`, `redCar`, `cardTable`,
-`dealer`, `bodyOnGround`, `steam`, `bloodSplat`, `crow`, `waterTower`, `newspaper`,
-`searchlight`.
+**Built-in actors:**
+- *people* — `trenchMan` (detective), `thug`, `boss`, `gunman`, `dealer`, `womanInRed`, `singer`
+- *weapons* — `knife` (`bloody:true` for a drip), `pistol`, `tommyGun`
+- *casino* — `cardTable`, `slotMachine`, `rouletteWheel`, `drink` (`kind:'martini'|'whiskey'`)
+- *street/props* — `redCar`, `barrelFire`, `fireHydrant`, `payphone`, `streetSign`, `cat`, `steam`, `crow`, `waterTower`, `newspaper`, `searchlight`
+- *aftermath* — `bloodSplat`, `bodyOnGround`, `chalkOutline`
+
+Common cast options: `x` (0..1), `y` (0..1, for floating props), `scale`, `dy` (vertical
+nudge in units), `par` (parallax factor), `flip`, plus actor-specific ones noted above.
 
 Inline `<b>…</b>` in a line renders **red**, like a Sin City caption.
 

@@ -41,6 +41,8 @@ window.INKFALL_STORY = {
       ],
       cast: [
         { actor: 'steam', x: 0.52, seed: 0.3 },
+        { actor: 'barrelFire', x: 0.07, scale: 0.85, par: 0.5 },
+        { actor: 'cat', x: 0.92, flip: true, par: 0.5 },
         { actor: 'redCar', x: 0.86, scale: 0.7, dy: -6, par: 0.5 },
         { actor: 'womanInRed', x: 0.62, scale: 0.8, par: 0.4 },
         { actor: 'trenchMan', x: 0.34, scale: 1, smoke: true, dy: 4, par: 0.5 }
@@ -62,9 +64,12 @@ window.INKFALL_STORY = {
       ],
       cast: [
         { actor: 'steam', x: 0.20, y: 0.7, seed: 0.9 },
+        { actor: 'slotMachine', x: 0.10, scale: 0.9, par: 0.2 },
+        { actor: 'slotMachine', x: 0.90, scale: 0.9, par: 0.2 },
         { actor: 'dealer', x: 0.45, scale: 0.85, dy: -34 },
         { actor: 'cardTable', x: 0.45, scale: 1.05 },
-        { actor: 'trenchMan', x: 0.70, scale: 1, smoke: true, par: 0.2 }
+        { actor: 'drink', x: 0.60, y: 0.78, kind: 'whiskey', scale: 0.9 },
+        { actor: 'trenchMan', x: 0.72, scale: 1, smoke: true, par: 0.2 }
       ],
       script: [
         { text: 'Down past the meat locker, the air goes blue with smoke and worse.' },
@@ -81,9 +86,11 @@ window.INKFALL_STORY = {
         { type: 'bulb', x: 0.45, y: 0.30, intensity: 0.8, flicker: true, par: 0.2 }
       ],
       cast: [
+        { actor: 'slotMachine', x: 0.10, scale: 0.9, par: 0.2 },
         { actor: 'dealer', x: 0.45, scale: 0.85, dy: -34 },
         { actor: 'cardTable', x: 0.45, scale: 1.05, glow: false },
-        { actor: 'trenchMan', x: 0.72, scale: 0.97, par: 0.2 }
+        { actor: 'trenchMan', x: 0.70, scale: 0.97, par: 0.2 },
+        { actor: 'boss', x: 0.90, scale: 0.95, par: 0.2 }
       ],
       script: [
         { text: 'Cleaned out. Pockets full of lint and a marker he can’t cover.' },
@@ -102,8 +109,12 @@ window.INKFALL_STORY = {
       ],
       cast: [
         { actor: 'steam', x: 0.40, seed: 0.9 },
+        { actor: 'barrelFire', x: 0.88, scale: 0.85, par: 0.5 },
+        { actor: 'fireHydrant', x: 0.06, par: 0.5 },
+        { actor: 'cat', x: 0.14, par: 0.5 },
         { actor: 'newspaper', x: 0, seed: 2.1 },
         { actor: 'gunman', x: 0.34, scale: 1, par: 0.5, hideOnFlag: 'blood' },
+        { actor: 'knife', x: 0.40, y: 0.84, angle: 0.2, bloody: true, onFlag: 'blood' },
         { actor: 'bodyOnGround', x: 0.34, scale: 1, par: 0.5, onFlag: 'blood' },
         { actor: 'bloodSplat', x: 0.40, onFlag: 'blood', seed: 7 },
         { actor: 'trenchMan', x: 0.72, scale: 1, par: 0.5 }
@@ -133,8 +144,9 @@ window.INKFALL_STORY = {
       ],
       cast: [
         { actor: 'steam', x: 0.55, seed: 1.1 },
-        { actor: 'gunman', x: 0.68, scale: 1, par: 0.5 },
-        { actor: 'gunman', x: 0.86, scale: 0.95, par: 0.5 },
+        { actor: 'gunman', x: 0.66, scale: 1, par: 0.5 },
+        { actor: 'thug', x: 0.84, scale: 1, par: 0.5 },
+        { actor: 'boss', x: 0.97, scale: 0.92, par: 0.5 },
         { actor: 'trenchMan', x: 0.30, scale: 1, par: 0.5, hideOnFlag: 'blood' },
         { actor: 'bodyOnGround', x: 0.30, scale: 1, par: 0.5, flip: true, onFlag: 'blood' },
         { actor: 'bloodSplat', x: 0.34, onFlag: 'blood', seed: 13 }
