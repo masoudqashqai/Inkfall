@@ -57,5 +57,13 @@ export class Compositor {
     eng.setWorldTransform(main); e.ctx = main;
     post(e);
     transition(e);
+
+    // BEAT CROSSFADE — dissolve the frozen previous frame out, so advancing a line never pops
+    const f = e.flow;
+    if (f && f.fadeT != null && !f.transState && !f.ended) {
+      const a = 1 - (e.t - f.fadeT) / f.fadeDur;
+      if (a <= 0) f.fadeT = null;
+      else { eng.setDeviceTransform(main); main.save(); main.globalAlpha = a; main.drawImage(eng.snapCv, 0, 0); main.restore(); }
+    }
   }
 }

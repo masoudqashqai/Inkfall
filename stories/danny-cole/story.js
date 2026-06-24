@@ -27,7 +27,7 @@ export default {
         { type: 'steam', x: 0.52, seed: 0.3 },
         { type: 'barrelFire', x: 0.07, scale: 0.85, par: 0.5 },
         { type: 'cat', x: 0.92, flip: true, par: 0.5 },
-        { type: 'redCar', x: 0.86, scale: 0.7, dy: -6, par: 0.5 },
+        { type: 'redCar', x: 0.86, scale: 0.7, par: 0.5 },
         { type: 'womanInRed', x: 0.62, scale: 0.8, par: 0.4 },
         { type: 'trenchMan', x: 0.34, scale: 1, dy: 4, par: 0.5 }
       ],

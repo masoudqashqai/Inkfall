@@ -54,8 +54,8 @@ export function wetFloor(e) {
 export function brickWall(c, e, polyFn) {
   const g = e.gy;
   c.save(); c.beginPath(); polyFn(); c.closePath(); c.clip();
-  const wall = c.createLinearGradient(0, 0, 0, g); wall.addColorStop(0, '#2a1d13'); wall.addColorStop(1, '#180f08'); c.fillStyle = wall; c.fillRect(0, 0, e.W, g);
-  const bh = 15, bw = 34; c.strokeStyle = 'rgba(8,5,3,0.6)'; c.lineWidth = 1.4;
+  const wall = c.createLinearGradient(0, 0, 0, g); wall.addColorStop(0, '#100a06'); wall.addColorStop(1, '#050302'); c.fillStyle = wall; c.fillRect(0, 0, e.W, g);   // dim alley at night: walls mostly in shadow
+  const bh = 15, bw = 34; c.strokeStyle = 'rgba(4,2,1,0.5)'; c.lineWidth = 1.4;
   for (let yy = 0; yy < g; yy += bh) {
     c.beginPath(); c.moveTo(0, yy); c.lineTo(e.W, yy); c.stroke();
     const off = ((yy / bh) % 2) * bw / 2;

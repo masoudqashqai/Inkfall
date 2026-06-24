@@ -27,6 +27,7 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
   color: #6a6a6a; font-size: 10px; letter-spacing: 0.22em; }
 #build { position: fixed; left: 8px; bottom: 4px; z-index: 50; color: #3a3a3a; font-size: 9px;
   letter-spacing: 0.1em; font-family: "Courier New", monospace; }
+#editbtn, #mute, #shoot { font-variant-emoji: text; }   /* keep the HUD glyphs monochrome (noir), never colour emoji */
 #editbtn { position: fixed; top: max(12px, env(safe-area-inset-top)); right: 14px; z-index: 25;
   background: rgba(0,0,0,0.5); color: #d8d4c8; border: 1px solid rgba(255,255,255,0.25); font-family: inherit;
   font-size: 11px; letter-spacing: 0.18em; padding: 7px 12px; cursor: pointer; }
@@ -36,6 +37,20 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
   font-size: 15px; line-height: 1; width: 34px; height: 30px; cursor: pointer; }
 #mute.show { display: inline-block; }
 #mute:hover { border-color: #e10010; color: #fff; }
+#shoot { position: fixed; top: max(12px, env(safe-area-inset-top)); right: 158px; z-index: 25; display: none;
+  background: rgba(0,0,0,0.5); color: #d8d4c8; border: 1px solid rgba(255,255,255,0.25); font-family: inherit;
+  font-size: 15px; line-height: 1; width: 34px; height: 30px; cursor: pointer; }
+#shoot.show { display: inline-block; }
+#shoot:hover { border-color: #e10010; color: #fff; }
+#poster { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center;
+  flex-direction: column; background: rgba(0,0,0,0.92); }
+#poster.show { display: flex; }
+#poster img { max-width: 88vw; max-height: 70vh; border: 1px solid rgba(216,212,200,0.4); box-shadow: 0 0 40px rgba(0,0,0,0.8); }
+#poster .poster-row { margin-top: 18px; display: flex; gap: 12px; }
+#poster a, #poster button { padding: 12px 26px; cursor: pointer; background: transparent; color: #fff;
+  border: 1px solid #fff; font-family: inherit; font-size: 12px; letter-spacing: 0.18em; text-decoration: none; }
+#poster a:hover { background: #e10010; border-color: #e10010; }
+#poster button:hover { background: #fff; color: #000; }
 #scenenav { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(max(26px, env(safe-area-inset-bottom)) + 84px);
   z-index: 25; display: none; gap: 8px; }
 #scenenav.show { display: flex; }
@@ -96,12 +111,21 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
 <div id="build"></div>
 <button id="editbtn">✎ STORY</button>
 <button id="mute" title="sound">♪</button>
+<button id="shoot" title="save a poster of this frame">❏</button>
 <div id="scenenav"></div>
+
+<div id="poster">
+  <img id="posterimg" alt="Inkfall poster" />
+  <div class="poster-row">
+    <a id="posterdl" download="inkfall.png">SAVE</a>
+    <button id="posterclose">BACK TO THE RAIN</button>
+  </div>
+</div>
 <div id="editor">
   <div class="ed-head">STORY EDITOR — JSON</div>
   <textarea id="ed-text" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
   <div id="ed-err"></div>
-  <div class="ed-help">backdrops: skyline · alley · rooftop · room &nbsp;|&nbsp; lights: lamp · neon · bulb · glow &nbsp;|&nbsp; people: trenchMan · thug · boss · gunman · dealer · womanInRed · singer &nbsp;|&nbsp; animals: cat · crow &nbsp;|&nbsp; movers: redCar &nbsp;|&nbsp; weapons: knife · pistol · tommyGun &nbsp;|&nbsp; casino: cardTable · slotMachine · rouletteWheel · drink · cash &nbsp;|&nbsp; street: trafficLight · barrelFire · fireHydrant · payphone · streetSign · waterTower · dumpster · manhole &nbsp;|&nbsp; effects: steam · searchlight · newspaper · bloodSplat · bodyOnGround · chalkOutline · bloodDrain &nbsp;|&nbsp; line fx: muzzle · blood · lightning · lighter &nbsp;|&nbsp; reveal/hide with onFlag / hideOnFlag</div>
+  <div class="ed-help">backdrops: skyline · alley · rooftop · room &nbsp;|&nbsp; lights: lamp · neon · bulb · glow &nbsp;|&nbsp; people: trenchMan · thug · boss · gunman · dealer · womanInRed · singer &nbsp;|&nbsp; animals: cat · crow &nbsp;|&nbsp; movers: redCar &nbsp;|&nbsp; weapons: knife · pistol · tommyGun &nbsp;|&nbsp; casino: cardTable · slotMachine · rouletteWheel · drink · cash &nbsp;|&nbsp; street: trafficLight · barrelFire · fireHydrant · payphone · streetSign · waterTower · dumpster · manhole &nbsp;|&nbsp; effects: steam · searchlight · newspaper · bloodSplat · bodyOnGround · chalkOutline · bloodDrain &nbsp;|&nbsp; line fx: muzzle · blood · lightning · hammer · lighter &nbsp;|&nbsp; reveal/hide with onFlag / hideOnFlag</div>
   <div class="ed-btns"><button id="ed-play">▶ PLAY</button><button id="ed-reset">DEFAULT</button><button id="ed-close">CLOSE</button></div>
 </div>
 
@@ -117,11 +141,12 @@ __mod["src/boot.js"] = function(__exports, __req){
 const { Engine } = __req("src/engine/engine.js");
 const { Manager } = __req("src/scene/manager.js");
 const { Audio2 } = __req("src/assets/audio.js");
+const { rand32, TWO_PI } = __req("src/engine/math.js");
 __req("src/library/index.js");
 const { STORIES } = __req("stories/manifest.js");
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 20 · car facing';
+const BUILD = 'v2 build 30 · trafficlight + mobile'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 
@@ -172,6 +197,7 @@ function beginPlay() {
   el('caption').style.display = 'block';
   el('tapnote').style.display = 'block';
   el('mute').classList.add('show');
+  el('shoot').classList.add('show');
   Audio2.start();
   manager.requestStart();
 }
@@ -179,6 +205,50 @@ el('enter').addEventListener('click', beginPlay);
 
 const muteEl = el('mute');
 muteEl.addEventListener('click', () => { const on = Audio2.toggle(); muteEl.textContent = on ? '♪' : '✕'; muteEl.style.color = on ? '#d8d4c8' : '#777'; });
+
+// ---- "pull a frame": turn the live canvas into a downloadable noir poster ----
+let halftone = null;
+function buildHalftone() {
+  const tile = 6, c = document.createElement('canvas'); c.width = c.height = tile * 8;
+  const x = c.getContext('2d'); x.fillStyle = '#000';
+  for (let yy = 0; yy < 8; yy++) for (let xx = 0; xx < 8; xx++) { x.beginPath(); x.arc(xx * tile + tile / 2, yy * tile + tile / 2, tile * 0.32, 0, TWO_PI); x.fill(); }
+  return c;
+}
+function makePoster() {
+  const cv = engine.cv, W = engine.W, H = engine.H, pw = 900;
+  const m = 56, fw = pw - m * 2, fh = Math.round(fw * (H / W)), fy = 150;
+  const ph = fy + fh + 170;   // height follows the captured frame's aspect (portrait on mobile, landscape on desktop) so nothing overflows
+  const pc = document.createElement('canvas'); pc.width = pw; pc.height = ph;
+  const p = pc.getContext('2d');
+  p.fillStyle = '#000'; p.fillRect(0, 0, pw, ph);
+  p.drawImage(cv, 0, 0, cv.width, cv.height, m, fy, fw, fh);               // the captured frame
+  p.strokeStyle = '#fff'; p.lineWidth = 5; p.strokeRect(m, fy, fw, fh);    // inked border
+  p.fillStyle = '#e10010';                                                 // ink-splatter corners
+  for (const [cxp, cyp, ci] of [[m, fy, 0], [m + fw, fy, 1], [m, fy + fh, 2], [m + fw, fy + fh, 3]]) {
+    const rng = rand32(ci * 71 + 5);
+    for (let k = 0; k < 9; k++) { const a = rng() * TWO_PI, d = rng() * 34, r = 1 + rng() * 6; p.beginPath(); p.arc(cxp + Math.cos(a) * d, cyp + Math.sin(a) * d, r, 0, TWO_PI); p.fill(); }
+  }
+  p.save(); p.translate(pw / 2, 92); p.transform(1, 0, -0.13, 1, 0, 0);    // INKFALL title
+  p.textAlign = 'center'; p.textBaseline = 'middle'; p.font = '900 88px "Arial Black", Impact, sans-serif';
+  const iw = p.measureText('INK').width, fwid = p.measureText('FALL').width;
+  p.shadowColor = 'rgba(255,255,255,0.25)'; p.shadowBlur = 24; p.fillStyle = '#fff'; p.fillText('INK', -fwid / 2, 0);
+  p.shadowColor = 'rgba(225,0,16,0.7)'; p.fillStyle = '#e10010'; p.fillText('FALL', iw / 2, 0);
+  p.restore(); p.shadowBlur = 0;
+  const tag = ((el('caption').textContent || (manager.story && manager.story.subtitle) || '') + '').replace(/<[^>]*>/g, '').toUpperCase();
+  p.fillStyle = '#d8d4c8'; p.font = 'italic 24px Georgia, "Times New Roman", serif'; p.textAlign = 'center';
+  let line = '', ty = fy + fh + 56;
+  for (const w of tag.split(' ')) { if (p.measureText(line + w).width > fw - 40) { p.fillText(line.trim(), pw / 2, ty); ty += 34; line = ''; } line += w + ' '; }
+  p.fillText(line.trim(), pw / 2, ty);
+  p.fillStyle = '#6a6a6a'; p.font = '700 13px "Courier New", monospace'; p.fillText('B A S I N   C I T Y   ·   I N K F A L L', pw / 2, ph - 40);
+  if (!halftone) halftone = buildHalftone();
+  p.globalAlpha = 0.06; for (let yy = 0; yy < ph; yy += halftone.width) for (let xx = 0; xx < pw; xx += halftone.width) p.drawImage(halftone, xx, yy); p.globalAlpha = 1;
+  const url = pc.toDataURL('image/png');
+  el('posterimg').src = url; el('posterdl').href = url;
+  el('posterclose').textContent = 'BACK TO ' + ((manager.current && manager.current.title || 'THE RAIN').replace(/&nbsp;/g, ' ')).toUpperCase();
+  el('poster').classList.add('show');
+}
+el('shoot').addEventListener('click', () => { if (manager.started) makePoster(); });
+el('posterclose').addEventListener('click', () => el('poster').classList.remove('show'));
 
 // ---- story editor (pure-data JSON) ----
 const editor = el('editor'), edText = el('ed-text'), edErr = el('ed-err');
@@ -214,6 +284,7 @@ class Engine {
   constructor() {
     this.cv = null; this.ctx = null; this.DPR = 1; this.W = 0; this.H = 0; this.unit = 1;
     this.lightCv = null; this.lightCtx = null;
+    this.snapCv = null; this.snapCtx = null;   // a frozen copy of the last frame, for the beat crossfade
     this.frame = new Frame();
     this.drops = []; this.grain = null;     // rain particles + film-grain tile (persist across scenes)
     this.last = 0;
@@ -224,6 +295,8 @@ class Engine {
     this.ctx = this.cv.getContext('2d', { alpha: false, desynchronized: true });
     this.lightCv = document.createElement('canvas');
     this.lightCtx = this.lightCv.getContext('2d');
+    this.snapCv = document.createElement('canvas');
+    this.snapCtx = this.snapCv.getContext('2d');
     addEventListener('resize', () => this.resize());
     this.W = innerWidth; this.H = innerHeight;
     this.resize();
@@ -232,7 +305,7 @@ class Engine {
   resize() {
     this.DPR = Math.min(window.devicePixelRatio || 1, 2);
     this.W = innerWidth; this.H = innerHeight;
-    for (const cv of [this.cv, this.lightCv]) { cv.width = Math.floor(this.W * this.DPR); cv.height = Math.floor(this.H * this.DPR); }
+    for (const cv of [this.cv, this.lightCv, this.snapCv]) { cv.width = Math.floor(this.W * this.DPR); cv.height = Math.floor(this.H * this.DPR); }
     this.cv.style.width = this.W + 'px'; this.cv.style.height = this.H + 'px';
     this.initRain();
     if (!this.grain) this.buildGrain();
@@ -265,6 +338,9 @@ class Engine {
   // device-pixel transform helpers (buffers + main share the same backing size)
   setWorldTransform(ctx) { ctx.setTransform(this.DPR, 0, 0, this.DPR, 0, 0); }
   setDeviceTransform(ctx) { ctx.setTransform(1, 0, 0, 1, 0, 0); }
+
+  // freeze the current on-screen frame so the next beat can crossfade out of it
+  snapshot() { this.snapCtx.setTransform(1, 0, 0, 1, 0, 0); this.snapCtx.clearRect(0, 0, this.snapCv.width, this.snapCv.height); this.snapCtx.drawImage(this.cv, 0, 0); }
 
   run(onTick) {
     this.last = performance.now();
@@ -352,7 +428,7 @@ const PALETTE = {
 // Global animation timing + overlay intensities. The other central style knob.
 const ANIM = {
   swaySpeed: 1.1, walkSpeed: 2.2, emberSpeed: 6, flickerSpeed: 9,
-  rainAlpha: 0.35, grainAlpha: 0.05, grainAlphaEnd: 0.20, vignette: 0.7, parallaxLerp: 0.08,
+  rainAlpha: 0.35, grainAlpha: 0.015, grainAlphaEnd: 0.15, vignette: 0.7, parallaxLerp: 0.08,
   boltGap: [5, 13],
   transIn: 2.0, transOut: 1.6, cardHold: 1.7,   // scene-transition speed: higher in/out = faster wipe; cardHold = act-card dwell (s)
 };
@@ -565,6 +641,7 @@ class Manager {
     this.started = false; this._startReq = false;
     this.transState = null; this.transAlpha = 0; this.cardT = 0; this.pending = 0; this.opening = false;
     this.finishing = false; this.ended = false; this.endStart = 0;   // the story has run its last act
+    this.fadeT = null; this.fadeDur = 0.7;                            // beat crossfade: dissolve the old frame into the new line
     this.seen = []; this.navShown = false;
     this.dom = {};
     engine.frame.flow = this;                         // the transition pass reads e.flow
@@ -593,7 +670,8 @@ class Manager {
 
     if (this._startReq && !this.started) { this._startReq = false; this.doStart(e); }
     if (this.started) { this.runFlow(e); this.runEstablishing(e); }
-    this.current.update(e.dt, e);
+    e.scene = this.current;   // runFlow may have switched scenes: update + render the SAME (new) scene, so the old scene is not re-drawn (which was restarting its walk-loop into the next act)
+    e.scene.update(e.dt, e);
 
     this.compositor.render(e);
     this.applyOverlayVisibility();
@@ -635,6 +713,7 @@ class Manager {
 
   enterScene(idx, e) {
     this.idx = idx; this.current.ensureGeometry(e); this.current.onEnter(e);
+    this.fadeT = null;                                  // no stale beat-crossfade bleeding into a new act
     Audio2.scene(this.current.data); Audio2.whoosh();   // swap ambience + play the swoosh as the act-name card renders
     if (!this.seen.includes(idx)) this.seen.push(idx);
     if (this.navShown) this.highlightNav();
@@ -647,7 +726,8 @@ class Manager {
   advance() {
     if (!this.started || this.transState || this.ended) return;
     const s = this.current, e = this.engine.frame;
-    if (s.lineIdx < s.data.script.length - 1) { s.lineIdx++; this.showLine(e); return; }
+    if (s.lineIdx < s.data.script.length - 1) { this.engine.snapshot(); this.fadeT = e.t; Audio2.duck(this.fadeDur); s.lineIdx++; this.showLine(e); return; }   // crossfade the beat + fade any lingering sfx with it
+    Audio2.duck(0.8);                                                                                       // act change: fade ringing sfx out across the wipe (loops fade in scene())
     if (this.idx < this.scenes.length - 1) { this.pending = this.idx + 1; this.transState = 'in'; }         // next act
     else { this.finishing = true; this.endStart = e.t; this.transState = 'in'; }                            // last act: wipe to THE END
   }
@@ -657,6 +737,7 @@ class Manager {
     if (!this.started || this.transState) return;
     if (idx === this.idx && !this.ended) return;
     this.ended = false; this.finishing = false;
+    Audio2.duck(0.8);
     this.pending = idx; this.transState = 'in';
   }
 
@@ -670,7 +751,8 @@ class Manager {
     for (const fx of (line.fx || [])) {
       if (fx === 'muzzle') { s.flags.muzzle = 1.0; s.fireGun(e); this.camera.shake(6); }
       else if (fx === 'blood') { s.flags.blood = true; s.flags._bloodT = e.t; }
-      else if (fx === 'lightning') { s.lightning = Math.max(s.lightning, 0.8); Audio2.lightningCrack(); setTimeout(() => Audio2.thunder(), 200 + Math.random() * 400); }
+      else if (fx === 'lightning') { s.lightning = Math.max(s.lightning, 0.8); setTimeout(() => Audio2.thunder(), 200 + Math.random() * 400); }
+      else if (fx === 'hammer') Audio2.gunCock();   // revolver hammer pull (cocking the gun)
       else if (fx === 'lighter') { Audio2.lidOpen(); setTimeout(() => Audio2.flint(), 650); }
     }
   }
@@ -790,6 +872,14 @@ class Compositor {
     eng.setWorldTransform(main); e.ctx = main;
     post(e);
     transition(e);
+
+    // BEAT CROSSFADE — dissolve the frozen previous frame out, so advancing a line never pops
+    const f = e.flow;
+    if (f && f.fadeT != null && !f.transState && !f.ended) {
+      const a = 1 - (e.t - f.fadeT) / f.fadeDur;
+      if (a <= 0) f.fadeT = null;
+      else { eng.setDeviceTransform(main); main.save(); main.globalAlpha = a; main.drawImage(eng.snapCv, 0, 0); main.restore(); }
+    }
   }
 }
 
@@ -816,25 +906,28 @@ function sky(e) {
   c.fillStyle = 'rgba(200,210,230,0.5)';
   for (let i = 0; i < 40; i++) { const sx = (i * 197.3) % e.W, sy = (i * 91.7) % (e.H * 0.4); if ((i * 13) % 5 === 0) c.fillRect(sx, sy, 1.4, 1.4); }
 
-  if (scene.hideMoon || scene.indoor) return;   // no moon when occluded (alley) or indoors (its glow is real light now, so it must not be registered where it can't be seen)
+  if (scene.indoor) return;   // no sky/moon indoors (the room wall would occlude it anyway)
   const m = scene.moon || { x: 0.78, y: 0.18 }, mx = m.x * e.W + scene.camera.look * 0.1, my = m.y * e.H, mr = 34;
 
   // the moon disc: a soft radially-shaded body with a few faint craters
   const md = c.createRadialGradient(mx - mr * 0.32, my - mr * 0.32, mr * 0.15, mx, my, mr);
   md.addColorStop(0, '#f6f8fc'); md.addColorStop(0.65, PALETTE.moon); md.addColorStop(1, '#bcc4d4');
   c.fillStyle = md; c.beginPath(); c.arc(mx, my, mr, 0, TWO_PI); c.fill();
-  c.fillStyle = 'rgba(116,128,152,0.55)';   // darker so they survive the additive halo
+  c.fillStyle = 'rgba(116,128,152,0.55)';
   c.beginPath(); c.arc(mx - 9, my - 5, 6, 0, TWO_PI); c.arc(mx + 11, my + 9, 8, 0, TWO_PI); c.arc(mx + 5, my - 13, 3.5, 0, TWO_PI); c.arc(mx - 13, my + 11, 4, 0, TWO_PI); c.fill();
   c.strokeStyle = 'rgba(255,255,255,0.18)'; c.lineWidth = 1; c.beginPath(); c.arc(mx, my, mr, 0, TWO_PI); c.stroke();
 
-  // the moon's halo + floor reflection come from the real lighting system (glow decoupled from
-  // the large, weak influence that tints the scene's rim).
-  if (my < e.gy) e.addLight({
-    x: mx, y: my, col: '210,222,245',
-    r: e.H * 0.62, I: 0.3,                       // influence: large + faint (rim/rain tint)
-    surface: false, ring: true, glowR: 92, glowI: 2.2, // halo: a real-light RING around the disc (glow, but craters survive)
-    reflW: 26, reflI: 0.13, reflLen: 0.8,        // long faint wet-floor streak
-  });
+  // halo as a ring, painted on the WORLD layer (additive) so the backdrop occludes it exactly like
+  // the disc: a centred moon glows through the alley's sky gap, a moon behind a wall is hidden.
+  c.save(); c.globalCompositeOperation = 'lighter';
+  const hr = 94, hg = c.createRadialGradient(mx, my, 0, mx, my, hr);
+  hg.addColorStop(0, 'rgba(210,222,245,0)'); hg.addColorStop(0.36, 'rgba(210,222,245,0)');
+  hg.addColorStop(0.5, 'rgba(210,222,245,0.34)'); hg.addColorStop(0.74, 'rgba(210,222,245,0.13)'); hg.addColorStop(1, 'rgba(210,222,245,0)');
+  c.fillStyle = hg; c.beginPath(); c.arc(mx, my, hr, 0, TWO_PI); c.fill(); c.restore();
+
+  // register only as influence (cool rim tint) + a faint floor reflection. The glow is the ring
+  // above, drawn in the world so it can be occluded, so this light carries no light-buffer glow.
+  if (my < e.gy) e.addLight({ x: mx, y: my, col: '210,222,245', r: e.H * 0.62, I: 0.3, glow: false, reflW: 26, reflI: 0.13, reflLen: 0.8 });
 }
 
 __exports.sky = sky;
@@ -1006,7 +1099,7 @@ class Scene {
   get ground() { return this.data.ground; }
   get keyLight() { return this.data.keyLight || { x: 0.3, y: 0.3 }; }
   get moon() { return this.data.moon; }
-  get hideMoon() { return this.data.hideMoon; }
+  get hideMoon() { return this.data.hideMoon != null ? this.data.hideMoon : !!(this.backdrop && this.backdrop.hideMoon); }
   get indoor() { return this.data.indoor != null ? this.data.indoor : !!(this.backdrop && this.backdrop.indoor); }
 
   buildContent() {
@@ -1062,7 +1155,7 @@ class Scene {
     shot(); setTimeout(shot, 230);
   }
 
-  walkSound(on) { Audio2.setLoop('heels', on); }
+  walkSound(on) { Audio2.setLoop('footstep', on); }
 }
 
 __exports.Scene = Scene;
@@ -1231,54 +1324,94 @@ __exports.Shells = Shells;
 };
 __mod["src/assets/audio.js"] = function(__exports, __req){
 // AUDIO — data-driven and scoped to the story. The engine plays nothing on its own; a story
-// declares `audio: { music, rain, sfx{} }` and each scene may declare `ambience`. A story
-// with no audio block is silent, so sounds never bleed between stories.
+// declares `audio: { music, musicStart?, rain, sfx{} }` and each scene may declare `ambience`.
+//
+// Fade policy (so sound never hard-cuts or leaks across a beat/act):
+//   - loops (e.g. footsteps) are tied to their animation: held full while active, faded out when
+//     it stops or on an act change.
+//   - one-shots still ringing are ducked (faded) on a beat OR act change via duck().
+//   - ambience + rain crossfade between acts in scene().
+// A story with no audio block is silent, so sounds never bleed between stories.
 const Audio2 = (() => {
   const A = 'assets/audio/';
   let on = true, started = false, cfg = null;
   let music = null, rain = null, amb = null;
   const pools = {}, loops = {};
+
   function mkLoop(src, v) { const a = new Audio(A + src); a.loop = true; a._v = v; a.volume = on ? v : 0; a.preload = 'auto'; return a; }
-  function stop(a) { if (a) try { a.pause(); } catch (e) {} }
-  function resume(a) { if (a && on && started) a.play().catch(() => {}); }
+  function stop(a) { if (!a) return; if (a._ramp) { clearInterval(a._ramp); a._ramp = null; } try { a.pause(); } catch (e) {} }
+
+  // smoothly ramp an element's volume; pause it once it reaches silence (so nothing keeps playing)
+  function ramp(a, to, dur) {
+    if (!a) return;
+    if (a._ramp) { clearInterval(a._ramp); a._ramp = null; }
+    to = Math.max(0, Math.min(1, to));
+    if (!(dur > 0)) { a.volume = to; if (to === 0) stop(a); return; }
+    const from = a.volume, steps = Math.max(1, Math.round(dur / 0.03)); let i = 0;
+    a._ramp = setInterval(() => {
+      i++; a.volume = Math.max(0, Math.min(1, from + (to - from) * i / steps));
+      if (i >= steps) { clearInterval(a._ramp); a._ramp = null; if (to === 0) stop(a); }
+    }, 30);
+  }
+
+  function resume(a) { if (!a || !on || !started) return; if (a._start && a.currentTime < a._start) { try { a.currentTime = a._start; } catch (e) {} } a.play().catch(() => {}); }
+
   function setStory(c) {
     [music, rain, amb].forEach(stop); music = rain = amb = null;
     for (const k in pools) delete pools[k]; for (const k in loops) { stop(loops[k]); delete loops[k]; }
     cfg = c || null; started = false;
     if (!cfg) return;
-    if (cfg.music) music = mkLoop(cfg.music, cfg.musicVol == null ? 0.5 : cfg.musicVol);
+    if (cfg.music) {
+      music = mkLoop(cfg.music, cfg.musicVol == null ? 0.5 : cfg.musicVol);
+      const st = cfg.musicStart || 0;
+      if (st > 0) {   // start + loop from this offset (seconds) instead of 0
+        music.loop = false; music._start = st;
+        music.addEventListener('loadedmetadata', () => { try { music.currentTime = st; } catch (e) {} });
+        music.addEventListener('ended', () => { try { music.currentTime = st; } catch (e) {} resume(music); });
+      }
+    }
     if (cfg.rain) rain = mkLoop(cfg.rain, 0);
     for (const k in (cfg.sfx || {})) { const d = cfg.sfx[k], n = d.n || 2, pool = []; for (let i = 0; i < n; i++) { const a = new Audio(A + d.src); a.preload = 'auto'; pool.push(a); } pools[k] = { pool, i: 0, vol: d.vol == null ? 0.7 : d.vol }; }
   }
   function start() { started = true; resume(music); resume(rain); resume(amb); }
-  function stopLoops() { for (const k in loops) stop(loops[k]); }
+
+  function stopLoops(dur = 0.45) { for (const k in loops) ramp(loops[k], 0, dur); }   // fade every loop out
+  function duck(dur = 0.6) { for (const k in pools) for (const a of pools[k].pool) if (!a.paused) ramp(a, 0, dur); }   // fade ringing one-shots
+
   function scene(sc) {
-    stop(amb); amb = null; stopLoops();
-    if (cfg && sc.ambience) { amb = mkLoop(sc.ambience, sc.ambienceVol == null ? 0.4 : sc.ambienceVol); resume(amb); }
-    if (rain) { const want = cfg.rain && !sc.indoor; rain._v = want ? (sc.rainVol == null ? (cfg.rainVol == null ? 0.16 : cfg.rainVol) : sc.rainVol) : 0; rain.volume = on ? rain._v : 0; if (want) resume(rain); else stop(rain); }
+    duck(0.5);                                       // any lingering one-shot from the last act fades out
+    stopLoops();                                     // walk/animation loops fade out
+    if (amb) { ramp(amb, 0, 0.5); amb = null; }      // crossfade ambience out
+    if (cfg && sc.ambience) { amb = mkLoop(sc.ambience, sc.ambienceVol == null ? 0.4 : sc.ambienceVol); amb.volume = 0; resume(amb); ramp(amb, on ? amb._v : 0, 0.6); }
+    if (rain) { const want = cfg.rain && !sc.indoor; rain._v = want ? (sc.rainVol == null ? (cfg.rainVol == null ? 0.16 : cfg.rainVol) : sc.rainVol) : 0; if (want) { resume(rain); ramp(rain, on ? rain._v : 0, 0.6); } else ramp(rain, 0, 0.6); }
   }
+
   function play(name, volScale = 1, rate = 1) {
     if (!on || !started || !pools[name]) return;
     const s = pools[name], a = s.pool[s.i++ % s.pool.length];
+    if (a._ramp) { clearInterval(a._ramp); a._ramp = null; }   // cancel a duck on this element before reusing it
     try { a.pause(); a.currentTime = 0; a.volume = Math.min(1, s.vol * volScale); a.playbackRate = rate; a.play().catch(() => {}); } catch (e) {}
   }
   function setLoop(name, on2) {
     if (!on || !started || !cfg || !cfg.sfx || !cfg.sfx[name]) return;
-    let a = loops[name];
-    if (on2) { if (!a) { const d = cfg.sfx[name]; a = loops[name] = new Audio(A + d.src); a.loop = true; a.volume = d.vol == null ? 0.7 : d.vol; } if (a.paused) a.play().catch(() => {}); }
-    else if (a && !a.paused) a.pause();
+    let a = loops[name]; const d = cfg.sfx[name], tgt = d.vol == null ? 0.7 : d.vol;
+    if (on2) {   // animation active: hold at full (this also cancels a fade-out in progress, e.g. a duck)
+      if (!a) { a = loops[name] = new Audio(A + d.src); a.loop = true; a.volume = 0; }
+      if (a._ramp) { clearInterval(a._ramp); a._ramp = null; }
+      a.volume = tgt; if (a.paused) a.play().catch(() => {});
+    } else if (a && !a.paused) ramp(a, 0, 0.4);   // animation ended: fade out + pause
   }
   function toggle() {
     on = !on;
     [music, rain, amb].forEach(a => { if (a) { a.volume = on ? a._v : 0; if (on) resume(a); else stop(a); } });
-    if (!on) stopLoops();
+    if (!on) for (const k in loops) stop(loops[k]);
     return on;
   }
   return {
-    setStory, start, scene, play, setLoop, stopLoops, toggle, isOn: () => on,
+    setStory, start, scene, play, setLoop, stopLoops, duck, toggle, isOn: () => on,
     gun: () => play('gunshot', 1, 0.97 + Math.random() * 0.06),
+    gunCock: () => play('hammer'),
     shellClink: () => play('shell', 0.8 + Math.random() * 0.3, 0.95 + Math.random() * 0.1),
-    lightningCrack: () => play('crack'),
     thunder: () => play('thunder'),
     neonZap: () => play('neon'),
     whoosh: () => play('whoosh'),
@@ -1408,8 +1541,8 @@ function wetFloor(e) {
 function brickWall(c, e, polyFn) {
   const g = e.gy;
   c.save(); c.beginPath(); polyFn(); c.closePath(); c.clip();
-  const wall = c.createLinearGradient(0, 0, 0, g); wall.addColorStop(0, '#2a1d13'); wall.addColorStop(1, '#180f08'); c.fillStyle = wall; c.fillRect(0, 0, e.W, g);
-  const bh = 15, bw = 34; c.strokeStyle = 'rgba(8,5,3,0.6)'; c.lineWidth = 1.4;
+  const wall = c.createLinearGradient(0, 0, 0, g); wall.addColorStop(0, '#100a06'); wall.addColorStop(1, '#050302'); c.fillStyle = wall; c.fillRect(0, 0, e.W, g);   // dim alley at night: walls mostly in shadow
+  const bh = 15, bw = 34; c.strokeStyle = 'rgba(4,2,1,0.5)'; c.lineWidth = 1.4;
   for (let yy = 0; yy < g; yy += bh) {
     c.beginPath(); c.moveTo(0, yy); c.lineTo(e.W, yy); c.stroke();
     const off = ((yy / bh) % 2) * bw / 2;
@@ -1450,7 +1583,7 @@ defineBackdrop('alley', data => ({
   build(e) { return buildSkyline(e, data.backdrop.seed || 77123, [{ depth: 0.4, top: e.H * 0.3, shade: PALETTE.farInk, minW: 50, maxW: 110, minH: 0.3, maxH: 0.55, win: 0.18 }], e.H * 0.62); },
   draw(e) {
     const c = e.ctx, g = e.gy, look = e.scene.camera.look, vx = e.W * 0.5 + look * 0.3, vy = e.H * 0.4;
-    const slice = c.createLinearGradient(vx, vy, vx, g); slice.addColorStop(0, '#23262e'); slice.addColorStop(1, '#0a0b0f'); c.fillStyle = slice; c.fillRect(vx - e.W * 0.12, vy, e.W * 0.24, g - vy);
+    const slice = c.createLinearGradient(vx, vy, vx, g); slice.addColorStop(0, '#12141b'); slice.addColorStop(1, '#060708'); c.fillStyle = slice; c.fillRect(vx - e.W * 0.12, vy, e.W * 0.24, g - vy);
     paintSkyline(e, this.geom, look * 0.4);
     brickWall(c, e, () => { c.moveTo(0, 0); c.lineTo(e.W * 0.4, 0); c.lineTo(vx - e.W * 0.1, vy); c.lineTo(vx - e.W * 0.1, g); c.lineTo(0, g); });
     brickWall(c, e, () => { c.moveTo(e.W, 0); c.lineTo(e.W * 0.6, 0); c.lineTo(vx + e.W * 0.1, vy); c.lineTo(vx + e.W * 0.1, g); c.lineTo(e.W, g); });
@@ -1927,8 +2060,11 @@ defineMover('redCar', function (e) {
   const P = pts => { c.beginPath(); c.moveTo(pts[0][0] * s, pts[0][1] * s); for (let i = 1; i < pts.length; i++) c.lineTo(pts[i][0] * s, pts[i][1] * s); c.closePath(); };
   c.save(); c.translate(X, gy); c.scale(this.flip ? 1 : -1, 1);   // authored front-left; default faces RIGHT (its travel direction)
 
-  // wet ground bleed under the car
-  c.globalAlpha = 0.4; const gl = c.createLinearGradient(0, 0, 0, 26 * s); gl.addColorStop(0, 'rgba(150,8,20,0.5)'); gl.addColorStop(1, 'rgba(150,8,20,0)'); c.fillStyle = gl; c.fillRect(-82 * s, 0, 164 * s, 28 * s); c.globalAlpha = 1;
+  // soft contact shadow on the wet floor: a feathered ellipse hugging the ground (no hard slab).
+  // The coloured wet glow comes from the head/tail lamps via the lighting pass, not a red box.
+  c.save(); c.translate(0, 1 * s); c.scale(1, 0.16);
+  const sh = c.createRadialGradient(0, 0, 0, 0, 0, 88 * s); sh.addColorStop(0, 'rgba(0,0,0,0.55)'); sh.addColorStop(0.55, 'rgba(0,0,0,0.3)'); sh.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = sh; c.beginPath(); c.arc(0, 0, 88 * s, 0, TWO_PI); c.fill(); c.restore();
 
   // chrome bumpers (dim steel), front-left + rear-right, behind the body
   for (const [x0, x1] of [[-82, -66], [66, 82]]) { const sg = c.createLinearGradient(0, -16 * s, 0, -7 * s); sg.addColorStop(0, '#454a52'); sg.addColorStop(1, '#1b1f25'); c.fillStyle = sg; c.fillRect(x0 * s, -16 * s, (x1 - x0) * s, 9 * s); }
@@ -1960,9 +2096,9 @@ defineMover('redCar', function (e) {
   // wheels: on top, sitting on the ground, with squared 80s wheel arches
   for (const wx of [-44, 46]) {
     c.strokeStyle = '#1c0a0f'; c.lineWidth = 2.4 * s; c.beginPath(); c.moveTo((wx - 14) * s, -24 * s); c.lineTo((wx - 14) * s, -12 * s); c.lineTo((wx + 14) * s, -12 * s); c.lineTo((wx + 14) * s, -24 * s); c.stroke();
-    c.fillStyle = '#101216'; c.beginPath(); c.arc(wx * s, -11 * s, 12 * s, 0, TWO_PI); c.fill();
-    c.fillStyle = '#2c313a'; c.beginPath(); c.arc(wx * s, -11 * s, 5.5 * s, 0, TWO_PI); c.fill();
-    c.fillStyle = '#0a0b0e'; c.beginPath(); c.arc(wx * s, -11 * s, 2 * s, 0, TWO_PI); c.fill();
+    c.fillStyle = '#101216'; c.beginPath(); c.arc(wx * s, -12 * s, 12 * s, 0, TWO_PI); c.fill();   // bottom sits on the ground (y 0)
+    c.fillStyle = '#2c313a'; c.beginPath(); c.arc(wx * s, -12 * s, 5.5 * s, 0, TWO_PI); c.fill();
+    c.fillStyle = '#0a0b0e'; c.beginPath(); c.arc(wx * s, -12 * s, 2 * s, 0, TWO_PI); c.fill();
   }
   c.restore();
 }, {
@@ -2125,8 +2261,10 @@ defineProp('trafficLight', function (e) {                     // turns green on 
   const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit;
   const green = (this.greenAt != null && e.lineIdx >= this.greenAt);
   c.save(); c.translate(X, gy);
-  c.fillStyle = PALETTE.ink; c.fillRect(-2 * s, -150 * s, 4 * s, 150 * s);
-  c.fillStyle = '#0c0e12'; c.fillRect(-11 * s, -202 * s, 22 * s, 54 * s);
+  c.fillStyle = '#191c22'; c.fillRect(-2.5 * s, -150 * s, 5 * s, 150 * s);                 // pole: visible steel (not near-black, which vanished against the buildings)
+  c.fillStyle = 'rgba(150,160,175,0.18)'; c.fillRect(-2.5 * s, -150 * s, 1.6 * s, 150 * s); // edge highlight for form
+  c.fillStyle = '#23272f'; c.fillRect(-11 * s, -202 * s, 22 * s, 54 * s);                  // housing
+  c.strokeStyle = 'rgba(0,0,0,0.5)'; c.lineWidth = 1; c.strokeRect(-11 * s, -202 * s, 22 * s, 54 * s);
   const lamp = (yy, on, col) => { c.fillStyle = on ? col : 'rgba(70,70,74,0.5)'; if (on) { c.shadowColor = col; c.shadowBlur = 16 * s; } c.beginPath(); c.arc(0, yy * s, 5 * s, 0, TWO_PI); c.fill(); c.shadowBlur = 0; };
   lamp(-190, !green, '#ff2a2a'); lamp(-175, false, '#ffd400'); lamp(-160, green, '#36d36e');
   c.restore();
@@ -2280,10 +2418,11 @@ defineEffect('searchlight', function (e) {
 
 defineEffect('newspaper', function (e) {                      // blows in from the left, tumbles, settles
   const c = e.ctx, st = e.sceneT(), pP = smooth01(st / 4.5), tumbling = pP < 0.97;
+  const k = e.scaleOf(this) * 0.6;   // scale with the viewport like every other asset (0.6 keeps the reference-desktop size); was fixed px, so it stayed big on mobile
   const restX = (this.restX != null ? this.restX : 0.2) * e.W;
-  const px = lerp(-50, restX, pP), py = tumbling ? (e.gy - 6 - Math.abs(Math.sin(st * 3)) * 50 * (1 - pP)) : (e.gy + 16), rot = tumbling ? Math.sin(st * 5) : 0.1;
+  const px = lerp(-50 * k, restX, pP), py = tumbling ? (e.gy - 6 * k - Math.abs(Math.sin(st * 3)) * 50 * k * (1 - pP)) : (e.gy + 16 * k), rot = tumbling ? Math.sin(st * 5) : 0.1;
   const w = 72, h = 48;
-  c.save(); c.translate(px, py); c.rotate(rot);
+  c.save(); c.translate(px, py); c.rotate(rot); c.scale(k, k);
   c.fillStyle = 'rgba(228,225,214,0.92)'; c.fillRect(-w / 2, -h / 2, w, h);
   c.strokeStyle = 'rgba(0,0,0,0.55)'; c.lineWidth = 1; c.strokeRect(-w / 2, -h / 2, w, h);
   c.fillStyle = '#0b0b0b'; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
@@ -2315,15 +2454,15 @@ __exports.default = {
   subtitle: 'A HALLUCINATION OF SIN CITY',
   blurb: 'It always rains in Basin City. The whole town is black and white, except the things that bleed. Tap through the long, wet night.',
   audio: {
-    music: 'burning_silence.mp3', musicVol: 0.5, rain: 'rain.mp3', rainVol: 0.16,
+    music: 'burning_silence.mp3', musicVol: 0.5, musicStart: 55, rain: 'rain.mp3', rainVol: 0.16,
     sfx: {
       gunshot: { src: 'gunshot.mp3', vol: 0.95, n: 3 },
       shell: { src: 'shell.mp3', vol: 0.5, n: 4 },
-      heels: { src: 'heels.mp3', vol: 0.5, n: 2 },
+      hammer: { src: 'hammer.mp3', vol: 0.9, n: 2 },
+      footstep: { src: 'footstep.mp3', vol: 0.5 },
       lidopen: { src: 'lidopen.mp3', vol: 0.8 },
       flint: { src: 'flint.mp3', vol: 0.8 },
-      neon: { src: 'neon.mp3', vol: 0.5 },
-      crack: { src: 'crack.mp3', vol: 0.7 },
+      neon: { src: 'neon_crackle.mp3', vol: 0.3 },
       thunder: { src: 'thunder.mp3', vol: 0.5 },
       whoosh: { src: 'whoosh.mp3', vol: 0.5 },
     },
@@ -2350,7 +2489,7 @@ __exports.default = {
       cast: [
         { type: 'steam', x: 0.52, seed: 0.3 },
         { type: 'trafficLight', x: 0.90, scale: 0.9, par: 0.6, greenAt: 2 },
-        { type: 'redCar', x: 0.84, scale: 0.7, dy: -6, par: 0.5, walk: [0.84, 0.84, 1.45, 1.7], walkDur: 3.2 },
+        { type: 'redCar', x: 0.84, scale: 0.7, par: 0.5, walk: [0.84, 0.84, 1.45, 1.7], walkDur: 3.2 },
         { type: 'womanInRed', x: 0.7, scale: 0.8, par: 0.4, walk: [0.72, 0.52, 0.30, -0.3], walkDur: 11, passX: 0.34 },
         { type: 'trenchMan', x: 0.34, scale: 1, dy: 4, par: 0.5, raiseAt: 1, lightAt: 3 }
       ],
@@ -2380,7 +2519,7 @@ __exports.default = {
       ],
       script: [
         { text: 'The alley stinks of rain and old sins.' },
-        { text: 'A shape in the doorway. A <b>gun</b> that means it.' },
+        { text: 'A shape in the doorway. A <b>gun</b> that means it.', fx: ['hammer'] },
         { text: 'Two shots. The bricks wear a fresh coat of <b>red</b>.', fx: ['muzzle', 'blood', 'lightning'] },
         { text: 'Nobody heard a thing. Nobody ever does here.' }
       ]
@@ -2441,7 +2580,7 @@ __exports.default = {
         { type: 'steam', x: 0.52, seed: 0.3 },
         { type: 'barrelFire', x: 0.07, scale: 0.85, par: 0.5 },
         { type: 'cat', x: 0.92, flip: true, par: 0.5 },
-        { type: 'redCar', x: 0.86, scale: 0.7, dy: -6, par: 0.5 },
+        { type: 'redCar', x: 0.86, scale: 0.7, par: 0.5 },
         { type: 'womanInRed', x: 0.62, scale: 0.8, par: 0.4 },
         { type: 'trenchMan', x: 0.34, scale: 1, dy: 4, par: 0.5 }
       ],

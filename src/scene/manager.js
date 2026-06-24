@@ -18,6 +18,7 @@ export class Manager {
     this.started = false; this._startReq = false;
     this.transState = null; this.transAlpha = 0; this.cardT = 0; this.pending = 0; this.opening = false;
     this.finishing = false; this.ended = false; this.endStart = 0;   // the story has run its last act
+    this.fadeT = null; this.fadeDur = 0.7;                            // beat crossfade: dissolve the old frame into the new line
     this.seen = []; this.navShown = false;
     this.dom = {};
     engine.frame.flow = this;                         // the transition pass reads e.flow
@@ -46,7 +47,8 @@ export class Manager {
 
     if (this._startReq && !this.started) { this._startReq = false; this.doStart(e); }
     if (this.started) { this.runFlow(e); this.runEstablishing(e); }
-    this.current.update(e.dt, e);
+    e.scene = this.current;   // runFlow may have switched scenes: update + render the SAME (new) scene, so the old scene is not re-drawn (which was restarting its walk-loop into the next act)
+    e.scene.update(e.dt, e);
 
     this.compositor.render(e);
     this.applyOverlayVisibility();
@@ -88,6 +90,7 @@ export class Manager {
 
   enterScene(idx, e) {
     this.idx = idx; this.current.ensureGeometry(e); this.current.onEnter(e);
+    this.fadeT = null;                                  // no stale beat-crossfade bleeding into a new act
     Audio2.scene(this.current.data); Audio2.whoosh();   // swap ambience + play the swoosh as the act-name card renders
     if (!this.seen.includes(idx)) this.seen.push(idx);
     if (this.navShown) this.highlightNav();
@@ -100,7 +103,8 @@ export class Manager {
   advance() {
     if (!this.started || this.transState || this.ended) return;
     const s = this.current, e = this.engine.frame;
-    if (s.lineIdx < s.data.script.length - 1) { s.lineIdx++; this.showLine(e); return; }
+    if (s.lineIdx < s.data.script.length - 1) { this.engine.snapshot(); this.fadeT = e.t; Audio2.duck(this.fadeDur); s.lineIdx++; this.showLine(e); return; }   // crossfade the beat + fade any lingering sfx with it
+    Audio2.duck(0.8);                                                                                       // act change: fade ringing sfx out across the wipe (loops fade in scene())
     if (this.idx < this.scenes.length - 1) { this.pending = this.idx + 1; this.transState = 'in'; }         // next act
     else { this.finishing = true; this.endStart = e.t; this.transState = 'in'; }                            // last act: wipe to THE END
   }
@@ -110,6 +114,7 @@ export class Manager {
     if (!this.started || this.transState) return;
     if (idx === this.idx && !this.ended) return;
     this.ended = false; this.finishing = false;
+    Audio2.duck(0.8);
     this.pending = idx; this.transState = 'in';
   }
 
@@ -123,7 +128,8 @@ export class Manager {
     for (const fx of (line.fx || [])) {
       if (fx === 'muzzle') { s.flags.muzzle = 1.0; s.fireGun(e); this.camera.shake(6); }
       else if (fx === 'blood') { s.flags.blood = true; s.flags._bloodT = e.t; }
-      else if (fx === 'lightning') { s.lightning = Math.max(s.lightning, 0.8); Audio2.lightningCrack(); setTimeout(() => Audio2.thunder(), 200 + Math.random() * 400); }
+      else if (fx === 'lightning') { s.lightning = Math.max(s.lightning, 0.8); setTimeout(() => Audio2.thunder(), 200 + Math.random() * 400); }
+      else if (fx === 'hammer') Audio2.gunCock();   // revolver hammer pull (cocking the gun)
       else if (fx === 'lighter') { Audio2.lidOpen(); setTimeout(() => Audio2.flint(), 650); }
     }
   }

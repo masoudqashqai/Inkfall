@@ -28,12 +28,21 @@
 <div id="build"></div>
 <button id="editbtn">✎ STORY</button>
 <button id="mute" title="sound">♪</button>
+<button id="shoot" title="save a poster of this frame">❏</button>
 <div id="scenenav"></div>
+
+<div id="poster">
+  <img id="posterimg" alt="Inkfall poster" />
+  <div class="poster-row">
+    <a id="posterdl" download="inkfall.png">SAVE</a>
+    <button id="posterclose">BACK TO THE RAIN</button>
+  </div>
+</div>
 <div id="editor">
   <div class="ed-head">STORY EDITOR — JSON</div>
   <textarea id="ed-text" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
   <div id="ed-err"></div>
-  <div class="ed-help">backdrops: skyline · alley · rooftop · room &nbsp;|&nbsp; lights: lamp · neon · bulb · glow &nbsp;|&nbsp; people: trenchMan · thug · boss · gunman · dealer · womanInRed · singer &nbsp;|&nbsp; animals: cat · crow &nbsp;|&nbsp; movers: redCar &nbsp;|&nbsp; weapons: knife · pistol · tommyGun &nbsp;|&nbsp; casino: cardTable · slotMachine · rouletteWheel · drink · cash &nbsp;|&nbsp; street: trafficLight · barrelFire · fireHydrant · payphone · streetSign · waterTower · dumpster · manhole &nbsp;|&nbsp; effects: steam · searchlight · newspaper · bloodSplat · bodyOnGround · chalkOutline · bloodDrain &nbsp;|&nbsp; line fx: muzzle · blood · lightning · lighter &nbsp;|&nbsp; reveal/hide with onFlag / hideOnFlag</div>
+  <div class="ed-help">backdrops: skyline · alley · rooftop · room &nbsp;|&nbsp; lights: lamp · neon · bulb · glow &nbsp;|&nbsp; people: trenchMan · thug · boss · gunman · dealer · womanInRed · singer &nbsp;|&nbsp; animals: cat · crow &nbsp;|&nbsp; movers: redCar &nbsp;|&nbsp; weapons: knife · pistol · tommyGun &nbsp;|&nbsp; casino: cardTable · slotMachine · rouletteWheel · drink · cash &nbsp;|&nbsp; street: trafficLight · barrelFire · fireHydrant · payphone · streetSign · waterTower · dumpster · manhole &nbsp;|&nbsp; effects: steam · searchlight · newspaper · bloodSplat · bodyOnGround · chalkOutline · bloodDrain &nbsp;|&nbsp; line fx: muzzle · blood · lightning · hammer · lighter &nbsp;|&nbsp; reveal/hide with onFlag / hideOnFlag</div>
   <div class="ed-btns"><button id="ed-play">▶ PLAY</button><button id="ed-reset">DEFAULT</button><button id="ed-close">CLOSE</button></div>
 </div>
 

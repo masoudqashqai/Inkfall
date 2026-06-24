@@ -18,23 +18,26 @@ export function sky(e) {
   c.fillStyle = 'rgba(200,210,230,0.5)';
   for (let i = 0; i < 40; i++) { const sx = (i * 197.3) % e.W, sy = (i * 91.7) % (e.H * 0.4); if ((i * 13) % 5 === 0) c.fillRect(sx, sy, 1.4, 1.4); }
 
-  if (scene.hideMoon || scene.indoor) return;   // no moon when occluded (alley) or indoors (its glow is real light now, so it must not be registered where it can't be seen)
+  if (scene.indoor) return;   // no sky/moon indoors (the room wall would occlude it anyway)
   const m = scene.moon || { x: 0.78, y: 0.18 }, mx = m.x * e.W + scene.camera.look * 0.1, my = m.y * e.H, mr = 34;
 
   // the moon disc: a soft radially-shaded body with a few faint craters
   const md = c.createRadialGradient(mx - mr * 0.32, my - mr * 0.32, mr * 0.15, mx, my, mr);
   md.addColorStop(0, '#f6f8fc'); md.addColorStop(0.65, PALETTE.moon); md.addColorStop(1, '#bcc4d4');
   c.fillStyle = md; c.beginPath(); c.arc(mx, my, mr, 0, TWO_PI); c.fill();
-  c.fillStyle = 'rgba(116,128,152,0.55)';   // darker so they survive the additive halo
+  c.fillStyle = 'rgba(116,128,152,0.55)';
   c.beginPath(); c.arc(mx - 9, my - 5, 6, 0, TWO_PI); c.arc(mx + 11, my + 9, 8, 0, TWO_PI); c.arc(mx + 5, my - 13, 3.5, 0, TWO_PI); c.arc(mx - 13, my + 11, 4, 0, TWO_PI); c.fill();
   c.strokeStyle = 'rgba(255,255,255,0.18)'; c.lineWidth = 1; c.beginPath(); c.arc(mx, my, mr, 0, TWO_PI); c.stroke();
 
-  // the moon's halo + floor reflection come from the real lighting system (glow decoupled from
-  // the large, weak influence that tints the scene's rim).
-  if (my < e.gy) e.addLight({
-    x: mx, y: my, col: '210,222,245',
-    r: e.H * 0.62, I: 0.3,                       // influence: large + faint (rim/rain tint)
-    surface: false, ring: true, glowR: 92, glowI: 2.2, // halo: a real-light RING around the disc (glow, but craters survive)
-    reflW: 26, reflI: 0.13, reflLen: 0.8,        // long faint wet-floor streak
-  });
+  // halo as a ring, painted on the WORLD layer (additive) so the backdrop occludes it exactly like
+  // the disc: a centred moon glows through the alley's sky gap, a moon behind a wall is hidden.
+  c.save(); c.globalCompositeOperation = 'lighter';
+  const hr = 94, hg = c.createRadialGradient(mx, my, 0, mx, my, hr);
+  hg.addColorStop(0, 'rgba(210,222,245,0)'); hg.addColorStop(0.36, 'rgba(210,222,245,0)');
+  hg.addColorStop(0.5, 'rgba(210,222,245,0.34)'); hg.addColorStop(0.74, 'rgba(210,222,245,0.13)'); hg.addColorStop(1, 'rgba(210,222,245,0)');
+  c.fillStyle = hg; c.beginPath(); c.arc(mx, my, hr, 0, TWO_PI); c.fill(); c.restore();
+
+  // register only as influence (cool rim tint) + a faint floor reflection. The glow is the ring
+  // above, drawn in the world so it can be occluded, so this light carries no light-buffer glow.
+  if (my < e.gy) e.addLight({ x: mx, y: my, col: '210,222,245', r: e.H * 0.62, I: 0.3, glow: false, reflW: 26, reflI: 0.13, reflLen: 0.8 });
 }

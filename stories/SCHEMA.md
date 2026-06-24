@@ -89,9 +89,10 @@ Library objects by category (see `src/library/`):
 
 ```js
 audio: {
-  music: 'theme.mp3', musicVol: 0.5,
+  music: 'burning_silence.mp3', musicVol: 0.5,
   rain:  'rain.mp3',  rainVol: 0.16,
-  sfx: { gunshot: { src: 'gunshot.mp3', vol: 0.95, n: 3 }, /* keys: gunshot, shell, heels, lidopen, flint, neon, crack, thunder, whoosh */ },
+  sfx: { gunshot: { src: 'gunshot.mp3', vol: 0.95, n: 3 }, /* keys: gunshot, shell, hammer, footstep, lidopen, flint, neon, thunder, whoosh */ },
+  musicStart: 55,                 // optional: start + loop the music from this offset (seconds) instead of 0
 }
 ```
 

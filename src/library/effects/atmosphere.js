@@ -20,10 +20,11 @@ defineEffect('searchlight', function (e) {
 
 defineEffect('newspaper', function (e) {                      // blows in from the left, tumbles, settles
   const c = e.ctx, st = e.sceneT(), pP = smooth01(st / 4.5), tumbling = pP < 0.97;
+  const k = e.scaleOf(this) * 0.6;   // scale with the viewport like every other asset (0.6 keeps the reference-desktop size); was fixed px, so it stayed big on mobile
   const restX = (this.restX != null ? this.restX : 0.2) * e.W;
-  const px = lerp(-50, restX, pP), py = tumbling ? (e.gy - 6 - Math.abs(Math.sin(st * 3)) * 50 * (1 - pP)) : (e.gy + 16), rot = tumbling ? Math.sin(st * 5) : 0.1;
+  const px = lerp(-50 * k, restX, pP), py = tumbling ? (e.gy - 6 * k - Math.abs(Math.sin(st * 3)) * 50 * k * (1 - pP)) : (e.gy + 16 * k), rot = tumbling ? Math.sin(st * 5) : 0.1;
   const w = 72, h = 48;
-  c.save(); c.translate(px, py); c.rotate(rot);
+  c.save(); c.translate(px, py); c.rotate(rot); c.scale(k, k);
   c.fillStyle = 'rgba(228,225,214,0.92)'; c.fillRect(-w / 2, -h / 2, w, h);
   c.strokeStyle = 'rgba(0,0,0,0.55)'; c.lineWidth = 1; c.strokeRect(-w / 2, -h / 2, w, h);
   c.fillStyle = '#0b0b0b'; c.textAlign = 'center'; c.textBaseline = 'alphabetic';

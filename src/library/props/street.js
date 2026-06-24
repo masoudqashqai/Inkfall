@@ -28,8 +28,10 @@ defineProp('trafficLight', function (e) {                     // turns green on 
   const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit;
   const green = (this.greenAt != null && e.lineIdx >= this.greenAt);
   c.save(); c.translate(X, gy);
-  c.fillStyle = PALETTE.ink; c.fillRect(-2 * s, -150 * s, 4 * s, 150 * s);
-  c.fillStyle = '#0c0e12'; c.fillRect(-11 * s, -202 * s, 22 * s, 54 * s);
+  c.fillStyle = '#191c22'; c.fillRect(-2.5 * s, -150 * s, 5 * s, 150 * s);                 // pole: visible steel (not near-black, which vanished against the buildings)
+  c.fillStyle = 'rgba(150,160,175,0.18)'; c.fillRect(-2.5 * s, -150 * s, 1.6 * s, 150 * s); // edge highlight for form
+  c.fillStyle = '#23272f'; c.fillRect(-11 * s, -202 * s, 22 * s, 54 * s);                  // housing
+  c.strokeStyle = 'rgba(0,0,0,0.5)'; c.lineWidth = 1; c.strokeRect(-11 * s, -202 * s, 22 * s, 54 * s);
   const lamp = (yy, on, col) => { c.fillStyle = on ? col : 'rgba(70,70,74,0.5)'; if (on) { c.shadowColor = col; c.shadowBlur = 16 * s; } c.beginPath(); c.arc(0, yy * s, 5 * s, 0, TWO_PI); c.fill(); c.shadowBlur = 0; };
   lamp(-190, !green, '#ff2a2a'); lamp(-175, false, '#ffd400'); lamp(-160, green, '#36d36e');
   c.restore();

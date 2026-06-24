@@ -9,8 +9,11 @@ defineMover('redCar', function (e) {
   const P = pts => { c.beginPath(); c.moveTo(pts[0][0] * s, pts[0][1] * s); for (let i = 1; i < pts.length; i++) c.lineTo(pts[i][0] * s, pts[i][1] * s); c.closePath(); };
   c.save(); c.translate(X, gy); c.scale(this.flip ? 1 : -1, 1);   // authored front-left; default faces RIGHT (its travel direction)
 
-  // wet ground bleed under the car
-  c.globalAlpha = 0.4; const gl = c.createLinearGradient(0, 0, 0, 26 * s); gl.addColorStop(0, 'rgba(150,8,20,0.5)'); gl.addColorStop(1, 'rgba(150,8,20,0)'); c.fillStyle = gl; c.fillRect(-82 * s, 0, 164 * s, 28 * s); c.globalAlpha = 1;
+  // soft contact shadow on the wet floor: a feathered ellipse hugging the ground (no hard slab).
+  // The coloured wet glow comes from the head/tail lamps via the lighting pass, not a red box.
+  c.save(); c.translate(0, 1 * s); c.scale(1, 0.16);
+  const sh = c.createRadialGradient(0, 0, 0, 0, 0, 88 * s); sh.addColorStop(0, 'rgba(0,0,0,0.55)'); sh.addColorStop(0.55, 'rgba(0,0,0,0.3)'); sh.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = sh; c.beginPath(); c.arc(0, 0, 88 * s, 0, TWO_PI); c.fill(); c.restore();
 
   // chrome bumpers (dim steel), front-left + rear-right, behind the body
   for (const [x0, x1] of [[-82, -66], [66, 82]]) { const sg = c.createLinearGradient(0, -16 * s, 0, -7 * s); sg.addColorStop(0, '#454a52'); sg.addColorStop(1, '#1b1f25'); c.fillStyle = sg; c.fillRect(x0 * s, -16 * s, (x1 - x0) * s, 9 * s); }
@@ -42,9 +45,9 @@ defineMover('redCar', function (e) {
   // wheels: on top, sitting on the ground, with squared 80s wheel arches
   for (const wx of [-44, 46]) {
     c.strokeStyle = '#1c0a0f'; c.lineWidth = 2.4 * s; c.beginPath(); c.moveTo((wx - 14) * s, -24 * s); c.lineTo((wx - 14) * s, -12 * s); c.lineTo((wx + 14) * s, -12 * s); c.lineTo((wx + 14) * s, -24 * s); c.stroke();
-    c.fillStyle = '#101216'; c.beginPath(); c.arc(wx * s, -11 * s, 12 * s, 0, TWO_PI); c.fill();
-    c.fillStyle = '#2c313a'; c.beginPath(); c.arc(wx * s, -11 * s, 5.5 * s, 0, TWO_PI); c.fill();
-    c.fillStyle = '#0a0b0e'; c.beginPath(); c.arc(wx * s, -11 * s, 2 * s, 0, TWO_PI); c.fill();
+    c.fillStyle = '#101216'; c.beginPath(); c.arc(wx * s, -12 * s, 12 * s, 0, TWO_PI); c.fill();   // bottom sits on the ground (y 0)
+    c.fillStyle = '#2c313a'; c.beginPath(); c.arc(wx * s, -12 * s, 5.5 * s, 0, TWO_PI); c.fill();
+    c.fillStyle = '#0a0b0e'; c.beginPath(); c.arc(wx * s, -12 * s, 2 * s, 0, TWO_PI); c.fill();
   }
   c.restore();
 }, {

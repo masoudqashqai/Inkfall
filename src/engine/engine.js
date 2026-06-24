@@ -7,6 +7,7 @@ export class Engine {
   constructor() {
     this.cv = null; this.ctx = null; this.DPR = 1; this.W = 0; this.H = 0; this.unit = 1;
     this.lightCv = null; this.lightCtx = null;
+    this.snapCv = null; this.snapCtx = null;   // a frozen copy of the last frame, for the beat crossfade
     this.frame = new Frame();
     this.drops = []; this.grain = null;     // rain particles + film-grain tile (persist across scenes)
     this.last = 0;
@@ -17,6 +18,8 @@ export class Engine {
     this.ctx = this.cv.getContext('2d', { alpha: false, desynchronized: true });
     this.lightCv = document.createElement('canvas');
     this.lightCtx = this.lightCv.getContext('2d');
+    this.snapCv = document.createElement('canvas');
+    this.snapCtx = this.snapCv.getContext('2d');
     addEventListener('resize', () => this.resize());
     this.W = innerWidth; this.H = innerHeight;
     this.resize();
@@ -25,7 +28,7 @@ export class Engine {
   resize() {
     this.DPR = Math.min(window.devicePixelRatio || 1, 2);
     this.W = innerWidth; this.H = innerHeight;
-    for (const cv of [this.cv, this.lightCv]) { cv.width = Math.floor(this.W * this.DPR); cv.height = Math.floor(this.H * this.DPR); }
+    for (const cv of [this.cv, this.lightCv, this.snapCv]) { cv.width = Math.floor(this.W * this.DPR); cv.height = Math.floor(this.H * this.DPR); }
     this.cv.style.width = this.W + 'px'; this.cv.style.height = this.H + 'px';
     this.initRain();
     if (!this.grain) this.buildGrain();
@@ -58,6 +61,9 @@ export class Engine {
   // device-pixel transform helpers (buffers + main share the same backing size)
   setWorldTransform(ctx) { ctx.setTransform(this.DPR, 0, 0, this.DPR, 0, 0); }
   setDeviceTransform(ctx) { ctx.setTransform(1, 0, 0, 1, 0, 0); }
+
+  // freeze the current on-screen frame so the next beat can crossfade out of it
+  snapshot() { this.snapCtx.setTransform(1, 0, 0, 1, 0, 0); this.snapCtx.clearRect(0, 0, this.snapCv.width, this.snapCv.height); this.snapCtx.drawImage(this.cv, 0, 0); }
 
   run(onTick) {
     this.last = performance.now();

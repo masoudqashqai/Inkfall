@@ -20,7 +20,7 @@ export class Scene {
   get ground() { return this.data.ground; }
   get keyLight() { return this.data.keyLight || { x: 0.3, y: 0.3 }; }
   get moon() { return this.data.moon; }
-  get hideMoon() { return this.data.hideMoon; }
+  get hideMoon() { return this.data.hideMoon != null ? this.data.hideMoon : !!(this.backdrop && this.backdrop.hideMoon); }
   get indoor() { return this.data.indoor != null ? this.data.indoor : !!(this.backdrop && this.backdrop.indoor); }
 
   buildContent() {
@@ -76,5 +76,5 @@ export class Scene {
     shot(); setTimeout(shot, 230);
   }
 
-  walkSound(on) { Audio2.setLoop('heels', on); }
+  walkSound(on) { Audio2.setLoop('footstep', on); }
 }
