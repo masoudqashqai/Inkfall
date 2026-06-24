@@ -1,0 +1,90 @@
+name: Branch previews
+
+# Publishes every branch as a static preview on the gh-pages branch:
+#   main            -> site root            (https://<owner>.github.io/Inkfall/)
+#   any other branch -> /<branch-with-slashes-as-dashes>/  subfolder
+# Deleting a branch removes its preview folder.
+#
+# A push runs the copy of this workflow that lives on the pushed branch, so a
+# branch only gets a preview once it contains this file. Branches cut from main
+# after this lands inherit it automatically.
+#
+# The delete event always runs the workflow from the default branch, so this
+# file must live on the default branch for cleanup to fire.
+
+on:
+  push:
+    branches:
+      - '**'
+      - '!gh-pages'
+  delete:
+
+permissions:
+  contents: write
+
+# Serialise writes to gh-pages so parallel branch pushes do not collide.
+concurrency:
+  group: gh-pages-deploy
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout pushed branch
+        uses: actions/checkout@v4
+
+      - name: Compute target folder
+        id: target
+        run: |
+          branch="${GITHUB_REF_NAME}"
+          slug="${branch//\//-}"
+          if [ "$branch" = "main" ]; then
+            echo "dest=" >> "$GITHUB_OUTPUT"
+            echo "Publishing main to site root"
+          else
+            echo "dest=$slug" >> "$GITHUB_OUTPUT"
+            echo "Publishing $branch to /$slug/"
+          fi
+
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: .
+          destination_dir: ${{ steps.target.outputs.dest }}
+          keep_files: true
+          exclude_assets: '.github,.git,_legacy,node_modules'
+          user_name: 'github-actions[bot]'
+          user_email: 'github-actions[bot]@users.noreply.github.com'
+          commit_message: 'preview: ${{ github.ref_name }} (${{ github.sha }})'
+
+  cleanup:
+    if: github.event_name == 'delete' && github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout gh-pages
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          fetch-depth: 0
+
+      - name: Remove preview folder for deleted branch
+        run: |
+          branch="${{ github.event.ref }}"
+          slug="${branch//\//-}"
+          if [ -z "$slug" ] || [ "$slug" = "main" ]; then
+            echo "Refusing to delete the site root."
+            exit 0
+          fi
+          if [ -d "$slug" ]; then
+            git config user.name 'github-actions[bot]'
+            git config user.email 'github-actions[bot]@users.noreply.github.com'
+            git rm -rf "$slug"
+            git commit -m "cleanup: remove preview for deleted branch $branch"
+            git push origin gh-pages
+          else
+            echo "No preview folder '$slug' to remove."
+          fi
