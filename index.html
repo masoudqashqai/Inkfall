@@ -269,10 +269,14 @@ const Noir = {
       const fn = this.actors[p.actor]; if (fn) fn(this, p);
     }
 
-    this.drawRain();
-    this.nextBolt -= this.dt;
-    if (this.nextBolt <= 0) { this.lightning = Math.max(this.lightning, 0.9); if (Math.random() < 0.7) this.bolt(now | 0); this.nextBolt = ANIM.boltGap[0] + Math.random() * (ANIM.boltGap[1] - ANIM.boltGap[0]); }
-    if (this.lightning > 0) { this.ctx.fillStyle = `rgba(255,255,255,${this.lightning * 0.5})`; this.ctx.fillRect(0, 0, this.W, this.H); this.lightning = Math.max(0, this.lightning - this.dt * 3); }
+    // weather only falls outdoors (interiors set indoor:true on the backdrop, or scene.indoor)
+    const indoor = scene.indoor != null ? scene.indoor : !!(bd && bd.indoor);
+    if (!indoor) {
+      this.drawRain();
+      this.nextBolt -= this.dt;
+      if (this.nextBolt <= 0) { this.lightning = Math.max(this.lightning, 0.9); if (Math.random() < 0.7) this.bolt(now | 0); this.nextBolt = ANIM.boltGap[0] + Math.random() * (ANIM.boltGap[1] - ANIM.boltGap[0]); }
+      if (this.lightning > 0) { this.ctx.fillStyle = `rgba(255,255,255,${this.lightning * 0.5})`; this.ctx.fillRect(0, 0, this.W, this.H); this.lightning = Math.max(0, this.lightning - this.dt * 3); }
+    } else { this.lightning = 0; }
 
     if (this.grain) { const c = this.ctx; c.globalAlpha = ANIM.grainAlpha; const gx = -Math.random() * 80, gy = -Math.random() * 80; for (let yy = gy; yy < this.H; yy += 220) for (let xx = gx; xx < this.W; xx += 220) c.drawImage(this.grain, xx, yy); c.globalAlpha = 1; }
     const vg = this.ctx.createRadialGradient(this.W / 2, this.H / 2, Math.min(this.W, this.H) * 0.3, this.W / 2, this.H / 2, Math.max(this.W, this.H) * 0.75);
@@ -326,15 +330,25 @@ function rimSign(e, p) { return (e.keyLight.x < p.x) ? -1 : 1; }       // which 
 function bodyGrad(c, h, s) { const g = c.createLinearGradient(0, -h * s, 0, 0); g.addColorStop(0, '#0b0c10'); g.addColorStop(1, '#020203'); return g; }
 function shadowPool(c, x, y, rx, ry) { c.save(); c.globalAlpha = 0.32; c.fillStyle = '#000'; c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, TWO_PI); c.fill(); c.restore(); }
 function ember(c, x, y, s, t) { const em = 0.6 + 0.4 * Math.sin(t * ANIM.emberSpeed); c.save(); c.fillStyle = `rgba(255,60,30,${0.7 + 0.3 * em})`; c.shadowColor = PALETTE.ember; c.shadowBlur = 10 * em; c.beginPath(); c.arc(x, y, 1.9 * s, 0, TWO_PI); c.fill(); c.restore(); }
-function cigSmoke(c, x, y, s, t) { c.save(); c.strokeStyle = 'rgba(210,214,224,0.13)'; c.lineWidth = 2.4 * s; c.beginPath(); for (let i = 0; i <= 12; i++) { const yy = y - i * 7 * s, xx = x + Math.sin(t * 1.5 + i * 0.6) * (2 + i * 0.7) * s; i ? c.lineTo(xx, yy) : c.moveTo(xx, yy); } c.stroke(); c.restore(); }
-function drawFedora(c, cx, cy, r, rim) {
-  c.save(); c.translate(cx, cy); c.fillStyle = PALETTE.ink;
-  c.beginPath(); c.moveTo(-r * 0.85, -1); c.quadraticCurveTo(-r * 0.75, -r * 1.15, 0, -r * 1.2); c.quadraticCurveTo(r * 0.75, -r * 1.15, r * 0.85, -1);
-  c.lineTo(r * 0.5, -r * 0.45); c.lineTo(0, -r * 0.25); c.lineTo(-r * 0.5, -r * 0.45); c.closePath(); c.fill();
-  c.fillStyle = '#0c0d12'; c.fillRect(-r * 0.85, -2, r * 1.7, 3);                       // band
-  c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(0, 0, r * 1.75, r * 0.48, 0, 0, TWO_PI); c.fill();
-  c.beginPath(); c.ellipse(rim * r * 0.35, r * 0.22, r * 1.25, r * 0.32, 0, 0, TWO_PI); c.fill();  // tilt
-  c.strokeStyle = 'rgba(210,220,240,0.5)'; c.lineWidth = 1.1; c.beginPath(); c.ellipse(0, 0, r * 1.75, r * 0.48, 0, Math.PI * 0.95, Math.PI * 1.65); c.stroke();
+function cigSmoke(c, x, y, s, t) {  // soft rising puffs, not a hard line
+  c.save(); c.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 6; i++) { const life = (t * 0.4 + i * 0.16) % 1, yy = y - life * 42 * s, xx = x + Math.sin(t * 1.2 + i) * 4 * s * life, r = (1.4 + life * 5) * s, a = 0.11 * (1 - life); c.fillStyle = `rgba(210,214,224,${a})`; c.beginPath(); c.arc(xx, yy, r, 0, TWO_PI); c.fill(); }
+  c.restore();
+}
+function drawFedora(c, cx, cy, r, rim) {                 // a proper snap-brim fedora
+  c.save(); c.translate(cx, cy);
+  c.fillStyle = PALETTE.ink;
+  c.beginPath(); c.ellipse(0, 0, r * 1.5, r * 0.34, 0, 0, TWO_PI); c.fill();             // brim
+  c.beginPath();                                                                          // domed crown w/ centre dent
+  c.moveTo(-r * 0.9, 0);
+  c.quadraticCurveTo(-r * 0.96, -r * 0.92, -r * 0.42, -r * 1.0);
+  c.quadraticCurveTo(-r * 0.15, -r * 1.1, 0, -r * 0.9);
+  c.quadraticCurveTo(r * 0.15, -r * 1.1, r * 0.42, -r * 1.0);
+  c.quadraticCurveTo(r * 0.96, -r * 0.92, r * 0.9, 0);
+  c.closePath(); c.fill();
+  c.fillStyle = '#10121a'; c.fillRect(-r * 0.9, -r * 0.18, r * 1.8, r * 0.2);            // hat band
+  c.strokeStyle = 'rgba(200,210,230,0.3)'; c.lineWidth = 1;                              // light catch on the lit brim edge
+  c.beginPath(); c.moveTo(rim * r * 1.4, -r * 0.04); c.quadraticCurveTo(rim * r * 0.8, -r * 0.32, 0, -r * 0.3); c.stroke();
   c.restore();
 }
 function drawPistol(c, x, y, s) {
@@ -368,8 +382,8 @@ Noir.registerActor('trenchMan', (e, p) => {                 // the detective: tr
   c.fillStyle = '#1a1b20'; c.beginPath(); c.arc(0, -112 * s, 10 * s, 0, TWO_PI); c.fill();
   c.fillStyle = PALETTE.ink; c.beginPath(); c.arc(0, -112 * s, 10 * s, Math.PI * 1.15, Math.PI * 1.95); c.fill();
   drawFedora(c, 0, -120 * s, 13 * s, rim);
-  c.strokeStyle = 'rgba(220,228,245,0.8)'; c.lineWidth = 2 * s;
-  c.beginPath(); c.moveTo(rim * 22 * s, -38 * s); c.lineTo(rim * 18 * s, -90 * s); c.moveTo(rim * 26 * s, -90 * s); c.quadraticCurveTo(rim * 15 * s, -100 * s, rim * 7 * s, -104 * s); c.stroke();
+  c.strokeStyle = 'rgba(210,220,240,0.5)'; c.lineWidth = 1.6 * s;
+  c.beginPath(); c.moveTo(rim * 22 * s, -38 * s); c.lineTo(rim * 18 * s, -90 * s); c.stroke();
   if (p.smoke) cigSmoke(c, 12 * s, -104 * s, s, t);
   ember(c, 13 * s, -104 * s, s, t);
   c.restore();
@@ -784,6 +798,7 @@ Noir.registerBackdrop('rooftop', {
 });
 
 Noir.registerBackdrop('room', {                       // an interior — back wall + floor + door
+  indoor: true,                                       // no rain / lightning falls in here
   draw(e, sc) {
     const c = e.ctx, g = e.gy, b = sc.backdrop || {}, ox = e.parallax * 0.3;
     const wall = c.createLinearGradient(0, 0, 0, g); wall.addColorStop(0, b.wallTop || '#0a0c11'); wall.addColorStop(1, b.wall || '#06070b');
@@ -810,7 +825,7 @@ Noir.registerBackdrop('room', {                       // an interior — back wa
 //  BOOT — the story lives in story.js (window.INKFALL_STORY). The editor can replace it
 //  live, and anything you play is remembered in localStorage.
 // =====================================================================================
-const BUILD = 'build 7 · single-tap fix';
+const BUILD = 'build 8 · fedora + dry casino';
 console.log('INKFALL', BUILD);
 document.getElementById('build').textContent = BUILD;
 
