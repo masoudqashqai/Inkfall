@@ -34,11 +34,28 @@ Locally: `python3 -m http.server 8000`, or just open `index.html` from disk.
 - **Drag** — look across the scene (parallax)
 - **Hold** — call down a lightning strike
 
-## Writing a story
+## The default story
+
+`story.js` ships with **“The Last Deal of Danny Cole”** — a small man tries to get rich
+in the underground casinos of Basin City, loses everything, kills a man by accident in
+the alley, and is gunned down by the mob. Five scenes: **The Itch → The Table → The Loss
+→ The Accident → The Reckoning.**
+
+## Writing a story — two ways
+
+**1. Edit `story.js`.** The whole tale is the data in `window.INKFALL_STORY`. Change a
+line, add a scene, swap a backdrop — no engine code involved.
+
+**2. Use the in-app editor.** Tap **✎ STORY** (top-right). It opens the current story as
+JSON; edit or paste a new one and hit **▶ PLAY** to run it instantly. What you play is
+saved in your browser (`localStorage`), so it survives a refresh; **DEFAULT** restores
+Danny Cole. This is the fastest way to feed it a story from your phone.
 
 A story is a list of scenes. Each scene names a **backdrop**, declares its **lights**,
 places a **cast** of actors at normalized `x` (0 = left, 1 = right), and lists a
-**script** of caption lines. A line can fire effects (`muzzle`, `blood`, `lightning`).
+**script** of caption lines. A line can fire effects (`muzzle`, `blood`, `lightning`),
+and a cast member can be revealed or hidden by those effects via `onFlag` / `hideOnFlag`
+(e.g. a standing man `hideOnFlag: 'blood'` and a body `onFlag: 'blood'` swap on the shot).
 
 ```js
 {
@@ -62,10 +79,11 @@ places a **cast** of actors at normalized `x` (0 = left, 1 = right), and lists a
 }
 ```
 
-**Built-in backdrops:** `skyline`, `alley`, `rooftop`.
+**Built-in backdrops:** `skyline`, `alley`, `rooftop`, `room`.
 **Built-in light types:** `lamp`, `neon`, `bulb`, `glow`.
-**Built-in actors:** `trenchMan`, `womanInRed`, `gunman`, `redCar`, `steam`,
-`bloodSplat`, `crow`, `waterTower`, `newspaper`, `searchlight`.
+**Built-in actors:** `trenchMan`, `womanInRed`, `gunman`, `redCar`, `cardTable`,
+`dealer`, `bodyOnGround`, `steam`, `bloodSplat`, `crow`, `waterTower`, `newspaper`,
+`searchlight`.
 
 Inline `<b>…</b>` in a line renders **red**, like a Sin City caption.
 
@@ -82,8 +100,4 @@ Noir.registerActor('streetSign', (e, p) => {
 
 Backdrops are `{ build(e, sc), draw(e, sc) }` (build precomputes geometry on resize).
 
-## The current story
-
-Three scenes, cycling: **The Street** → **The Alley** → **The Rooftop**, each re-staged
-with an ink-wipe as you tap through hard-boiled narration. It's a hallucination, not the
-comic — a mood, and a machine for making more of them.
+It's a hallucination, not the comic — a mood, and a machine for making more of them.
