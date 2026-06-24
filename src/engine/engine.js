@@ -15,7 +15,7 @@ export class Engine {
 
   init() {
     this.cv = document.getElementById('c');
-    this.ctx = this.cv.getContext('2d', { alpha: false, desynchronized: true });
+    this.ctx = this.cv.getContext('2d', { alpha: false });   // NOT desynchronized: the low-latency surface tears/flickers badly on real phones (fine on desktop + emulation, so it hid)
     this.lightCv = document.createElement('canvas');
     this.lightCtx = this.lightCv.getContext('2d');
     this.snapCv = document.createElement('canvas');
