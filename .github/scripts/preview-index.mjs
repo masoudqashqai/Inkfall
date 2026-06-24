@@ -24,10 +24,16 @@ const [cmd, ...rest] = process.argv.slice(2);
 
 if (cmd === 'upsert') {
   const [manifest, branch, url, sha, updated] = rest;
-  const list = load(manifest).filter((e) => e.branch !== branch);
-  list.push({ branch, url, sha, updated });
-  list.sort(order);
-  save(manifest, list);
+  const list = load(manifest);
+  // Idempotency: keep the existing timestamp when the commit has not changed,
+  // so re-running with the same state produces an identical manifest and no
+  // diff. This makes the index self terminating, a loop cannot sustain itself.
+  const prev = list.find((e) => e.branch === branch);
+  const stamp = prev && prev.sha === sha ? prev.updated : updated;
+  const next = list.filter((e) => e.branch !== branch);
+  next.push({ branch, url, sha, updated: stamp });
+  next.sort(order);
+  save(manifest, next);
 } else if (cmd === 'remove') {
   const [manifest, branch] = rest;
   save(manifest, load(manifest).filter((e) => e.branch !== branch));
