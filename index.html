@@ -74,7 +74,7 @@
   <div class="ed-head">STORY EDITOR — JSON</div>
   <textarea id="ed-text" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
   <div id="ed-err"></div>
-  <div class="ed-help">backdrops: skyline · alley · rooftop · room &nbsp;|&nbsp; lights: lamp · neon · bulb · glow &nbsp;|&nbsp; people: trenchMan · thug · boss · gunman · dealer · womanInRed · singer &nbsp;|&nbsp; weapons: knife · pistol · tommyGun &nbsp;|&nbsp; casino: cardTable · slotMachine · rouletteWheel · drink &nbsp;|&nbsp; props: redCar · barrelFire · fireHydrant · payphone · streetSign · cat · steam · crow · waterTower · newspaper · searchlight · bloodSplat · bodyOnGround · chalkOutline &nbsp;|&nbsp; line fx: muzzle · blood · lightning &nbsp;|&nbsp; reveal/hide with onFlag / hideOnFlag</div>
+  <div class="ed-help">backdrops: skyline · alley · rooftop · room &nbsp;|&nbsp; lights: lamp · neon · bulb · glow &nbsp;|&nbsp; people: trenchMan · thug · boss · gunman · dealer · womanInRed · singer &nbsp;|&nbsp; weapons: knife · pistol · tommyGun &nbsp;|&nbsp; casino: cardTable · slotMachine · rouletteWheel · drink · cash &nbsp;|&nbsp; props: redCar · barrelFire · fireHydrant · payphone · streetSign · cat · steam · crow · waterTower · newspaper · searchlight · bloodSplat · bodyOnGround · chalkOutline &nbsp;|&nbsp; line fx: muzzle · blood · lightning &nbsp;|&nbsp; reveal/hide with onFlag / hideOnFlag</div>
   <div class="ed-btns"><button id="ed-play">▶ PLAY</button><button id="ed-reset">DEFAULT</button><button id="ed-close">CLOSE</button></div>
 </div>
 
@@ -388,6 +388,12 @@ Noir.registerActor('trenchMan', (e, p) => {                 // the detective: tr
   c.beginPath(); c.moveTo(-22 * s, -36 * s); c.lineTo(-18 * s, -92 * s); c.lineTo(18 * s, -92 * s); c.lineTo(22 * s, -36 * s); c.quadraticCurveTo(0, -28 * s, -22 * s, -36 * s); c.closePath(); c.fill();
   c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 1.5 * s; c.beginPath(); c.moveTo(2 * s, -90 * s); c.lineTo(5 * s, -38 * s); c.stroke();
   c.fillStyle = '#0c0d10'; c.fillRect(-20 * s, -58 * s, 40 * s, 6 * s); c.fillStyle = '#26282e'; c.fillRect(-4 * s, -58 * s, 8 * s, 6 * s);  // belt + buckle
+  // arms: right forearm raised to the cigarette, left arm resting at his side
+  c.strokeStyle = '#15181e'; c.lineWidth = 8.5 * s; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(12 * s, -88 * s); c.lineTo(15 * s, -101 * s); c.stroke();
+  c.beginPath(); c.moveTo(-13 * s, -88 * s); c.lineTo(-19 * s, -52 * s); c.stroke();
+  c.strokeStyle = 'rgba(80,86,96,0.35)'; c.lineWidth = 1; c.beginPath(); c.moveTo(-13 * s, -86 * s); c.lineTo(-18 * s, -56 * s); c.stroke();  // sleeve seam
+  c.fillStyle = '#b9b7ac'; c.beginPath(); c.arc(15 * s, -102 * s, 2.6 * s, 0, TWO_PI); c.arc(-19 * s, -50 * s, 3 * s, 0, TWO_PI); c.fill();           // hands
   c.fillStyle = bodyGrad(c, 24, s, rim);
   c.beginPath(); c.moveTo(-26 * s, -90 * s); c.quadraticCurveTo(0, -104 * s, 26 * s, -90 * s); c.lineTo(18 * s, -84 * s); c.quadraticCurveTo(0, -94 * s, -18 * s, -84 * s); c.closePath(); c.fill();
   c.fillStyle = PALETTE.ink; c.beginPath(); c.moveTo(-10 * s, -96 * s); c.lineTo(-2 * s, -107 * s); c.lineTo(-1 * s, -92 * s); c.closePath(); c.moveTo(10 * s, -96 * s); c.lineTo(2 * s, -107 * s); c.lineTo(1 * s, -92 * s); c.closePath(); c.fill();
@@ -574,18 +580,26 @@ Noir.registerActor('cardTable', (e, p) => {
   if (hot) { c.save(); c.shadowColor = PALETTE.redHot; c.shadowBlur = 12; c.fillStyle = PALETTE.redHot; c.beginPath(); c.ellipse(X + 42 * s, top - 14 * s, 7 * s, 3 * s, 0, 0, TWO_PI); c.fill(); c.restore(); }
 });
 
-Noir.registerActor('dealer', (e, p) => {
+Noir.registerActor('dealer', (e, p) => {                // a croupier behind the table (the felt covers his lower half)
   const c = e.ctx, s = e.scaleOf(p), X = e.X(p), gy = e.gy + (p.dy || 0) * e.unit, rim = rimSign(e, p);
   c.save(); c.translate(X, gy);
-  c.fillStyle = bodyGrad(c, 92, s, rim); c.beginPath(); c.moveTo(-18 * s, 0); c.lineTo(-16 * s, -92 * s); c.quadraticCurveTo(0, -100 * s, 16 * s, -92 * s); c.lineTo(18 * s, 0); c.closePath(); c.fill();
-  c.fillStyle = '#d8d6cc'; c.beginPath(); c.moveTo(-7 * s, -92 * s); c.lineTo(7 * s, -92 * s); c.lineTo(5 * s, -44 * s); c.lineTo(-5 * s, -44 * s); c.closePath(); c.fill();
-  c.fillStyle = '#0a0b0e'; c.beginPath(); c.moveTo(-14 * s, -92 * s); c.lineTo(-7 * s, -92 * s); c.lineTo(-5 * s, -44 * s); c.lineTo(-16 * s, -48 * s); c.closePath(); c.moveTo(14 * s, -92 * s); c.lineTo(7 * s, -92 * s); c.lineTo(5 * s, -44 * s); c.lineTo(16 * s, -48 * s); c.closePath(); c.fill();
-  c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(-5 * s, -92 * s); c.lineTo(0, -90 * s); c.lineTo(-5 * s, -88 * s); c.closePath(); c.moveTo(5 * s, -92 * s); c.lineTo(0, -90 * s); c.lineTo(5 * s, -88 * s); c.closePath(); c.fill();
-  c.strokeStyle = '#0a0b0e'; c.lineWidth = 8 * s; c.lineCap = 'round'; c.beginPath(); c.moveTo(-12 * s, -84 * s); c.lineTo(-20 * s, -50 * s); c.moveTo(12 * s, -84 * s); c.lineTo(20 * s, -50 * s); c.stroke();
-  c.fillStyle = '#cfcdc3'; c.beginPath(); c.arc(-20 * s, -48 * s, 4 * s, 0, TWO_PI); c.arc(20 * s, -48 * s, 4 * s, 0, TWO_PI); c.fill();
-  c.fillStyle = '#1a1b20'; c.beginPath(); c.arc(0, -104 * s, 9 * s, 0, TWO_PI); c.fill();
-  c.fillStyle = PALETTE.ink; c.beginPath(); c.arc(0, -106 * s, 9 * s, Math.PI, 0); c.fill();
-  c.fillStyle = 'rgba(180,140,40,0.55)'; c.beginPath(); c.ellipse(0, -104 * s, 11 * s, 3.5 * s, 0, 0, Math.PI); c.fill();   // dealer's visor
+  // shoulders + vest torso (dark, rounded)
+  c.fillStyle = bodyGrad(c, 70, s, rim);
+  c.beginPath(); c.moveTo(-19 * s, 0); c.lineTo(-17 * s, -52 * s); c.quadraticCurveTo(-22 * s, -64 * s, -12 * s, -68 * s); c.quadraticCurveTo(0, -76 * s, 12 * s, -68 * s); c.quadraticCurveTo(22 * s, -64 * s, 17 * s, -52 * s); c.lineTo(19 * s, 0); c.closePath(); c.fill();
+  // a slim white shirt strip with vest lapels (not a big block)
+  c.fillStyle = '#cdcbc1'; c.beginPath(); c.moveTo(-4 * s, -66 * s); c.lineTo(4 * s, -66 * s); c.lineTo(3 * s, -30 * s); c.lineTo(-3 * s, -30 * s); c.closePath(); c.fill();
+  c.fillStyle = '#0c0e13'; c.beginPath(); c.moveTo(-12 * s, -68 * s); c.lineTo(-4 * s, -66 * s); c.lineTo(-3 * s, -30 * s); c.lineTo(-13 * s, -36 * s); c.closePath(); c.moveTo(12 * s, -68 * s); c.lineTo(4 * s, -66 * s); c.lineTo(3 * s, -30 * s); c.lineTo(13 * s, -36 * s); c.closePath(); c.fill();
+  // red bow tie
+  c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(-4.5 * s, -67 * s); c.lineTo(0, -64 * s); c.lineTo(-4.5 * s, -61 * s); c.closePath(); c.moveTo(4.5 * s, -67 * s); c.lineTo(0, -64 * s); c.lineTo(4.5 * s, -61 * s); c.closePath(); c.fill();
+  c.fillStyle = '#7a0008'; c.fillRect(-1.2 * s, -65.5 * s, 2.4 * s, 3 * s);
+  // arms resting forward toward the felt + pale hands
+  c.strokeStyle = '#101319'; c.lineWidth = 7 * s; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(-13 * s, -56 * s); c.lineTo(-22 * s, -30 * s); c.moveTo(13 * s, -56 * s); c.lineTo(22 * s, -30 * s); c.stroke();
+  c.fillStyle = '#bdbbb0'; c.beginPath(); c.arc(-23 * s, -28 * s, 3.5 * s, 0, TWO_PI); c.arc(23 * s, -28 * s, 3.5 * s, 0, TWO_PI); c.fill();
+  // head, slicked hair, green visor
+  c.fillStyle = '#1a1b20'; c.beginPath(); c.arc(0, -80 * s, 8 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = PALETTE.ink; c.beginPath(); c.arc(0, -82 * s, 8 * s, Math.PI, 0); c.fill();
+  c.fillStyle = 'rgba(170,135,45,0.6)'; c.beginPath(); c.ellipse(0, -79 * s, 9.5 * s, 3 * s, 0, 0, Math.PI); c.fill();
   c.restore();
 });
 
@@ -634,6 +648,14 @@ Noir.registerActor('drink', (e, p) => {                     // p.kind: 'martini'
     c.save(); c.fillStyle = PALETTE.amber; c.globalAlpha = 0.85; c.shadowColor = PALETTE.amber; c.shadowBlur = 8; c.fillRect(-6 * s, -7 * s, 12 * s, 6 * s); c.restore();
     c.fillStyle = 'rgba(230,235,245,0.5)'; c.fillRect(-3 * s, -6 * s, 3 * s, 3 * s);
   }
+  c.restore();
+});
+
+Noir.registerActor('cash', (e, p) => {                  // a stack of bills with a red band
+  const c = e.ctx, s = e.scaleOf(p), X = e.X(p), y = (p.y != null ? p.y * e.H : e.gy - 2 * e.unit);
+  c.save(); c.translate(X, y);
+  for (let i = 0; i < 4; i++) { c.fillStyle = i % 2 ? '#3c4a3a' : '#46553f'; c.fillRect(-14 * s, -i * 3 * s, 28 * s, 8 * s); c.strokeStyle = 'rgba(0,0,0,0.45)'; c.lineWidth = 1; c.strokeRect(-14 * s, -i * 3 * s, 28 * s, 8 * s); c.fillStyle = 'rgba(210,215,200,0.45)'; c.beginPath(); c.arc(0, -i * 3 * s + 4 * s, 2 * s, 0, TWO_PI); c.fill(); }
+  c.fillStyle = PALETTE.redHot; c.fillRect(-14 * s, -9 * s, 28 * s, 2.6 * s);   // red bank band (the colour that bleeds)
   c.restore();
 });
 
@@ -813,12 +835,20 @@ Noir.registerBackdrop('room', {                       // an interior — back wa
     c.fillStyle = wall; c.fillRect(0, 0, e.W, g);
     c.strokeStyle = 'rgba(255,255,255,0.03)'; c.lineWidth = 1;                       // faint panelling
     for (let x = 0; x < e.W + 60; x += 60) { c.beginPath(); c.moveTo(x + ox, 0); c.lineTo(x + ox, g); c.stroke(); }
-    if (b.door != null) {                                                            // a doorway leaking light (great silhouettes)
-      const dx = b.door * e.W + ox, dw = 70, dh = g * 0.62;
-      const dg = c.createLinearGradient(dx, g - dh, dx, g); dg.addColorStop(0, 'rgba(255,238,200,0.16)'); dg.addColorStop(1, 'rgba(255,238,200,0.03)');
-      c.fillStyle = dg; c.fillRect(dx - dw / 2, g - dh, dw, dh);
-      c.fillStyle = 'rgba(255,244,214,0.5)'; c.fillRect(dx - 4, g - dh, 8, dh);
-      c.strokeStyle = PALETTE.ink; c.lineWidth = 6; c.strokeRect(dx - dw / 2, g - dh, dw, dh);
+    if (b.door != null) {                                                            // a door, slightly ajar, warm light leaking out
+      const dx = b.door * e.W + ox, dw = 64 * (e.unit / 1.2), dh = g * 0.40, dtop = g - dh, gap = 11 * (e.unit / 1.2);
+      c.fillStyle = '#0a0c10'; c.fillRect(dx - dw / 2 - 5, dtop - 5, dw + 10, dh + 5);          // recessed frame
+      const lg = c.createLinearGradient(dx + dw / 2 - gap, 0, dx + dw / 2, 0);                   // warm room beyond the gap
+      lg.addColorStop(0, 'rgba(255,234,190,0)'); lg.addColorStop(1, 'rgba(255,234,190,0.55)');
+      c.fillStyle = lg; c.fillRect(dx + dw / 2 - gap, dtop, gap, dh);
+      c.fillStyle = '#101319'; c.fillRect(dx - dw / 2, dtop, dw - gap, dh);                       // the door slab
+      c.strokeStyle = 'rgba(255,255,255,0.05)'; c.lineWidth = 1;                                  // recessed panels
+      c.strokeRect(dx - dw / 2 + 6, dtop + 8, dw - gap - 12, dh * 0.4);
+      c.strokeRect(dx - dw / 2 + 6, dtop + dh * 0.52, dw - gap - 12, dh * 0.4);
+      c.fillStyle = '#8a8f98'; c.beginPath(); c.arc(dx + dw / 2 - gap - 6, dtop + dh * 0.55, 2.4, 0, Math.PI * 2); c.fill();   // knob
+      const sp = c.createLinearGradient(dx, g, dx, g + 46); sp.addColorStop(0, 'rgba(255,234,190,0.13)'); sp.addColorStop(1, 'rgba(255,234,190,0)'); // light on the floor
+      c.fillStyle = sp; c.beginPath(); c.moveTo(dx + dw / 2 - gap, g); c.lineTo(dx + dw / 2 + 26, g + 52); c.lineTo(dx - 8, g + 52); c.closePath(); c.fill();
+      c.strokeStyle = '#05060a'; c.lineWidth = 4; c.strokeRect(dx - dw / 2, dtop, dw, dh);
     }
     const fl = c.createLinearGradient(0, g, 0, e.H); fl.addColorStop(0, '#080a0e'); fl.addColorStop(1, PALETTE.ink);
     c.fillStyle = fl; c.fillRect(0, g, e.W, e.H - g);
@@ -833,7 +863,7 @@ Noir.registerBackdrop('room', {                       // an interior — back wa
 //  BOOT — the story lives in story.js (window.INKFALL_STORY). The editor can replace it
 //  live, and anything you play is remembered in localStorage.
 // =====================================================================================
-const BUILD = 'build 9 · form light + neon fit';
+const BUILD = 'build 10 · arms, dealer, door';
 console.log('INKFALL', BUILD);
 document.getElementById('build').textContent = BUILD;
 

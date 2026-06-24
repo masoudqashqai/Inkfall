@@ -84,7 +84,7 @@ and a cast member can be revealed or hidden by those effects via `onFlag` / `hid
 **Built-in actors:**
 - *people* — `trenchMan` (detective), `thug`, `boss`, `gunman`, `dealer`, `womanInRed`, `singer`
 - *weapons* — `knife` (`bloody:true` for a drip), `pistol`, `tommyGun`
-- *casino* — `cardTable`, `slotMachine`, `rouletteWheel`, `drink` (`kind:'martini'|'whiskey'`)
+- *casino* — `cardTable`, `slotMachine`, `rouletteWheel`, `drink` (`kind:'martini'|'whiskey'`), `cash`
 - *street/props* — `redCar`, `barrelFire`, `fireHydrant`, `payphone`, `streetSign`, `cat`, `steam`, `crow`, `waterTower`, `newspaper`, `searchlight`
 - *aftermath* — `bloodSplat`, `bodyOnGround`, `chalkOutline`
 

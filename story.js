@@ -57,19 +57,20 @@ window.INKFALL_STORY = {
 
     { // ---------------------------------------------------------------- 2 · THE TABLE
       title: 'THE&nbsp;TABLE', ground: 0.82, keyLight: { x: 0.5, y: 0.3 },
-      backdrop: { type: 'room', wall: '#06070b', wallTop: '#0b0d12', door: 0.86 },
+      backdrop: { type: 'room', wall: '#06070b', wallTop: '#0b0d12', door: 0.64 },
       lights: [
         { type: 'bulb', x: 0.45, y: 0.30, intensity: 1, flicker: true, par: 0.2 },
-        { type: 'neon', x: 0.16, y: 0.22, w: 120, h: 30, color: '#ff0018', label: 'FORTUNE', seed: 2.2, par: 0.2 }
+        { type: 'neon', x: 0.14, y: 0.20, w: 120, h: 30, color: '#ff0018', label: 'FORTUNE', seed: 2.2, par: 0.2 }
       ],
       cast: [
-        { actor: 'steam', x: 0.20, y: 0.7, seed: 0.9 },
-        { actor: 'slotMachine', x: 0.10, scale: 0.9, par: 0.2 },
-        { actor: 'slotMachine', x: 0.90, scale: 0.9, par: 0.2 },
-        { actor: 'dealer', x: 0.45, scale: 0.85, dy: -34 },
+        { actor: 'rouletteWheel', x: 0.20, y: 0.74, scale: 0.8, par: 0.2 },
+        { actor: 'slotMachine', x: 0.07, scale: 0.85, par: 0.2 },
+        { actor: 'slotMachine', x: 0.93, scale: 0.85, par: 0.2 },
+        { actor: 'dealer', x: 0.45, scale: 0.95 },
         { actor: 'cardTable', x: 0.45, scale: 1.05 },
-        { actor: 'drink', x: 0.60, y: 0.78, kind: 'whiskey', scale: 0.9 },
-        { actor: 'trenchMan', x: 0.72, scale: 1, smoke: true, par: 0.2 }
+        { actor: 'cash', x: 0.52, y: 0.79, scale: 0.85 },
+        { actor: 'drink', x: 0.63, y: 0.80, kind: 'whiskey', scale: 0.9 },
+        { actor: 'trenchMan', x: 0.76, scale: 1, smoke: true, par: 0.2 }
       ],
       script: [
         { text: 'Down past the meat locker, the air goes blue with smoke and worse.' },
@@ -81,16 +82,16 @@ window.INKFALL_STORY = {
 
     { // ---------------------------------------------------------------- 3 · THE LOSS
       title: 'THE&nbsp;LOSS', ground: 0.82, keyLight: { x: 0.5, y: 0.3 },
-      backdrop: { type: 'room', wall: '#05060a', wallTop: '#090b10', door: 0.86 },
+      backdrop: { type: 'room', wall: '#05060a', wallTop: '#090b10', door: 0.62 },
       lights: [
         { type: 'bulb', x: 0.45, y: 0.30, intensity: 0.8, flicker: true, par: 0.2 }
       ],
       cast: [
-        { actor: 'slotMachine', x: 0.10, scale: 0.9, par: 0.2 },
-        { actor: 'dealer', x: 0.45, scale: 0.85, dy: -34 },
+        { actor: 'slotMachine', x: 0.08, scale: 0.85, par: 0.2 },
+        { actor: 'dealer', x: 0.45, scale: 0.95 },
         { actor: 'cardTable', x: 0.45, scale: 1.05, glow: false },
-        { actor: 'trenchMan', x: 0.70, scale: 0.97, par: 0.2 },
-        { actor: 'boss', x: 0.90, scale: 0.95, par: 0.2 }
+        { actor: 'trenchMan', x: 0.74, scale: 0.97, par: 0.2 },
+        { actor: 'boss', x: 0.92, scale: 0.95, par: 0.2 }
       ],
       script: [
         { text: 'Cleaned out. Pockets full of lint and a marker he can’t cover.' },
