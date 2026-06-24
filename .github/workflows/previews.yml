@@ -48,15 +48,26 @@ jobs:
             echo "Publishing $branch to /$slug/"
           fi
 
+      # Stage the site into a subfolder. peaceiris deletes the .git of its
+      # publish_dir, so it must not be the repo root.
+      - name: Stage site
+        run: |
+          mkdir -p _site
+          rsync -a \
+            --exclude='.git' \
+            --exclude='.github' \
+            --exclude='node_modules' \
+            --exclude='_site' \
+            ./ _site/
+
       - name: Publish to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
-          publish_dir: .
+          publish_dir: ./_site
           destination_dir: ${{ steps.target.outputs.dest }}
           keep_files: true
-          exclude_assets: '.github,.git,_legacy,node_modules'
           user_name: 'github-actions[bot]'
           user_email: 'github-actions[bot]@users.noreply.github.com'
           commit_message: 'preview: ${{ github.ref_name }} (${{ github.sha }})'
