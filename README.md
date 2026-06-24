@@ -1,14 +1,15 @@
 # INKFALL — a noir story engine
 
-A tiny **framework for noir comic scenes**, and a story told with it. One single
-`index.html`, drawn on an HTML5 `<canvas>` — no libraries, no build step, no internet at
-runtime. Works on any phone, even offline.
+A tiny **framework for noir comic scenes**, and a story told with it. Two plain files —
+`index.html` (the engine) and `story.js` (the content) — drawn on an HTML5 `<canvas>`
+with no libraries, no build step, and no internet at runtime. Works on any phone, even
+offline.
 
 The idea (the whole point): the **engine** owns the *look* — a fixed black-and-white
 palette where only the things that bleed keep their colour, declared light sources, rain,
 film grain, vignette, lightning, scene transitions, and comic-caption narration. The
-**story is just data**. To tell a different tale you edit the `STORY` object, not the
-engine.
+**story is just data** (`window.INKFALL_STORY` in `story.js`). To tell a different tale
+you edit that data, not the engine.
 
 ```
 ┌─────────────────────────────┐        ┌──────────────────────────────┐
@@ -24,7 +25,9 @@ engine.
 > **Repo → Settings → Pages → Source: _Deploy from a branch_ → `main` / `/(root)` → Save.**
 
 Then it's live at `https://masoudqashqai.github.io/Inkfall/` and every push to `main`
-redeploys. (Hard-refresh on your phone after a push — the browser caches the old page.)
+redeploys. The browser/CDN caches the old page, so after a push either hard-refresh or
+open `…/Inkfall/?v=N` (any new number) to force the latest. A small **build tag** in the
+bottom-left corner tells you which version you're actually running.
 
 Locally: `python3 -m http.server 8000`, or just open `index.html` from disk.
 
@@ -57,6 +60,9 @@ places a **cast** of actors at normalized `x` (0 = left, 1 = right), and lists a
 and a cast member can be revealed or hidden by those effects via `onFlag` / `hideOnFlag`
 (e.g. a standing man `hideOnFlag: 'blood'` and a body `onFlag: 'blood'` swap on the shot).
 
+Story data is plain JSON — colours are **hex strings** (`'#ffd400'`), not `PALETTE.*` or
+any JavaScript, so it pastes straight into the in-app editor:
+
 ```js
 {
   title: 'THE&nbsp;STREET',
@@ -65,7 +71,7 @@ and a cast member can be revealed or hidden by those effects via `onFlag` / `hid
   backdrop: { type: 'skyline', seed: 20051993, layers: [...], reflect: [...] },
   lights: [
     { type: 'lamp', x: 0.30, flicker: true },
-    { type: 'neon', x: 0.66, y: 0.30, w: 40, h: 120, color: PALETTE.amber, label: 'XXX' },
+    { type: 'neon', x: 0.66, y: 0.30, w: 40, h: 120, color: '#ffd400', label: 'XXX' },
   ],
   cast: [
     { actor: 'redCar',     x: 0.84, scale: 0.7 },
@@ -79,7 +85,8 @@ and a cast member can be revealed or hidden by those effects via `onFlag` / `hid
 }
 ```
 
-**Built-in backdrops:** `skyline`, `alley`, `rooftop`, `room`.
+**Built-in backdrops:** `skyline`, `alley`, `rooftop`, `room` (interior — sets
+`indoor: true`, so rain and lightning don't fall inside).
 **Built-in light types:** `lamp`, `neon`, `bulb`, `glow`.
 **Built-in actors:**
 - *people* — `trenchMan` (detective), `thug`, `boss`, `gunman`, `dealer`, `womanInRed`, `singer`
