@@ -114,11 +114,24 @@ function castOne(e, c, st, cr) {
 // shadow falls on the floor, the wall and the cast already behind it.
 export function paintCaster(e, cr) { castOne(e, e.shadow, stageOf(e), cr); }
 
-// recolour the buffer to the shadow ink in one pass (source-in keeps the soft alpha, swaps colour).
-export function tintBuffer(e) {
+// a generous WORLD-space box that contains everything paintCaster will draw for this caster (the
+// contact dab, the floor shadow laid toward the camera, and the wall shadow climbing to wallTop).
+// The compositor transforms it to device pixels so it can clear, tint and composite only that
+// region instead of the whole screen, which is the main shadow-cost saving.
+export function shadowBounds(e, cr) {
+  const st = stageOf(e);
+  const reach = (cr.w + cr.h * SHADE.maxLen) * 1.5 + 30;        // horizontal throw (both ways, two lights)
+  const down = cr.h * SHADE.maxLen * SHADE.floorTilt * 1.6 + cr.w + 30;
+  const top = (st.wall ? st.wall.top : cr.baseY - cr.w * 1.3) - 24;
+  return { x0: cr.bx - reach, y0: top, x1: cr.bx + reach, y1: cr.baseY + down };
+}
+
+// recolour a device-pixel rect of the buffer to the shadow ink (source-in keeps the soft alpha and
+// swaps the colour), so only the caster's region is touched, not the whole canvas.
+export function tintRect(e, x, y, w, h) {
   const c = e.shadow;
   c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
   c.globalCompositeOperation = 'source-in';
-  c.fillStyle = `rgba(${SHADE.color},1)`; c.fillRect(0, 0, c.canvas.width, c.canvas.height);
+  c.fillStyle = `rgba(${SHADE.color},1)`; c.fillRect(x, y, w, h);
   c.restore();
 }

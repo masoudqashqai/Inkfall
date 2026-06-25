@@ -206,6 +206,8 @@ export function drawBackLight(e) {
   for (const L of e.lights) {
     if (L.beam) beam(e, L);
     if (L.front) continue;
+    if (L.I < 0.02) continue;                              // flickered or declared near-dark: nothing to add
+    if (L.x + L.r < R.x || L.x - L.r > R.x + R.w) continue;   // its whole influence is off-screen
     if (L.glow) { if (L.surface) surfaceGlow(e, L); airGlow(e, L); }
     if (L.wash) { floorWash(e, L, st); if (st.wall) wallWash(e, L, st); }
     if (L.refl) floorRefl(e, L);
