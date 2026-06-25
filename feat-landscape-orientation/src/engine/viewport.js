@@ -120,7 +120,7 @@ export class Viewport {
   // back to the start screen: leave fullscreen and reset the gate so it runs again next time
   reset() {
     this.experienceStarted = false; this.storyStarted = false; this.gatePassed = false;
-    this.gateBlocked = false; this.menuPaused = false; this.disarmPrompt();
+    this.gateBlocked = false; this.menuPaused = false;
     this.hideOverlay(); this.engine.resume(); this.exit();
   }
 
@@ -143,31 +143,20 @@ export class Viewport {
     this._settleTimer = setTimeout(() => this.evaluate(), 220);
   }
 
+  // Judge immediately: the orientation comes from the Screen Orientation API (authoritative the moment
+  // a lock resolves), so there is no layout-size lag to wait out, the prompt covers the scene at once.
   evaluate() {
     if (!this.experienceStarted) return;
     if (isImmersive()) this.gatePassed = true;
-    if (this.blocked()) {
-      this.armPrompt();   // raise the prompt only if still blocked after a short settle
-    } else {
-      this.disarmPrompt(); this.gateBlocked = false;
+    this.gateBlocked = this.blocked();
+    if (this.gateBlocked) this.showOverlay();
+    else {
       this.hideOverlay();
       if (!this.storyStarted) { this.storyStarted = true; if (this.onStart) this.onStart(); }
     }
     this.applyPause();
     this.updateFsBtn();
   }
-
-  // Entering fullscreen and locking to landscape report done a moment before innerWidth/innerHeight
-  // catch up, so judging instantly would flash the prompt for a frame. Wait out a short settle and
-  // only show it if the screen is still not immersive, which a later evaluate can cancel.
-  armPrompt() {
-    if (this.gateBlocked || this._promptTimer) return;
-    this._promptTimer = setTimeout(() => {
-      this._promptTimer = null;
-      if (this.blocked()) { this.gateBlocked = true; this.showOverlay(); this.applyPause(); this.updateFsBtn(); }
-    }, 350);
-  }
-  disarmPrompt() { clearTimeout(this._promptTimer); this._promptTimer = null; }
 
   // HUD fullscreen toggle: shown while playing on any device that can fullscreen (hidden during the
   // gate prompt). Click enters or exits fullscreen.
