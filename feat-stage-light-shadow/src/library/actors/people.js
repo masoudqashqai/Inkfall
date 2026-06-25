@@ -35,9 +35,9 @@ defineActor('trenchMan', function (e) {                       // detective: tren
   c.lineCap = 'round'; c.lineJoin = 'round';
   c.strokeStyle = '#2a2f37'; c.lineWidth = 8.5 * s;
   c.beginPath(); c.moveTo(11 * s, -87 * s); c.lineTo(ex, ey); c.lineTo(hx, hy); c.stroke();
-  c.beginPath(); c.moveTo(-13 * s, -87 * s); c.lineTo(-21 * s, -50 * s); c.stroke();
+  c.beginPath(); c.moveTo(-11 * s, -87 * s); c.lineTo(-16 * s, -60 * s); c.lineTo(-17 * s, -44 * s); c.stroke();   // resting arm, mirrors the lowered cigarette arm
   c.strokeStyle = 'rgba(150,160,178,0.3)'; c.lineWidth = 1.4 * s; c.beginPath(); c.moveTo(12 * s, -90 * s); c.lineTo(ex, ey); c.stroke();
-  c.fillStyle = '#bcbab0'; c.beginPath(); c.arc(hx, hy, 2.9 * s, 0, TWO_PI); c.arc(-21 * s, -48 * s, 3.2 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = '#bcbab0'; c.beginPath(); c.arc(hx, hy, 2.9 * s, 0, TWO_PI); c.arc(-17 * s, -44 * s, 2.9 * s, 0, TWO_PI); c.fill();
   c.fillStyle = bodyGrad(c, 24, s, rim, tint, TRENCH);
   c.beginPath(); c.moveTo(-26 * s, -90 * s); c.quadraticCurveTo(0, -104 * s, 26 * s, -90 * s); c.lineTo(18 * s, -84 * s); c.quadraticCurveTo(0, -94 * s, -18 * s, -84 * s); c.closePath(); c.fill();
   c.fillStyle = PALETTE.ink; c.beginPath(); c.moveTo(-10 * s, -96 * s); c.lineTo(-2 * s, -107 * s); c.lineTo(-1 * s, -92 * s); c.closePath(); c.moveTo(10 * s, -96 * s); c.lineTo(2 * s, -107 * s); c.lineTo(1 * s, -92 * s); c.closePath(); c.fill();
@@ -167,16 +167,21 @@ defineActor('gunman', function (e) {                          // shooter, arm ex
 defineActor('womanInRed', function (e) {                      // femme fatale — the colour that bleeds
   const c = e.ctx, s = e.scaleOf(this), X = e.walkX(this), gy = e.gy + (this.dy || 0) * e.unit, t = e.t, walk = Math.sin(t * ANIM.walkSpeed);
   if (this.walk) { const i = Math.min(e.lineIdx, this.walk.length - 1), prev = i > 0 ? this.walk[i - 1] : this.walk[0]; e.walkSound(prev !== this.walk[i] && e.beat() < (this.walkDur || 3.4) - 0.2); }
-  const sw = walk * 2 * s;                                     // the hem drifts as she moves
+  const rim = rimSign(e, this), tint = e.litTint(X, this), sw = walk * 2 * s;   // sw: the hem drifts as she moves
   c.save(); c.translate(X, gy);
   // a leg through the thigh slit (bone) + a red heel
   c.fillStyle = PALETTE.bone; c.save(); c.translate(walk * 2 * s, 0); c.beginPath(); c.moveTo(-2 * s, -36 * s); c.lineTo(3 * s, -36 * s); c.lineTo(4 * s, -2 * s); c.lineTo(0, -2 * s); c.closePath(); c.fill(); c.restore();
   c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(sw, -2 * s); c.lineTo(8 * s + sw, 0); c.lineTo(sw, 1 * s); c.closePath(); c.fill();
+  // slim bone arms with a soft bend, hands resting at the waist
+  c.strokeStyle = PALETTE.bone; c.lineWidth = 3.2 * s; c.lineCap = 'round'; c.lineJoin = 'round';
+  c.beginPath(); c.moveTo(-7 * s, -70 * s); c.lineTo(-12 * s, -56 * s); c.lineTo(-9 * s, -44 * s); c.stroke();
+  c.beginPath(); c.moveTo(7 * s, -70 * s); c.lineTo(12 * s, -56 * s); c.lineTo(9 * s, -44 * s); c.stroke();
   // a slim neck (bone) so the head meets the gown
   c.fillStyle = PALETTE.bone; c.beginPath(); c.moveTo(-2.5 * s, -80 * s); c.lineTo(2.5 * s, -80 * s); c.lineTo(2 * s, -68 * s); c.lineTo(-2 * s, -68 * s); c.closePath(); c.fill();
-  // the gown: sweetheart neckline, cinched waist, curvy hips, a long skirt slit to the thigh
-  const dg = c.createLinearGradient(-13 * s, 0, 13 * s, 0); dg.addColorStop(0, '#8e0009'); dg.addColorStop(0.5, '#e2101a'); dg.addColorStop(1, '#9e000c');
-  c.fillStyle = dg; c.shadowColor = 'rgba(210,0,24,0.5)'; c.shadowBlur = 18 * s;
+  // the gown: shaded by the lighting system (a red material, lit edge toward the light, not a baked
+  // sheen), sweetheart neckline, cinched waist, curvy hips, a long mermaid skirt. The soft red bleed
+  // is her motif (the colour that bleeds).
+  c.fillStyle = bodyGrad(c, 80, s, rim, tint, [205, 14, 24]); c.shadowColor = 'rgba(210,0,24,0.45)'; c.shadowBlur = 16 * s;
   c.beginPath();
   c.moveTo(-9 * s, -66 * s);                                   // left bust
   c.quadraticCurveTo(-5 * s, -52 * s, -5 * s, -48 * s);        // into the cinched waist
