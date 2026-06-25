@@ -18,7 +18,7 @@ function trenchPose(e, p) {
 
 defineActor('trenchMan', function (e) {                       // detective: trench coat + fedora
   const c = e.ctx, P = trenchPose(e, this), s = P.s, X = P.X, gy = P.gy, t = P.t, sway = P.sway;
-  const rim = rimSign(e, this), tint = e.litTint(X);
+  const rim = rimSign(e, this), tint = e.litTint(X, this);
   c.save(); c.translate(X + sway, gy);
   c.fillStyle = '#050608'; c.fillRect(-13 * s, -32 * s, 11 * s, 32 * s); c.fillRect(3 * s, -32 * s, 11 * s, 32 * s);
   c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-9 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(10 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.fill();
@@ -130,7 +130,7 @@ defineActor('boss', function (e) {                            // mob boss: pinst
 });
 
 defineActor('gunman', function (e) {                          // shooter, arm extended, muzzle flash on 'muzzle'
-  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, rim = rimSign(e, this), tint = e.litTint(X), flash = e.flags.muzzle || 0;
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, rim = rimSign(e, this), tint = e.litTint(X, this), flash = e.flags.muzzle || 0;
   c.save(); c.translate(X, gy); if (this.flip) c.scale(-1, 1);
   c.fillStyle = '#050608'; c.fillRect(-12 * s, -32 * s, 10 * s, 32 * s); c.fillRect(4 * s, -32 * s, 10 * s, 32 * s);
   c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-8 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(11 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.fill();

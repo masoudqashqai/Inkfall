@@ -92,11 +92,11 @@ function surfaceGlow(e, L) {
   c.drawImage(softRadial(L.col), L.x - rx, L.y - ry, rx * 2, ry * 2); c.restore();
 }
 
-// soft atmospheric bloom — the "glow in the air". Kept fairly tight so it concentrates around the
-// source instead of washing across the whole frame (a ring light, the moon, keeps its wider radius).
+// soft atmospheric bloom — the "glow in the air". Kept tight so it concentrates around the source
+// instead of washing across the frame (a ring light, the moon, keeps its wider radius).
 function airGlow(e, L) {
-  const R = L.glowR * (L.ring ? 1 : 0.72), c = e.light;
-  c.save(); clipShade(c, L, e); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.17 * L.glowI;
+  const R = L.glowR * (L.ring ? 1 : 0.55), c = e.light;
+  c.save(); clipShade(c, L, e); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.2 * L.glowI;
   c.drawImage(L.ring ? softRing(L.col) : softRadial(L.col), L.x - R, L.y - R, R * 2, R * 2); c.restore();
 }
 
