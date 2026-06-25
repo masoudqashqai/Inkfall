@@ -155,11 +155,10 @@ function goToStartMenu() {
   viewport.reset(); manager.reset();                        // drop back to act one, not started, so ENTER replays cleanly
   setStage('menu');                                          // CSS fades the intro back in and hides the HUD
 }
-const soundBtn = el('sm-sound'), fsItem = el('sm-fs'), hudItem = el('sm-hud');
+const soundBtn = el('sm-sound'), hudItem = el('sm-hud');
 const setView = v => { storymenu.dataset.view = v; };
 const syncMenu = () => {
   soundBtn.textContent = Audio2.isOn() ? 'SOUND: ON' : 'SOUND: OFF';
-  fsItem.textContent = viewport.fullscreenOn() ? 'EXIT FULLSCREEN' : 'FULLSCREEN';
   hudItem.textContent = document.body.classList.contains('clean') ? 'SHOW HUD' : 'HIDE HUD';
 };
 // a true pause menu: while the menu, poster or editor is open, the play clock + audio are paused
@@ -168,7 +167,6 @@ const refreshPause = () => viewport.setMenuPaused(
 const openMenu = () => { setView('main'); syncMenu(); storymenu.classList.add('show'); refreshPause(); };
 const closeMenu = () => { storymenu.classList.remove('show'); setView('main'); refreshPause(); };
 soundBtn.addEventListener('click', () => { Audio2.toggle(); syncMenu(); });
-fsItem.addEventListener('click', () => { viewport.toggleFullscreen(); setTimeout(syncMenu, 100); });
 hudItem.addEventListener('click', () => { document.body.classList.toggle('clean'); syncMenu(); });   // clean scene mode
 el('menubtn').addEventListener('click', openMenu);
 el('sm-resume').addEventListener('click', closeMenu);

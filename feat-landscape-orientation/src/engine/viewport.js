@@ -26,8 +26,14 @@ const mq = q => { try { return matchMedia(q).matches; } catch (e) { return false
 export function isRotatable() {
   return mq('(pointer: coarse)') || navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
 }
-function isStandalone() { return mq('(display-mode: fullscreen)') || mq('(display-mode: standalone)') || navigator.standalone === true; }
 function isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+// an installed app (home-screen PWA), NOT element fullscreen via the API: the (display-mode: fullscreen)
+// query matches both, so exclude the API case (which sets document.fullscreenElement) or the fullscreen
+// toggle would vanish the instant you entered fullscreen, leaving no way out.
+function isStandalone() {
+  if (isFullscreen()) return false;
+  return mq('(display-mode: fullscreen)') || mq('(display-mode: standalone)') || navigator.standalone === true;
+}
 // can we actually put an element into fullscreen? Test for a request method on the root, not
 // document.fullscreenEnabled: iPhone Safari reports that flag for video but cannot fullscreen a
 // canvas, which would trap the gate forever. No request method means relax the target to landscape.
@@ -35,7 +41,14 @@ function canFullscreen() {
   const root = document.documentElement;
   return !!(root.requestFullscreen || root.webkitRequestFullscreen) && !isStandalone();
 }
-function landscape() { return innerWidth >= innerHeight; }
+// Prefer the Screen Orientation API, which is authoritative the instant a lock resolves, over
+// innerWidth/innerHeight, which lag a frame or two behind the reflow and caused the prompt to flash.
+// Fall back to the window size where the API is absent.
+function landscape() {
+  const o = window.screen && screen.orientation;
+  if (o && typeof o.type === 'string' && o.type) return o.type.indexOf('landscape') === 0;
+  return innerWidth >= innerHeight;
+}
 
 // the immersion target adapts to the platform: a real fullscreen where we can reach one, otherwise
 // the best we can do (landscape) on engines with no element fullscreen, such as iPhone Safari. A
@@ -74,7 +87,7 @@ export class Viewport {
     this.overlay = overlay; this.skipBtn = skip; this.fsBtn = fsBtn;
     if (skip) skip.addEventListener('click', () => { this.gatePassed = true; this.evaluate(); });
     if (fsCta) fsCta.addEventListener('click', () => this.enter());
-    if (fsBtn) fsBtn.addEventListener('click', () => this.enter());
+    if (fsBtn) fsBtn.addEventListener('click', () => this.toggleFullscreen());
   }
 
   // enter the immersive view: fullscreen, then lock to landscape. The lock is fullscreen scoped and
@@ -92,6 +105,7 @@ export class Viewport {
   }
   exit() {
     try { const x = document.exitFullscreen || document.webkitExitFullscreen; if (x && isFullscreen()) x.call(document); } catch (e) {}
+    this.scheduleEvaluate();
   }
   toggleFullscreen() { if (isFullscreen()) this.exit(); else this.enter(); }
   fullscreenOn() { return isFullscreen(); }
@@ -106,7 +120,7 @@ export class Viewport {
   // back to the start screen: leave fullscreen and reset the gate so it runs again next time
   reset() {
     this.experienceStarted = false; this.storyStarted = false; this.gatePassed = false;
-    this.gateBlocked = false; this.menuPaused = false;
+    this.gateBlocked = false; this.menuPaused = false; this.disarmPrompt();
     this.hideOverlay(); this.engine.resume(); this.exit();
   }
 
@@ -132,9 +146,10 @@ export class Viewport {
   evaluate() {
     if (!this.experienceStarted) return;
     if (isImmersive()) this.gatePassed = true;
-    this.gateBlocked = this.blocked();
-    if (this.gateBlocked) this.showOverlay();
-    else {
+    if (this.blocked()) {
+      this.armPrompt();   // raise the prompt only if still blocked after a short settle
+    } else {
+      this.disarmPrompt(); this.gateBlocked = false;
       this.hideOverlay();
       if (!this.storyStarted) { this.storyStarted = true; if (this.onStart) this.onStart(); }
     }
@@ -142,13 +157,24 @@ export class Viewport {
     this.updateFsBtn();
   }
 
-  // HUD fullscreen button: shown once playing on a touch device that can fullscreen but is not in it
-  // (so a viewer who left fullscreen, or who chose to watch anyway, can re-enter). Hidden while the
-  // prompt is up, since the prompt already offers it.
+  // Entering fullscreen and locking to landscape report done a moment before innerWidth/innerHeight
+  // catch up, so judging instantly would flash the prompt for a frame. Wait out a short settle and
+  // only show it if the screen is still not immersive, which a later evaluate can cancel.
+  armPrompt() {
+    if (this.gateBlocked || this._promptTimer) return;
+    this._promptTimer = setTimeout(() => {
+      this._promptTimer = null;
+      if (this.blocked()) { this.gateBlocked = true; this.showOverlay(); this.applyPause(); this.updateFsBtn(); }
+    }, 350);
+  }
+  disarmPrompt() { clearTimeout(this._promptTimer); this._promptTimer = null; }
+
+  // HUD fullscreen toggle: shown while playing on any device that can fullscreen (hidden during the
+  // gate prompt). Click enters or exits fullscreen.
   updateFsBtn() {
     if (!this.fsBtn) return;
-    const show = this.storyStarted && this.rotatable && canFullscreen() && !isFullscreen() && !this.blocked();
-    this.fsBtn.classList.toggle('show', show);
+    this.fsBtn.classList.toggle('show', this.storyStarted && canFullscreen() && !this.blocked());   // a HUD enter/exit toggle, any device that can fullscreen
+    this.fsBtn.title = isFullscreen() ? 'exit fullscreen' : 'fullscreen';
   }
 
   // the prompt adapts: where fullscreen is possible it leads with the FULLSCREEN button, otherwise it

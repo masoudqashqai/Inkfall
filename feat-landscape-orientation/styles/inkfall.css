@@ -129,48 +129,9 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
   font-family: var(--f-type); display: none; opacity: 0; text-align: center;
   font-size: var(--fs-caption); line-height: 1.4; letter-spacing: 0.005em; }
 #caption b { color: var(--c-red-deep); font-weight: 700; }
-/* narration lines render in with a torn, inky leading edge that settles clean once the print
-   finishes, then wipe out the same way. The direction varies per line (set by data-anim from the
-   manager, deterministic so a replay always matches): left to right, right to left, or centre out.
-   Independent of the scene wipe. */
-#caption.cap-in { opacity: 1; animation: capInLR 1.15s cubic-bezier(0.25, 0.6, 0.3, 1) forwards; }
-#caption.cap-out { opacity: 1; animation: capOutLR 0.46s ease-in forwards; }
-#caption[data-anim="rl"].cap-in { animation-name: capInRL; }
-#caption[data-anim="rl"].cap-out { animation-name: capOutRL; }
-#caption[data-anim="co"].cap-in { animation-name: capInCO; }
-#caption[data-anim="co"].cap-out { animation-name: capOutCO; }
-/* left to right: a torn right edge sweeps across, then settles clean */
-@keyframes capInLR {
-  0%   { clip-path: polygon(0 0, 3% 0, 0 12.5%, 2% 25%, 0 37.5%, 3% 50%, 0 62.5%, 2% 75%, 0 87.5%, 3% 100%, 0 100%); }
-  72%  { clip-path: polygon(0 0, 100% 0, 97% 12.5%, 100% 25%, 96% 37.5%, 100% 50%, 98% 62.5%, 100% 75%, 96% 87.5%, 100% 100%, 0 100%); }
-  100% { clip-path: polygon(0 0, 100% 0, 100% 12.5%, 100% 25%, 100% 37.5%, 100% 50%, 100% 62.5%, 100% 75%, 100% 87.5%, 100% 100%, 0 100%); }
-}
-@keyframes capOutLR {
-  0%   { clip-path: polygon(3% 0, 100% 0, 100% 100%, 3% 100%, 0 87.5%, 2% 75%, 0 62.5%, 3% 50%, 0 37.5%, 2% 25%, 0 12.5%); }
-  72%  { clip-path: polygon(97% 0, 100% 0, 100% 100%, 97% 100%, 100% 87.5%, 98% 75%, 100% 62.5%, 97% 50%, 100% 37.5%, 98% 25%, 100% 12.5%); }
-  100% { clip-path: polygon(100% 0, 100% 0, 100% 100%, 100% 100%, 100% 87.5%, 100% 75%, 100% 62.5%, 100% 50%, 100% 37.5%, 100% 25%, 100% 12.5%); }
-}
-/* right to left: a torn left edge sweeps across */
-@keyframes capInRL {
-  0%   { clip-path: polygon(100% 0, 97% 0, 100% 12.5%, 98% 25%, 100% 37.5%, 97% 50%, 100% 62.5%, 98% 75%, 100% 87.5%, 97% 100%, 100% 100%); }
-  72%  { clip-path: polygon(100% 0, 3% 0, 0 12.5%, 4% 25%, 0 37.5%, 3% 50%, 0 62.5%, 4% 75%, 0 87.5%, 3% 100%, 100% 100%); }
-  100% { clip-path: polygon(100% 0, 0 0, 0 12.5%, 0 25%, 0 37.5%, 0 50%, 0 62.5%, 0 75%, 0 87.5%, 0 100%, 100% 100%); }
-}
-@keyframes capOutRL {
-  0%   { clip-path: polygon(0 0, 100% 0, 97% 12.5%, 100% 25%, 96% 37.5%, 100% 50%, 98% 62.5%, 100% 75%, 96% 87.5%, 100% 100%, 0 100%); }
-  100% { clip-path: polygon(0 0, 3% 0, 0 12.5%, 2% 25%, 0 37.5%, 3% 50%, 0 62.5%, 2% 75%, 0 87.5%, 3% 100%, 0 100%); }
-}
-/* centre out: torn edges open from the middle to both sides */
-@keyframes capInCO {
-  0%   { clip-path: polygon(49% 0, 51% 0, 51% 25%, 52% 50%, 51% 75%, 51% 100%, 49% 100%, 49% 75%, 48% 50%, 49% 25%); }
-  72%  { clip-path: polygon(1% 0, 99% 0, 100% 25%, 98% 50%, 100% 75%, 99% 100%, 1% 100%, 0 75%, 2% 50%, 0 25%); }
-  100% { clip-path: polygon(0 0, 100% 0, 100% 25%, 100% 50%, 100% 75%, 100% 100%, 0 100%, 0 75%, 0 50%, 0 25%); }
-}
-@keyframes capOutCO {
-  0%   { clip-path: polygon(0 0, 100% 0, 100% 25%, 100% 50%, 100% 75%, 100% 100%, 0 100%, 0 75%, 0 50%, 0 25%); }
-  72%  { clip-path: polygon(48% 0, 52% 0, 53% 25%, 51% 50%, 53% 75%, 52% 100%, 48% 100%, 47% 75%, 49% 50%, 47% 25%); }
-  100% { clip-path: polygon(50% 0, 50% 0, 50% 25%, 50% 50%, 50% 75%, 50% 100%, 50% 100%, 50% 75%, 50% 50%, 50% 25%); }
-}
+/* narration lines render in and out with a torn paper-cut edge. The cut shape (direction, depths,
+   segment lengths) is generated per line in scene/captionfx.js and played via the Web Animations
+   API, seeded so a replay always draws the same edge. */
 #tapnote { position: fixed; left: 50%; bottom: 6px; transform: translateX(-50%); z-index: var(--z-caption); white-space: nowrap;
   display: none; color: #7c7c7c; font-size: var(--fs-note); letter-spacing: 0.06em; }
 #build { position: fixed; left: 8px; bottom: 4px; z-index: var(--z-build); color: #3a3a3a; font-size: 9px;
@@ -217,11 +178,18 @@ body.acts-unlocked #scenetag { display: none; }
 #scenenav { display: flex; flex-direction: column; align-items: stretch; gap: var(--hud-gap);
   overflow: hidden; max-height: 0; transition: max-height 0.45s cubic-bezier(0.22,0.61,0.36,1); }
 #scenenav.open { max-height: 70vh; overflow-y: auto; }
-#scenenav button { min-width: var(--hud-w3); height: var(--hud-cell); white-space: nowrap;
-  display: flex; align-items: center; justify-content: center; padding: 0 12px;
-  font-size: var(--fs-hud); letter-spacing: 0.12em; font-weight: 700;
+/* act buttons in the drop: the typographic noir style, red diamonds flank the hovered + current act */
+#scenenav button { min-width: var(--hud-w3); height: var(--hud-cell); white-space: nowrap; cursor: pointer; position: relative;
+  display: flex; align-items: center; justify-content: center; padding: 0 18px;
+  background: transparent; border: 0; color: rgba(236,230,214,0.82);
+  font-family: var(--f-display); font-weight: 600; text-transform: uppercase;
+  font-size: var(--fs-hud); letter-spacing: 0.18em;
   opacity: 0; transform: translateY(-10px);
-  transition: opacity 0.3s ease, transform 0.35s cubic-bezier(0.22,0.61,0.36,1), color 0.2s ease, border-color 0.2s ease; }
+  transition: opacity 0.3s ease, transform 0.35s cubic-bezier(0.22,0.61,0.36,1), color 0.2s ease; }
+#scenenav button::before, #scenenav button::after { content: '\25C6'; position: absolute; top: 50%; transform: translateY(-50%);
+  color: var(--c-red); font-size: 0.5em; opacity: 0; transition: opacity 0.18s ease; }
+#scenenav button::before { left: 5%; }
+#scenenav button::after { right: 5%; }
 #scenenav.open button { opacity: 1; transform: translateY(0); }
 #scenenav.open button:nth-child(1) { transition-delay: 0.04s; }
 #scenenav.open button:nth-child(2) { transition-delay: 0.09s; }
@@ -231,8 +199,24 @@ body.acts-unlocked #scenetag { display: none; }
 #scenenav.open button:nth-child(6) { transition-delay: 0.29s; }
 #scenenav.open button:nth-child(7) { transition-delay: 0.34s; }
 #scenenav.open button:nth-child(8) { transition-delay: 0.39s; }
-#scenenav button.cur { color: #fff; }                                   /* current act: marked with the diamonds */
+#scenenav button:hover, #scenenav button:active { color: #fff; }
+#scenenav button:hover::before, #scenenav button:hover::after,
 #scenenav button.cur::before, #scenenav button.cur::after { opacity: 1; }
+#scenenav button.cur { color: #fff; }
+/* at THE END the act picker becomes a centered row of acts below the title (no toggle); during
+   ordinary play it stays the top-left REVIEW ACT dropdown. Clean mode still hides it either way. */
+body.ended #actbtn { display: none; }
+body.ended #actsel { top: auto; left: 50%; right: auto; transform: translateX(-50%);
+  bottom: clamp(34px, 13vh, 120px); align-items: center; width: auto; max-width: 92vw; }
+body.ended #scenenav, body.ended #scenenav.open { flex-direction: row; flex-wrap: wrap;
+  justify-content: center; align-items: center; max-height: none; overflow: visible;
+  gap: clamp(6px, 1.5vmin, 12px) clamp(10px, 2.5vmin, 22px); }
+/* at THE END the buttons are the old boxed chips (no diamonds), red accent on hover + the current act */
+body.ended #scenenav button { background: var(--c-panel); border: 1px solid var(--c-line); color: var(--c-fg-2);
+  font-family: var(--f-mono); font-weight: 700; letter-spacing: 0.14em; padding: 0 14px; }
+body.ended #scenenav button::before, body.ended #scenenav button::after { display: none; }
+body.ended #scenenav button:hover, body.ended #scenenav button:active { color: #fff; border-color: var(--c-red); }
+body.ended #scenenav button.cur { color: #fff; border-color: var(--c-red); box-shadow: 0 0 12px rgba(225,0,16,0.45); }
 /* PAUSE MENU — a vignette behind the noir panel. Several views (main, story engine, controls, exit
    confirm) share one panel slot; data-view on #storymenu picks which shows. */
 #storymenu { background: radial-gradient(ellipse at center, rgba(4,4,5,0.88), rgba(0,0,0,0.97)); }

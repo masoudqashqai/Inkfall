@@ -147,48 +147,9 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
   font-family: var(--f-type); display: none; opacity: 0; text-align: center;
   font-size: var(--fs-caption); line-height: 1.4; letter-spacing: 0.005em; }
 #caption b { color: var(--c-red-deep); font-weight: 700; }
-/* narration lines render in with a torn, inky leading edge that settles clean once the print
-   finishes, then wipe out the same way. The direction varies per line (set by data-anim from the
-   manager, deterministic so a replay always matches): left to right, right to left, or centre out.
-   Independent of the scene wipe. */
-#caption.cap-in { opacity: 1; animation: capInLR 1.15s cubic-bezier(0.25, 0.6, 0.3, 1) forwards; }
-#caption.cap-out { opacity: 1; animation: capOutLR 0.46s ease-in forwards; }
-#caption[data-anim="rl"].cap-in { animation-name: capInRL; }
-#caption[data-anim="rl"].cap-out { animation-name: capOutRL; }
-#caption[data-anim="co"].cap-in { animation-name: capInCO; }
-#caption[data-anim="co"].cap-out { animation-name: capOutCO; }
-/* left to right: a torn right edge sweeps across, then settles clean */
-@keyframes capInLR {
-  0%   { clip-path: polygon(0 0, 3% 0, 0 12.5%, 2% 25%, 0 37.5%, 3% 50%, 0 62.5%, 2% 75%, 0 87.5%, 3% 100%, 0 100%); }
-  72%  { clip-path: polygon(0 0, 100% 0, 97% 12.5%, 100% 25%, 96% 37.5%, 100% 50%, 98% 62.5%, 100% 75%, 96% 87.5%, 100% 100%, 0 100%); }
-  100% { clip-path: polygon(0 0, 100% 0, 100% 12.5%, 100% 25%, 100% 37.5%, 100% 50%, 100% 62.5%, 100% 75%, 100% 87.5%, 100% 100%, 0 100%); }
-}
-@keyframes capOutLR {
-  0%   { clip-path: polygon(3% 0, 100% 0, 100% 100%, 3% 100%, 0 87.5%, 2% 75%, 0 62.5%, 3% 50%, 0 37.5%, 2% 25%, 0 12.5%); }
-  72%  { clip-path: polygon(97% 0, 100% 0, 100% 100%, 97% 100%, 100% 87.5%, 98% 75%, 100% 62.5%, 97% 50%, 100% 37.5%, 98% 25%, 100% 12.5%); }
-  100% { clip-path: polygon(100% 0, 100% 0, 100% 100%, 100% 100%, 100% 87.5%, 100% 75%, 100% 62.5%, 100% 50%, 100% 37.5%, 100% 25%, 100% 12.5%); }
-}
-/* right to left: a torn left edge sweeps across */
-@keyframes capInRL {
-  0%   { clip-path: polygon(100% 0, 97% 0, 100% 12.5%, 98% 25%, 100% 37.5%, 97% 50%, 100% 62.5%, 98% 75%, 100% 87.5%, 97% 100%, 100% 100%); }
-  72%  { clip-path: polygon(100% 0, 3% 0, 0 12.5%, 4% 25%, 0 37.5%, 3% 50%, 0 62.5%, 4% 75%, 0 87.5%, 3% 100%, 100% 100%); }
-  100% { clip-path: polygon(100% 0, 0 0, 0 12.5%, 0 25%, 0 37.5%, 0 50%, 0 62.5%, 0 75%, 0 87.5%, 0 100%, 100% 100%); }
-}
-@keyframes capOutRL {
-  0%   { clip-path: polygon(0 0, 100% 0, 97% 12.5%, 100% 25%, 96% 37.5%, 100% 50%, 98% 62.5%, 100% 75%, 96% 87.5%, 100% 100%, 0 100%); }
-  100% { clip-path: polygon(0 0, 3% 0, 0 12.5%, 2% 25%, 0 37.5%, 3% 50%, 0 62.5%, 2% 75%, 0 87.5%, 3% 100%, 0 100%); }
-}
-/* centre out: torn edges open from the middle to both sides */
-@keyframes capInCO {
-  0%   { clip-path: polygon(49% 0, 51% 0, 51% 25%, 52% 50%, 51% 75%, 51% 100%, 49% 100%, 49% 75%, 48% 50%, 49% 25%); }
-  72%  { clip-path: polygon(1% 0, 99% 0, 100% 25%, 98% 50%, 100% 75%, 99% 100%, 1% 100%, 0 75%, 2% 50%, 0 25%); }
-  100% { clip-path: polygon(0 0, 100% 0, 100% 25%, 100% 50%, 100% 75%, 100% 100%, 0 100%, 0 75%, 0 50%, 0 25%); }
-}
-@keyframes capOutCO {
-  0%   { clip-path: polygon(0 0, 100% 0, 100% 25%, 100% 50%, 100% 75%, 100% 100%, 0 100%, 0 75%, 0 50%, 0 25%); }
-  72%  { clip-path: polygon(48% 0, 52% 0, 53% 25%, 51% 50%, 53% 75%, 52% 100%, 48% 100%, 47% 75%, 49% 50%, 47% 25%); }
-  100% { clip-path: polygon(50% 0, 50% 0, 50% 25%, 50% 50%, 50% 75%, 50% 100%, 50% 100%, 50% 75%, 50% 50%, 50% 25%); }
-}
+/* narration lines render in and out with a torn paper-cut edge. The cut shape (direction, depths,
+   segment lengths) is generated per line in scene/captionfx.js and played via the Web Animations
+   API, seeded so a replay always draws the same edge. */
 #tapnote { position: fixed; left: 50%; bottom: 6px; transform: translateX(-50%); z-index: var(--z-caption); white-space: nowrap;
   display: none; color: #7c7c7c; font-size: var(--fs-note); letter-spacing: 0.06em; }
 #build { position: fixed; left: 8px; bottom: 4px; z-index: var(--z-build); color: #3a3a3a; font-size: 9px;
@@ -235,11 +196,18 @@ body.acts-unlocked #scenetag { display: none; }
 #scenenav { display: flex; flex-direction: column; align-items: stretch; gap: var(--hud-gap);
   overflow: hidden; max-height: 0; transition: max-height 0.45s cubic-bezier(0.22,0.61,0.36,1); }
 #scenenav.open { max-height: 70vh; overflow-y: auto; }
-#scenenav button { min-width: var(--hud-w3); height: var(--hud-cell); white-space: nowrap;
-  display: flex; align-items: center; justify-content: center; padding: 0 12px;
-  font-size: var(--fs-hud); letter-spacing: 0.12em; font-weight: 700;
+/* act buttons in the drop: the typographic noir style, red diamonds flank the hovered + current act */
+#scenenav button { min-width: var(--hud-w3); height: var(--hud-cell); white-space: nowrap; cursor: pointer; position: relative;
+  display: flex; align-items: center; justify-content: center; padding: 0 18px;
+  background: transparent; border: 0; color: rgba(236,230,214,0.82);
+  font-family: var(--f-display); font-weight: 600; text-transform: uppercase;
+  font-size: var(--fs-hud); letter-spacing: 0.18em;
   opacity: 0; transform: translateY(-10px);
-  transition: opacity 0.3s ease, transform 0.35s cubic-bezier(0.22,0.61,0.36,1), color 0.2s ease, border-color 0.2s ease; }
+  transition: opacity 0.3s ease, transform 0.35s cubic-bezier(0.22,0.61,0.36,1), color 0.2s ease; }
+#scenenav button::before, #scenenav button::after { content: '\25C6'; position: absolute; top: 50%; transform: translateY(-50%);
+  color: var(--c-red); font-size: 0.5em; opacity: 0; transition: opacity 0.18s ease; }
+#scenenav button::before { left: 5%; }
+#scenenav button::after { right: 5%; }
 #scenenav.open button { opacity: 1; transform: translateY(0); }
 #scenenav.open button:nth-child(1) { transition-delay: 0.04s; }
 #scenenav.open button:nth-child(2) { transition-delay: 0.09s; }
@@ -249,8 +217,24 @@ body.acts-unlocked #scenetag { display: none; }
 #scenenav.open button:nth-child(6) { transition-delay: 0.29s; }
 #scenenav.open button:nth-child(7) { transition-delay: 0.34s; }
 #scenenav.open button:nth-child(8) { transition-delay: 0.39s; }
-#scenenav button.cur { color: #fff; }                                   /* current act: marked with the diamonds */
+#scenenav button:hover, #scenenav button:active { color: #fff; }
+#scenenav button:hover::before, #scenenav button:hover::after,
 #scenenav button.cur::before, #scenenav button.cur::after { opacity: 1; }
+#scenenav button.cur { color: #fff; }
+/* at THE END the act picker becomes a centered row of acts below the title (no toggle); during
+   ordinary play it stays the top-left REVIEW ACT dropdown. Clean mode still hides it either way. */
+body.ended #actbtn { display: none; }
+body.ended #actsel { top: auto; left: 50%; right: auto; transform: translateX(-50%);
+  bottom: clamp(34px, 13vh, 120px); align-items: center; width: auto; max-width: 92vw; }
+body.ended #scenenav, body.ended #scenenav.open { flex-direction: row; flex-wrap: wrap;
+  justify-content: center; align-items: center; max-height: none; overflow: visible;
+  gap: clamp(6px, 1.5vmin, 12px) clamp(10px, 2.5vmin, 22px); }
+/* at THE END the buttons are the old boxed chips (no diamonds), red accent on hover + the current act */
+body.ended #scenenav button { background: var(--c-panel); border: 1px solid var(--c-line); color: var(--c-fg-2);
+  font-family: var(--f-mono); font-weight: 700; letter-spacing: 0.14em; padding: 0 14px; }
+body.ended #scenenav button::before, body.ended #scenenav button::after { display: none; }
+body.ended #scenenav button:hover, body.ended #scenenav button:active { color: #fff; border-color: var(--c-red); }
+body.ended #scenenav button.cur { color: #fff; border-color: var(--c-red); box-shadow: 0 0 12px rgba(225,0,16,0.45); }
 /* PAUSE MENU — a vignette behind the noir panel. Several views (main, story engine, controls, exit
    confirm) share one panel slot; data-view on #storymenu picks which shows. */
 #storymenu { background: radial-gradient(ellipse at center, rgba(4,4,5,0.88), rgba(0,0,0,0.97)); }
@@ -393,7 +377,6 @@ body[data-stage="menu"] #intro { opacity: 1; pointer-events: auto; }
     <div class="noir-title">PAUSED</div>
     <button id="sm-resume" class="noir-item is-primary">RESUME</button>
     <button id="sm-sound" class="noir-item">SOUND: ON</button>
-    <button id="sm-fs" class="noir-item">FULLSCREEN</button>
     <button id="sm-engine" class="noir-item">STORY ENGINE</button>
     <button id="sm-controls" class="noir-item">CONTROLS</button>
     <div class="noir-sep"></div>
@@ -594,11 +577,10 @@ function goToStartMenu() {
   viewport.reset(); manager.reset();                        // drop back to act one, not started, so ENTER replays cleanly
   setStage('menu');                                          // CSS fades the intro back in and hides the HUD
 }
-const soundBtn = el('sm-sound'), fsItem = el('sm-fs'), hudItem = el('sm-hud');
+const soundBtn = el('sm-sound'), hudItem = el('sm-hud');
 const setView = v => { storymenu.dataset.view = v; };
 const syncMenu = () => {
   soundBtn.textContent = Audio2.isOn() ? 'SOUND: ON' : 'SOUND: OFF';
-  fsItem.textContent = viewport.fullscreenOn() ? 'EXIT FULLSCREEN' : 'FULLSCREEN';
   hudItem.textContent = document.body.classList.contains('clean') ? 'SHOW HUD' : 'HIDE HUD';
 };
 // a true pause menu: while the menu, poster or editor is open, the play clock + audio are paused
@@ -607,7 +589,6 @@ const refreshPause = () => viewport.setMenuPaused(
 const openMenu = () => { setView('main'); syncMenu(); storymenu.classList.add('show'); refreshPause(); };
 const closeMenu = () => { storymenu.classList.remove('show'); setView('main'); refreshPause(); };
 soundBtn.addEventListener('click', () => { Audio2.toggle(); syncMenu(); });
-fsItem.addEventListener('click', () => { viewport.toggleFullscreen(); setTimeout(syncMenu, 100); });
 hudItem.addEventListener('click', () => { document.body.classList.toggle('clean'); syncMenu(); });   // clean scene mode
 el('menubtn').addEventListener('click', openMenu);
 el('sm-resume').addEventListener('click', closeMenu);
@@ -1044,8 +1025,14 @@ const mq = q => { try { return matchMedia(q).matches; } catch (e) { return false
 function isRotatable() {
   return mq('(pointer: coarse)') || navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
 }
-function isStandalone() { return mq('(display-mode: fullscreen)') || mq('(display-mode: standalone)') || navigator.standalone === true; }
 function isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+// an installed app (home-screen PWA), NOT element fullscreen via the API: the (display-mode: fullscreen)
+// query matches both, so exclude the API case (which sets document.fullscreenElement) or the fullscreen
+// toggle would vanish the instant you entered fullscreen, leaving no way out.
+function isStandalone() {
+  if (isFullscreen()) return false;
+  return mq('(display-mode: fullscreen)') || mq('(display-mode: standalone)') || navigator.standalone === true;
+}
 // can we actually put an element into fullscreen? Test for a request method on the root, not
 // document.fullscreenEnabled: iPhone Safari reports that flag for video but cannot fullscreen a
 // canvas, which would trap the gate forever. No request method means relax the target to landscape.
@@ -1053,7 +1040,14 @@ function canFullscreen() {
   const root = document.documentElement;
   return !!(root.requestFullscreen || root.webkitRequestFullscreen) && !isStandalone();
 }
-function landscape() { return innerWidth >= innerHeight; }
+// Prefer the Screen Orientation API, which is authoritative the instant a lock resolves, over
+// innerWidth/innerHeight, which lag a frame or two behind the reflow and caused the prompt to flash.
+// Fall back to the window size where the API is absent.
+function landscape() {
+  const o = window.screen && screen.orientation;
+  if (o && typeof o.type === 'string' && o.type) return o.type.indexOf('landscape') === 0;
+  return innerWidth >= innerHeight;
+}
 
 // the immersion target adapts to the platform: a real fullscreen where we can reach one, otherwise
 // the best we can do (landscape) on engines with no element fullscreen, such as iPhone Safari. A
@@ -1092,7 +1086,7 @@ class Viewport {
     this.overlay = overlay; this.skipBtn = skip; this.fsBtn = fsBtn;
     if (skip) skip.addEventListener('click', () => { this.gatePassed = true; this.evaluate(); });
     if (fsCta) fsCta.addEventListener('click', () => this.enter());
-    if (fsBtn) fsBtn.addEventListener('click', () => this.enter());
+    if (fsBtn) fsBtn.addEventListener('click', () => this.toggleFullscreen());
   }
 
   // enter the immersive view: fullscreen, then lock to landscape. The lock is fullscreen scoped and
@@ -1110,6 +1104,7 @@ class Viewport {
   }
   exit() {
     try { const x = document.exitFullscreen || document.webkitExitFullscreen; if (x && isFullscreen()) x.call(document); } catch (e) {}
+    this.scheduleEvaluate();
   }
   toggleFullscreen() { if (isFullscreen()) this.exit(); else this.enter(); }
   fullscreenOn() { return isFullscreen(); }
@@ -1124,7 +1119,7 @@ class Viewport {
   // back to the start screen: leave fullscreen and reset the gate so it runs again next time
   reset() {
     this.experienceStarted = false; this.storyStarted = false; this.gatePassed = false;
-    this.gateBlocked = false; this.menuPaused = false;
+    this.gateBlocked = false; this.menuPaused = false; this.disarmPrompt();
     this.hideOverlay(); this.engine.resume(); this.exit();
   }
 
@@ -1150,9 +1145,10 @@ class Viewport {
   evaluate() {
     if (!this.experienceStarted) return;
     if (isImmersive()) this.gatePassed = true;
-    this.gateBlocked = this.blocked();
-    if (this.gateBlocked) this.showOverlay();
-    else {
+    if (this.blocked()) {
+      this.armPrompt();   // raise the prompt only if still blocked after a short settle
+    } else {
+      this.disarmPrompt(); this.gateBlocked = false;
       this.hideOverlay();
       if (!this.storyStarted) { this.storyStarted = true; if (this.onStart) this.onStart(); }
     }
@@ -1160,13 +1156,24 @@ class Viewport {
     this.updateFsBtn();
   }
 
-  // HUD fullscreen button: shown once playing on a touch device that can fullscreen but is not in it
-  // (so a viewer who left fullscreen, or who chose to watch anyway, can re-enter). Hidden while the
-  // prompt is up, since the prompt already offers it.
+  // Entering fullscreen and locking to landscape report done a moment before innerWidth/innerHeight
+  // catch up, so judging instantly would flash the prompt for a frame. Wait out a short settle and
+  // only show it if the screen is still not immersive, which a later evaluate can cancel.
+  armPrompt() {
+    if (this.gateBlocked || this._promptTimer) return;
+    this._promptTimer = setTimeout(() => {
+      this._promptTimer = null;
+      if (this.blocked()) { this.gateBlocked = true; this.showOverlay(); this.applyPause(); this.updateFsBtn(); }
+    }, 350);
+  }
+  disarmPrompt() { clearTimeout(this._promptTimer); this._promptTimer = null; }
+
+  // HUD fullscreen toggle: shown while playing on any device that can fullscreen (hidden during the
+  // gate prompt). Click enters or exits fullscreen.
   updateFsBtn() {
     if (!this.fsBtn) return;
-    const show = this.storyStarted && this.rotatable && canFullscreen() && !isFullscreen() && !this.blocked();
-    this.fsBtn.classList.toggle('show', show);
+    this.fsBtn.classList.toggle('show', this.storyStarted && canFullscreen() && !this.blocked());   // a HUD enter/exit toggle, any device that can fullscreen
+    this.fsBtn.title = isFullscreen() ? 'exit fullscreen' : 'fullscreen';
   }
 
   // the prompt adapts: where fullscreen is possible it leads with the FULLSCREEN button, otherwise it
@@ -1207,8 +1214,10 @@ const { Scene } = __req("src/scene/scene.js");
 const { Audio2 } = __req("src/assets/audio.js");
 const { lerp, smooth01 } = __req("src/engine/math.js");
 const { ANIM } = __req("src/style/palette.js");
+const { capKeyframes } = __req("src/scene/captionfx.js");
 
 const CAP_VARIANTS = ['lr', 'rl', 'co'];   // narration render directions, chosen deterministically per line
+const CAP_IN_MS = 1150, CAP_OUT_MS = 460;  // narration render-in / wipe-out durations
 
 class Manager {
   constructor(engine) {
@@ -1261,7 +1270,7 @@ class Manager {
 
   doStart(e) {
     this.started = true; this.seen = []; this.navShown = false; this.opening = false;
-    this.finishing = false; this.ended = false;
+    this.finishing = false; this.ended = false; document.body.classList.remove('ended');
     this.transAlpha = 1;
     // open on the story-name card (act-card style) before any audio or scene runs. titleHold spans
     // the browser's fullscreen toast, so the story proper begins once that has gone.
@@ -1315,7 +1324,7 @@ class Manager {
   }
 
   // on THE END, unlock the act picker (hidden until the story is finished once) and drop it open
-  revealNav() { this.navShown = true; if (this.dom.actsel) this.dom.actsel.classList.add('unlocked'); document.body.classList.add('acts-unlocked'); this.openNav(true); this.highlightNav(); }
+  revealNav() { this.navShown = true; if (this.dom.actsel) this.dom.actsel.classList.add('unlocked'); document.body.classList.add('acts-unlocked', 'ended'); this.openNav(true); this.highlightNav(); }
   openNav(on) { if (this.dom.nav) this.dom.nav.classList.toggle('open', on); if (this.dom.act) this.dom.act.classList.toggle('open', on); }
   highlightNav() { if (this.dom.nav) this.dom.nav.querySelectorAll('button').forEach(b => b.classList.toggle('cur', +b.dataset.s === this.idx)); }
 
@@ -1332,7 +1341,7 @@ class Manager {
   jumpTo(idx) {
     if (!this.started || this.transState) return;
     if (idx === this.idx && !this.ended) return;
-    this.ended = false; this.finishing = false;
+    this.ended = false; this.finishing = false; document.body.classList.remove('ended');   // leaving THE END: back to the top-left toggle
     Audio2.duck(0.8);
     this.pending = idx; this.transState = 'in';
   }
@@ -1344,14 +1353,20 @@ class Manager {
     const s = this.current, line = s.data.script[s.lineIdx]; s.lineStart = e.t;
     const cap = this.dom.cap;
     if (cap) {
-      const wasShown = cap.classList.contains('cap-in');   // animate the old line out first, but not on the first line
-      cap.classList.remove('cap-in'); if (wasShown) cap.classList.add('cap-out');
-      // pick the render direction deterministically from act + line, so a replay always matches
+      const wasShown = this._capShown, prev = this._capSpec;   // a line is already up: wipe it out first
+      if (wasShown && prev) {
+        cap.getAnimations().forEach(a => a.cancel()); cap.style.opacity = '1';
+        cap.animate(capKeyframes(prev.variant, prev.seed, 'out'), { duration: CAP_OUT_MS, easing: 'ease-in', fill: 'forwards' });
+      }
+      // direction + torn-edge profile are deterministic from act + line, so a replay always matches
       const variant = CAP_VARIANTS[(this.idx * 31 + s.lineIdx) % CAP_VARIANTS.length];
+      const seed = this.idx * 1009 + s.lineIdx + 1;
       setTimeout(() => {
-        cap.innerHTML = line.text; cap.style.opacity = ''; cap.dataset.anim = variant;
-        cap.classList.remove('cap-out'); void cap.offsetWidth; cap.classList.add('cap-in');
-      }, wasShown ? 440 : 0);
+        cap.innerHTML = line.text; cap.style.opacity = '1';
+        cap.getAnimations().forEach(a => a.cancel());
+        cap.animate(capKeyframes(variant, seed, 'in'), { duration: CAP_IN_MS, easing: 'cubic-bezier(0.25, 0.6, 0.3, 1)', fill: 'forwards' });
+        this._capSpec = { variant, seed }; this._capShown = true;
+      }, wasShown ? CAP_OUT_MS - 20 : 0);
     }
     for (const fx of (line.fx || [])) {
       if (fx === 'muzzle') { s.flags.muzzle = 1.0; s.fireGun(e); this.camera.shake(6); }
@@ -1366,16 +1381,19 @@ class Manager {
 
   applyOverlayVisibility() {
     const covering = this.transState === 'in' || this.transState === 'card' || this.transState === 'title';
-    if (this.dom.cap && (covering || this.ended)) { this.dom.cap.classList.remove('cap-in', 'cap-out'); this.dom.cap.style.opacity = '0'; }   // no caption over a wipe or THE END
+    if (this.dom.cap && (covering || this.ended)) {   // no caption over a wipe or THE END
+      if (this._capShown) { this.dom.cap.getAnimations().forEach(a => a.cancel()); this._capShown = false; }
+      this.dom.cap.style.opacity = '0';
+    }
     if (this.dom.tap) this.dom.tap.style.opacity = (covering || this.ended) ? '0' : (this.started ? '1' : '0');
   }
 
   buildSceneNav() {
     const nav = this.dom.nav; if (!nav) return;
     nav.innerHTML = ''; this.openNav(false); this.navShown = false;
-    if (this.dom.actsel) this.dom.actsel.classList.remove('unlocked'); document.body.classList.remove('acts-unlocked');   // re-lock until this story is finished again
+    if (this.dom.actsel) this.dom.actsel.classList.remove('unlocked'); document.body.classList.remove('acts-unlocked', 'ended');   // re-lock until this story is finished again
     (this.scenes || []).forEach((s, i) => {
-      const b = document.createElement('button'); b.className = 'noir-item'; b.dataset.s = i;
+      const b = document.createElement('button'); b.dataset.s = i;
       b.innerHTML = (s.data.title || ('SCENE ' + i)).replace(/&nbsp;/g, ' ');
       b.addEventListener('click', () => { this.jumpTo(i); this.openNav(false); });   // pick an act, then collapse the drawer
       nav.appendChild(b);
@@ -2081,6 +2099,68 @@ class Ripples {
 }
 
 __exports.Ripples = Ripples;
+};
+__mod["src/scene/captionfx.js"] = function(__exports, __req){
+// CAPTION FX — builds the torn paper-cut reveal for a narration line as Web Animations keyframes.
+// The cut depths and segment lengths vary per line but are seeded, so a replay always draws the same
+// edge. Everything is capped (D_MAX, ROWS, SEG) so the tear stays tasteful and never goes crazy.
+const { rand32, clamp } = __req("src/engine/math.js");
+
+const D_MAX = 6;        // deepest a cut reaches in from the edge, % of width
+const ROWS = [7, 11];   // number of cut segments down the edge, min..max
+const SEG = [6, 26];    // each segment's length, min..max, % of height
+
+const r1 = v => +clamp(v, 0, 100).toFixed(1);
+
+// a per-line edge profile: row y positions (uneven) + two depth arrays (one per side for centre-out)
+function profile(rng) {
+  const n = ROWS[0] + Math.floor(rng() * (ROWS[1] - ROWS[0] + 1));
+  const segs = []; for (let i = 0; i < n - 1; i++) segs.push(0.5 + rng());
+  const sum = segs.reduce((a, b) => a + b, 0);
+  const ys = [0]; let acc = 0;
+  for (let i = 0; i < n - 1; i++) { acc += clamp(segs[i] / sum * 100, SEG[0], SEG[1]); ys.push(acc); }
+  const span = ys[ys.length - 1]; for (let i = 0; i < ys.length; i++) ys[i] = +(ys[i] / span * 100).toFixed(2);
+  const depths = () => ys.map((y, i) => (i === 0 || i === ys.length - 1) ? 0 : clamp(Math.pow(rng(), 1.4) * D_MAX, 0, D_MAX));
+  return { ys, dA: depths(), dB: depths() };
+}
+
+// a clip-path polygon from per-row left/right edge x positions, walked clockwise
+function poly(ys, lx, rx) {
+  const n = ys.length, p = [`${lx[0]}% 0%`, `${rx[0]}% 0%`];
+  for (let i = 1; i < n; i++) p.push(`${rx[i]}% ${ys[i]}%`);
+  p.push(`${lx[n - 1]}% 100%`);
+  for (let i = n - 2; i >= 1; i--) p.push(`${lx[i]}% ${ys[i]}%`);
+  return `polygon(${p.join(', ')})`;
+}
+
+// keyframes for one render: variant = lr | rl | co, mode = in | out. Same seed gives the same teeth
+// for a line's entrance and its exit, so the cut looks consistent.
+function capKeyframes(variant, seed, mode) {
+  const { ys, dA, dB } = profile(rand32(seed));
+  const n = ys.length;
+  const frame = (edge, offset) => {
+    const lx = [], rx = [];
+    for (let i = 0; i < n; i++) { const e = edge(i); lx.push(r1(e[0])); rx.push(r1(e[1])); }
+    return { clipPath: poly(ys, lx, rx), offset };
+  };
+
+  if (variant === 'co') {                                   // centre out: both edges torn, opening from the middle
+    const co = (H, s, o) => frame(i => { const eL = Math.min(dA[i] * s, H * 0.9), eR = Math.min(dB[i] * s, H * 0.9); return [50 - H + eL, 50 + H - eR]; }, o);
+    return mode === 'in'
+      ? [co(0.6, 0, 0), co(16, 1, 0.32), co(50, 1, 0.72), co(50, 0, 1)]
+      : [co(50, 0.6, 0), co(16, 1, 0.6), co(0.6, 0, 1)];
+  }
+  if (variant === 'rl') {                                   // right to left: a torn left edge sweeps across
+    return mode === 'in'
+      ? [frame(i => [(100 - D_MAX) + dA[i], 100], 0), frame(i => [dA[i], 100], 0.7), frame(i => [0, 100], 1)]
+      : [frame(i => [0, 100 - dA[i]], 0), frame(i => [0, D_MAX - dA[i]], 0.7), frame(i => [0, 0], 1)];
+  }
+  return mode === 'in'                                      // left to right (default): a torn right edge sweeps across
+    ? [frame(i => [0, D_MAX - dA[i]], 0), frame(i => [0, 100 - dA[i]], 0.7), frame(i => [0, 100], 1)]
+    : [frame(i => [dA[i], 100], 0), frame(i => [(100 - D_MAX) + dA[i], 100], 0.7), frame(i => [100, 100], 1)];
+}
+
+__exports.capKeyframes = capKeyframes;
 };
 __mod["src/library/index.js"] = function(__exports, __req){
 // LIBRARY — importing this registers every backdrop, light, actor, mover, prop and effect on

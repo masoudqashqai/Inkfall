@@ -8,8 +8,10 @@ import { Scene } from './scene.js';
 import { Audio2 } from '../assets/audio.js';
 import { lerp, smooth01 } from '../engine/math.js';
 import { ANIM } from '../style/palette.js';
+import { capKeyframes } from './captionfx.js';
 
 const CAP_VARIANTS = ['lr', 'rl', 'co'];   // narration render directions, chosen deterministically per line
+const CAP_IN_MS = 1150, CAP_OUT_MS = 460;  // narration render-in / wipe-out durations
 
 export class Manager {
   constructor(engine) {
@@ -62,7 +64,7 @@ export class Manager {
 
   doStart(e) {
     this.started = true; this.seen = []; this.navShown = false; this.opening = false;
-    this.finishing = false; this.ended = false;
+    this.finishing = false; this.ended = false; document.body.classList.remove('ended');
     this.transAlpha = 1;
     // open on the story-name card (act-card style) before any audio or scene runs. titleHold spans
     // the browser's fullscreen toast, so the story proper begins once that has gone.
@@ -116,7 +118,7 @@ export class Manager {
   }
 
   // on THE END, unlock the act picker (hidden until the story is finished once) and drop it open
-  revealNav() { this.navShown = true; if (this.dom.actsel) this.dom.actsel.classList.add('unlocked'); document.body.classList.add('acts-unlocked'); this.openNav(true); this.highlightNav(); }
+  revealNav() { this.navShown = true; if (this.dom.actsel) this.dom.actsel.classList.add('unlocked'); document.body.classList.add('acts-unlocked', 'ended'); this.openNav(true); this.highlightNav(); }
   openNav(on) { if (this.dom.nav) this.dom.nav.classList.toggle('open', on); if (this.dom.act) this.dom.act.classList.toggle('open', on); }
   highlightNav() { if (this.dom.nav) this.dom.nav.querySelectorAll('button').forEach(b => b.classList.toggle('cur', +b.dataset.s === this.idx)); }
 
@@ -133,7 +135,7 @@ export class Manager {
   jumpTo(idx) {
     if (!this.started || this.transState) return;
     if (idx === this.idx && !this.ended) return;
-    this.ended = false; this.finishing = false;
+    this.ended = false; this.finishing = false; document.body.classList.remove('ended');   // leaving THE END: back to the top-left toggle
     Audio2.duck(0.8);
     this.pending = idx; this.transState = 'in';
   }
@@ -145,14 +147,20 @@ export class Manager {
     const s = this.current, line = s.data.script[s.lineIdx]; s.lineStart = e.t;
     const cap = this.dom.cap;
     if (cap) {
-      const wasShown = cap.classList.contains('cap-in');   // animate the old line out first, but not on the first line
-      cap.classList.remove('cap-in'); if (wasShown) cap.classList.add('cap-out');
-      // pick the render direction deterministically from act + line, so a replay always matches
+      const wasShown = this._capShown, prev = this._capSpec;   // a line is already up: wipe it out first
+      if (wasShown && prev) {
+        cap.getAnimations().forEach(a => a.cancel()); cap.style.opacity = '1';
+        cap.animate(capKeyframes(prev.variant, prev.seed, 'out'), { duration: CAP_OUT_MS, easing: 'ease-in', fill: 'forwards' });
+      }
+      // direction + torn-edge profile are deterministic from act + line, so a replay always matches
       const variant = CAP_VARIANTS[(this.idx * 31 + s.lineIdx) % CAP_VARIANTS.length];
+      const seed = this.idx * 1009 + s.lineIdx + 1;
       setTimeout(() => {
-        cap.innerHTML = line.text; cap.style.opacity = ''; cap.dataset.anim = variant;
-        cap.classList.remove('cap-out'); void cap.offsetWidth; cap.classList.add('cap-in');
-      }, wasShown ? 440 : 0);
+        cap.innerHTML = line.text; cap.style.opacity = '1';
+        cap.getAnimations().forEach(a => a.cancel());
+        cap.animate(capKeyframes(variant, seed, 'in'), { duration: CAP_IN_MS, easing: 'cubic-bezier(0.25, 0.6, 0.3, 1)', fill: 'forwards' });
+        this._capSpec = { variant, seed }; this._capShown = true;
+      }, wasShown ? CAP_OUT_MS - 20 : 0);
     }
     for (const fx of (line.fx || [])) {
       if (fx === 'muzzle') { s.flags.muzzle = 1.0; s.fireGun(e); this.camera.shake(6); }
@@ -167,16 +175,19 @@ export class Manager {
 
   applyOverlayVisibility() {
     const covering = this.transState === 'in' || this.transState === 'card' || this.transState === 'title';
-    if (this.dom.cap && (covering || this.ended)) { this.dom.cap.classList.remove('cap-in', 'cap-out'); this.dom.cap.style.opacity = '0'; }   // no caption over a wipe or THE END
+    if (this.dom.cap && (covering || this.ended)) {   // no caption over a wipe or THE END
+      if (this._capShown) { this.dom.cap.getAnimations().forEach(a => a.cancel()); this._capShown = false; }
+      this.dom.cap.style.opacity = '0';
+    }
     if (this.dom.tap) this.dom.tap.style.opacity = (covering || this.ended) ? '0' : (this.started ? '1' : '0');
   }
 
   buildSceneNav() {
     const nav = this.dom.nav; if (!nav) return;
     nav.innerHTML = ''; this.openNav(false); this.navShown = false;
-    if (this.dom.actsel) this.dom.actsel.classList.remove('unlocked'); document.body.classList.remove('acts-unlocked');   // re-lock until this story is finished again
+    if (this.dom.actsel) this.dom.actsel.classList.remove('unlocked'); document.body.classList.remove('acts-unlocked', 'ended');   // re-lock until this story is finished again
     (this.scenes || []).forEach((s, i) => {
-      const b = document.createElement('button'); b.className = 'noir-item'; b.dataset.s = i;
+      const b = document.createElement('button'); b.dataset.s = i;
       b.innerHTML = (s.data.title || ('SCENE ' + i)).replace(/&nbsp;/g, ' ');
       b.addEventListener('click', () => { this.jumpTo(i); this.openNav(false); });   // pick an act, then collapse the drawer
       nav.appendChild(b);
