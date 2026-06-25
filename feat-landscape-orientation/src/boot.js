@@ -16,7 +16,7 @@ el('build').textContent = BUILD;
 
 const engine = new Engine(); engine.init();
 const manager = new Manager(engine);
-manager.attachDom({ cap: el('caption'), tag: el('scenetag'), tap: el('tapnote'), nav: el('scenenav'), act: el('actbtn') });
+manager.attachDom({ cap: el('caption'), tag: el('scenetag'), tap: el('tapnote'), nav: el('scenenav'), act: el('actbtn'), actsel: el('actsel') });
 
 // REVIEW ACT toggle: drop the act list open/closed below the HUD
 el('actbtn').addEventListener('click', () => {
@@ -69,14 +69,12 @@ async function selectStory(i) {
   document.querySelectorAll('.storybtn').forEach(b => b.classList.toggle('cur', +b.dataset.i === i));
 }
 
+// the HUD stage drives coarse visibility from CSS: "menu" shows the intro, "playing" shows the
+// in-story HUD + narration. Per-frame caption/tap fades stay in the manager.
+const setStage = s => { document.body.dataset.stage = s; };
+
 function beginPlay() {
-  const intro = el('intro');
-  intro.style.opacity = '0'; setTimeout(() => intro.style.display = 'none', 800);
-  el('caption').style.display = 'block';
-  el('tapnote').style.display = 'block';
-  el('mute').classList.add('show');
-  el('shoot').classList.add('show');
-  el('actsel').classList.add('show');
+  setStage('playing');     // CSS reveals the HUD + narration and fades the intro out
   Audio2.start();
   viewport.beginStory();   // goes immersive, then starts the story once the screen is landscape
 }
@@ -137,12 +135,10 @@ const storymenu = el('storymenu');
 const openEditor = () => { edText.value = JSON.stringify(manager.story, noCache, 2); edErr.textContent = ''; editor.style.display = 'flex'; };
 function goToStartMenu() {
   storymenu.classList.remove('show'); editor.style.display = 'none'; el('poster').classList.remove('show');
-  el('caption').style.display = 'none'; el('tapnote').style.display = 'none';
-  el('mute').classList.remove('show'); el('shoot').classList.remove('show');
-  el('actsel').classList.remove('show'); el('scenenav').classList.remove('open'); el('actbtn').classList.remove('open');
+  el('scenenav').classList.remove('open'); el('actbtn').classList.remove('open');
   Audio2.setStory(manager.story && manager.story.audio);   // stop the playing audio, reset to the unstarted state
   viewport.reset(); manager.reset();                        // drop back to act one, not started, so ENTER replays cleanly
-  const intro = el('intro'); intro.style.display = 'flex'; requestAnimationFrame(() => intro.style.opacity = '1');
+  setStage('menu');                                          // CSS fades the intro back in and hides the HUD
 }
 el('editbtn').addEventListener('click', () => storymenu.classList.add('show'));
 el('sm-cancel').addEventListener('click', () => storymenu.classList.remove('show'));

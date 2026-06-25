@@ -11,11 +11,11 @@
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Special+Elite&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles/inkfall.css">
 </head>
-<body>
+<body data-stage="menu">
 <canvas id="c"></canvas>
 <div id="scenetag"></div>
-<div id="caption" style="display:none"></div>
-<div id="tapnote" style="display:none">TAP — NEXT&nbsp; ·&nbsp; DRAG — LOOK&nbsp; ·&nbsp; HOLD — LIGHTNING</div>
+<div id="caption"></div>
+<div id="tapnote">TAP — NEXT&nbsp; ·&nbsp; DRAG — LOOK&nbsp; ·&nbsp; HOLD — LIGHTNING</div>
 <div id="intro">
   <h1>INK<span class="b">FALL</span></h1>
   <p id="introsub">A NOIR STORY ENGINE</p>
@@ -38,20 +38,20 @@
   </div>
 </div>
 
-<div id="rotate">
+<div id="rotate" class="overlay">
   <div class="rotate-phone" aria-hidden="true"><span class="rotate-cam"></span></div>
   <div class="rotate-text">For the best experience, rotate your screen</div>
   <button id="rotate-skip" class="rotate-skip">WATCH ANYWAY</button>
 </div>
 
-<div id="poster">
+<div id="poster" class="overlay">
   <img id="posterimg" alt="Inkfall poster" />
   <div class="poster-row">
     <a id="posterdl" download="inkfall.png">SAVE</a>
     <button id="posterclose">BACK TO THE RAIN</button>
   </div>
 </div>
-<div id="storymenu">
+<div id="storymenu" class="overlay">
   <div class="sm-panel">
     <div class="sm-head">STORY</div>
     <button id="sm-back">BACK TO START MENU</button>
