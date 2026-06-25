@@ -2597,8 +2597,11 @@ function bodyGrad(c, h, s, rim, tint, albedo) {
   const gx = rim * 34 * s, gvy = -_vb * 20 * s;                  // tilt the lit edge toward the light's height
   const g = c.createLinearGradient(gx, gvy, -gx, -gvy);
   const lm = 0.82 + _lit * 0.42;                                 // lit-side lift, capped so a bright light never washes the cloth to white
-  let tr = 1, tg = 1, tb = 1;                                    // colour of the light on the lit edge (a fire casts warm, a neon casts its hue)
-  if (tint) { const mx = Math.max(tint[0], tint[1], tint[2], 1), k = 0.32; tr = 1 - k + k * tint[0] / mx; tg = 1 - k + k * tint[1] / mx; tb = 1 - k + k * tint[2] / mx; }
+  // the lit edge takes the light's OWN colour, applied in proportion to how strongly the light hits
+  // (_lit): a strong close source (a barrel fire) casts a deep warm, a dim distant one a faint hint,
+  // and the hue is always the source's (a neon casts its colour, the moon casts cool).
+  let tr = 1, tg = 1, tb = 1;
+  if (tint) { const mx = Math.max(tint[0], tint[1], tint[2], 1), k = 0.7 * _lit; tr = 1 - k + k * tint[0] / mx; tg = 1 - k + k * tint[1] / mx; tb = 1 - k + k * tint[2] / mx; }
   const lit = `rgb(${cl(A[0] * lm * tr)},${cl(A[1] * lm * tg)},${cl(A[2] * lm * tb)})`;
   const mid = `rgb(${cl(A[0] * 0.45)},${cl(A[1] * 0.45)},${cl(A[2] * 0.45)})`;
   const dark = `rgb(${cl(A[0] * 0.16)},${cl(A[1] * 0.16)},${cl(A[2] * 0.18)})`;
