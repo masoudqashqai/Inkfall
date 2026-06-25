@@ -103,14 +103,12 @@ descriptions, the README, and the in app copy. They do not apply to code itself.
 
 ## Git
 
-Inkfall is a personal project, so the conventions are light but strict on a few points.
+A few conventions for working in this repo.
 
 - Work on a branch off `main`, never commit straight to `main`. Name branches by intent, for
   example `fix/mobile-flicker`, `feat/clip-system`, `docs/...`.
 - Open a pull request into `main` for review, then merge once it looks good. Keep each PR focused on
   one change so it is easy to review.
-- Authorship: this is Shayan's personal project, so every commit and PR is authored under his name
-  only. Do not add any Devin or co-author trailer, and do not change git config.
 - No CI quality gates here (no CodeScene or SonarQube). Verify by hand (see Verify below): serve it,
   check the console is clean, tap through both stories, and run `node build.mjs`.
 - Before opening a PR for a noticeable change, bump the `BUILD` tag in `src/boot.js` and rebuild the
