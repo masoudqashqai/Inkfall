@@ -35,13 +35,17 @@ defineActor('trenchMan', function (e) {                       // detective: tren
   c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 1.5 * s; c.beginPath(); c.moveTo(2 * s, -90 * s); c.lineTo(5 * s, -38 * s); c.stroke();
   c.fillStyle = '#0c0d10'; c.fillRect(-20 * s, -58 * s, 40 * s, 6 * s); c.fillStyle = '#26282e'; c.fillRect(-4 * s, -58 * s, 8 * s, 6 * s);
   const aim = P.aim, litCig = P.litCig, flash = P.flash;
-  const ex = lerp(16 * s, 26 * s, aim), ey = lerp(-60 * s, -73 * s, aim), hx = P.hx, hy = P.hy;
+  const hx = P.hx, hy = P.hy, sx = 11 * s, sy = -87 * s;
+  // the cigarette arm: its elbow sits ON the shoulder->hand line while the arm is down (so it reads
+  // as a straight, relaxed arm with no false bent-arm line), and bows out into a crook only as it
+  // raises to the mouth. Driven by aim, so it interpolates cleanly through the raise.
+  const ex = sx + (hx - sx) * 0.5 + 14 * s * aim, ey = sy + (hy - sy) * 0.5 + 21 * s * aim;
   c.lineCap = 'round'; c.lineJoin = 'round';
   c.strokeStyle = '#2a2f37'; c.lineWidth = 8.5 * s;
-  c.beginPath(); c.moveTo(11 * s, -87 * s); c.lineTo(ex, ey); c.lineTo(hx, hy); c.stroke();
-  c.beginPath(); c.moveTo(-11 * s, -87 * s); c.lineTo(-16 * s, -60 * s); c.lineTo(-17 * s, -44 * s); c.stroke();   // resting arm, mirrors the lowered cigarette arm
+  c.beginPath(); c.moveTo(sx, sy); c.lineTo(ex, ey); c.lineTo(hx, hy); c.stroke();
+  c.beginPath(); c.moveTo(-11 * s, -87 * s); c.lineTo(-16 * s, -42 * s); c.stroke();   // the other arm hangs straight at his side
   c.strokeStyle = 'rgba(150,160,178,0.3)'; c.lineWidth = 1.4 * s; c.beginPath(); c.moveTo(12 * s, -90 * s); c.lineTo(ex, ey); c.stroke();
-  c.fillStyle = '#bcbab0'; c.beginPath(); c.arc(hx, hy, 2.9 * s, 0, TWO_PI); c.arc(-17 * s, -44 * s, 2.9 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = '#bcbab0'; c.beginPath(); c.arc(hx, hy, 2.9 * s, 0, TWO_PI); c.arc(-16 * s, -42 * s, 2.9 * s, 0, TWO_PI); c.fill();
   c.fillStyle = bodyGrad(c, 24, s, rim, tint, TRENCH);
   c.beginPath(); c.moveTo(-26 * s, -90 * s); c.quadraticCurveTo(0, -104 * s, 26 * s, -90 * s); c.lineTo(18 * s, -84 * s); c.quadraticCurveTo(0, -94 * s, -18 * s, -84 * s); c.closePath(); c.fill();
   c.fillStyle = PALETTE.ink; c.beginPath(); c.moveTo(-10 * s, -96 * s); c.lineTo(-2 * s, -107 * s); c.lineTo(-1 * s, -92 * s); c.closePath(); c.moveTo(10 * s, -96 * s); c.lineTo(2 * s, -107 * s); c.lineTo(1 * s, -92 * s); c.closePath(); c.fill();
