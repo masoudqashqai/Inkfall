@@ -9,7 +9,7 @@ import './library/index.js';
 import { STORIES } from '../stories/manifest.js';
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 55 · major lights reach further onto objects'
+const BUILD = 'v2 build 56 · indoor vs outdoor light/shadow profile'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 

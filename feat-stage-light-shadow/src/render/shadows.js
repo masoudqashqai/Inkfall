@@ -59,11 +59,11 @@ function stampShape(e, c, cr) {
 
 // one projected stamp (floor or wall), feathered with a few layered taps to fake a soft edge.
 // `mat(f)` returns the ctx.transform args at expansion factor f (1 = core, >1 = penumbra halo).
-function projStamp(e, c, cr, alpha, soft, mat) {
-  const taps = SHADE.softTaps, step = 0.05 + Math.min(0.14, soft);
+function projStamp(e, c, cr, alpha, soft, mat, softMul = 1) {
+  const taps = SHADE.softTaps, step = (0.05 + Math.min(0.14, soft)) * softMul;
   for (let i = taps - 1; i >= 0; i--) {
     const f = 1 + i * step;                 // outer taps reach a little further along the projection
-    const grow = 1 + i * SHADE.edgeFeather; // and grow the silhouette outward, so the edge feathers on
+    const grow = 1 + i * SHADE.edgeFeather * softMul; // and grow the silhouette outward, so the edge feathers on
     c.save();                               // every side and fades into the surface, recognisable but soft
     c.globalAlpha = alpha / taps;
     c.fillStyle = '#000';
@@ -78,7 +78,7 @@ function castOne(e, c, st, cr) {
   const lit = shadowLights(e, bx);
 
   // contact dab: grounds every caster even with no dominant light.
-  c.save(); c.globalAlpha = SHADE.contactAlpha * dens;
+  c.save(); c.globalAlpha = SHADE.contactAlpha * dens * st.env.shadow;
   const cr0 = cr.w * 1.2; c.drawImage(softBlob(), bx - cr0, baseY - cr0 * 0.28, cr0 * 2, cr0 * 0.56);
   c.restore();
 
@@ -92,21 +92,21 @@ function castOne(e, c, st, cr) {
 
     // FLOOR: lay the silhouette away from the light, foreshortened toward the camera. Recedes as
     // the light drops (the wall takes over), so the two stamps never both run at full strength.
-    const throwScale = Math.min(SHADE.maxLen, Math.max(0.3, Math.abs(bx - L.x) / t.lh) * SHADE.lengthGain);
-    const fAlpha = SHADE.floorAlpha * wA * dens * (1 - 0.5 * t.low);
+    const throwScale = Math.min(SHADE.maxLen, Math.max(0.3, Math.abs(bx - L.x) / t.lh) * SHADE.lengthGain * st.env.length);
+    const fAlpha = SHADE.floorAlpha * wA * dens * (1 - 0.5 * t.low) * st.env.shadow;
     const fSoft = emitSoft + throwScale * 0.04 + SHADE.penumbra * 0.05;
     c.save(); c.beginPath(); c.rect(-st.gy * 4, 0, st.gy * 8, st.H); c.clip();   // floor only (below feet)
-    projStamp(e, c, cr, fAlpha, fSoft, f => [1, 0, -t.dir * throwScale * f, -throwScale * SHADE.floorTilt * f, 0, 0]);
+    projStamp(e, c, cr, fAlpha, fSoft, f => [1, 0, -t.dir * throwScale * f, -throwScale * SHADE.floorTilt * f, 0, 0], st.env.soft);
     c.restore();
 
     // WALL: only where the set has a near wall and the light sits low enough to throw up it.
     if (st.wall && t.low > 0.2) {
       const rise = 1.1 + t.low * 2.0, lean = (Math.abs(bx - L.x) / t.lh) * 0.5 + 0.1;
-      const wAlpha = SHADE.wallAlpha * wA * dens * t.low;
+      const wAlpha = SHADE.wallAlpha * wA * dens * t.low * st.env.shadow;
       const wSoft = emitSoft + SHADE.penumbra * 0.06;
       const wallTop = st.wall.top - baseY;   // local y where the wall ends (negative, above feet)
       c.save(); c.beginPath(); c.rect(-st.gy * 4, wallTop, st.gy * 8, baseY - st.wall.top); c.clip();   // wall band only
-      projStamp(e, c, cr, wAlpha, wSoft, f => [1, 0, -t.dir * lean * f, rise * f, 0, 0]);
+      projStamp(e, c, cr, wAlpha, wSoft, f => [1, 0, -t.dir * lean * f, rise * f, 0, 0], st.env.soft);
       c.restore();
     }
     c.restore();

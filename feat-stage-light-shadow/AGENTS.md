@@ -27,7 +27,7 @@ src/
     math.js           rand32, lerp, clamp, clamp01, smooth01, hexRgb, cssRgb, TWO_PI
   style/palette.js    PALETTE + ANIM (central look + timing)
   style/materials.js  surface light model: rimSign (the per-figure light field), bodyGrad + shade (ambient fill + diffuse wrap)
-  style/shadows.js    SHADE + AMBIENT + WASH (central shadow + ambient + surface-wash knobs)
+  style/shadows.js    SHADE + AMBIENT + WASH + ENV (shadow/ambient/wash knobs + the indoor vs outdoor profile)
   render/stage.js     the shared floor + wall stage geometry both lighting and shadows read
   render/lighting.js  light service: addLight, litTint, litColor, drawBackLight/drawFrontLight (beams, glow, washes, refl)
   render/shadows.js   shadow service: casterRecord, paintCaster, tintBuffer (silhouettes projected onto the stage)

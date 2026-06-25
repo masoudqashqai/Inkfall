@@ -4,7 +4,7 @@
 // line down to gy) when the backdrop declares one (the alley brick, the room wall). A light's
 // HEIGHT is gy minus its screen y. Keeping this in one place means improving the geometry improves
 // light and shadow together, and neither service owns the surfaces.
-import { AMBIENT } from '../style/shadows.js';
+import { AMBIENT, ENV } from '../style/shadows.js';
 
 // build the per-frame stage description from the active scene.
 export function stageOf(e) {
@@ -12,11 +12,14 @@ export function stageOf(e) {
   // a near wall exists only where the set has one: scene data wins, else the backdrop declares it.
   let wt = d.wallTop != null ? d.wallTop : (bd && bd.wallTop != null ? bd.wallTop : null);
   const wall = wt != null ? { top: wt <= 1 ? wt * H : wt, bottom: gy } : null;
+  // the environment profile (indoor splashes more, outdoor falls into the dark). Every subsystem
+  // reads st.env; the ambient fill defaults from it unless the scene overrides level/col.
+  const env = ENV[s.indoor ? 'indoor' : 'outdoor'];
   const a = d.ambient || {};
   return {
-    gy, H, wall,
+    gy, H, wall, indoor: s.indoor, env,
     floor: { top: gy, bottom: H },
-    ambient: { level: a.level != null ? a.level : AMBIENT.level, col: a.col || AMBIENT.col },
+    ambient: { level: a.level != null ? a.level : env.ambient, col: a.col || AMBIENT.col },
   };
 }
 
