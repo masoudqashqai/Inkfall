@@ -2525,7 +2525,7 @@ function bodyGrad(c, h, s, rim, tint) {
   // a faint wash of the light's colour on the lit edge, NOT a repaint of the cloth. Kept very low so
   // a coloured light only hints at the coat rather than recolouring it, and the moon never blows it
   // to white.
-  if (tint) { const m = 0.15; lit = `rgb(${Math.round(58 + (tint[0] - 58) * m)},${Math.round(64 + (tint[1] - 64) * m)},${Math.round(73 + (tint[2] - 73) * m)})`; }
+  if (tint) { const m = 0.08; lit = `rgb(${Math.round(58 + (tint[0] - 58) * m)},${Math.round(64 + (tint[1] - 64) * m)},${Math.round(73 + (tint[2] - 73) * m)})`; }
   g.addColorStop(0, lit); g.addColorStop(0.42, '#181b21'); g.addColorStop(1, '#080909');
   return g;
 }
