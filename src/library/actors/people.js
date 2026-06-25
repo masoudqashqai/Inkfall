@@ -4,7 +4,7 @@
 import { defineActor } from '../../objects/registry.js';
 import { PALETTE, ANIM } from '../../style/palette.js';
 import { TWO_PI, lerp, smooth01 } from '../../engine/math.js';
-import { rimSign, bodyGrad, ember, cigSmoke, drawFedora, drawPistol, muzzleFlash } from '../shared.js';
+import { rimSign, bodyGrad, ember, cigSmoke, drawFedora, drawPistol, muzzleFire } from '../shared.js';
 
 // cloth albedos (the cast's own material colours, noir-desaturated). bodyGrad shades from these, so
 // a dark suit stays dark under a bright light and the detective's pale trench lifts more.
@@ -48,7 +48,15 @@ defineActor('trenchMan', function (e) {                       // detective: tren
   if (aim > 0.5) {
     c.save(); c.translate(hx, hy); c.fillStyle = '#d8d2c4'; c.fillRect(2 * s, -1 * s, 7 * s, 2 * s); c.restore();
     if (litCig) { cigSmoke(c, hx + 9 * s, hy, s, t); ember(c, hx + 9 * s, hy, s, t); }
-    if (flash > 0) { c.save(); c.globalCompositeOperation = 'lighter'; const fg = c.createRadialGradient(hx + 6 * s, hy, 0, hx + 6 * s, hy, 46 * s); fg.addColorStop(0, `rgba(255,170,80,${0.55 * flash})`); fg.addColorStop(1, 'rgba(255,170,80,0)'); c.fillStyle = fg; c.beginPath(); c.arc(hx + 6 * s, hy, 46 * s, 0, TWO_PI); c.fill(); c.restore(); }
+    // the lighter held to the cigarette: a small teardrop flame that flickers for a moment then is
+    // gone. Its glow on the scene comes from emitLight (the light system), not a painted gradient.
+    if (flash > 0) {
+      const lx = hx + 9 * s, ly = hy, fh = (7 + Math.sin(t * 40) * 1.6) * s * (0.5 + 0.5 * flash);
+      c.save(); c.globalCompositeOperation = 'lighter';
+      c.fillStyle = `rgba(255,140,40,${0.85 * flash})`; c.beginPath(); c.moveTo(lx - 2.4 * s, ly); c.quadraticCurveTo(lx - 2.2 * s, ly - fh * 0.6, lx, ly - fh); c.quadraticCurveTo(lx + 2.2 * s, ly - fh * 0.6, lx + 2.4 * s, ly); c.quadraticCurveTo(lx, ly + 1.6 * s, lx - 2.4 * s, ly); c.fill();
+      c.fillStyle = `rgba(255,242,190,${0.95 * flash})`; c.beginPath(); c.moveTo(lx - 1.1 * s, ly); c.quadraticCurveTo(lx - 1 * s, ly - fh * 0.45, lx, ly - fh * 0.7); c.quadraticCurveTo(lx + 1 * s, ly - fh * 0.45, lx + 1.1 * s, ly); c.quadraticCurveTo(lx, ly + s, lx - 1.1 * s, ly); c.fill();
+      c.restore();
+    }
   }
   c.restore();
 }, {
@@ -64,10 +72,11 @@ defineActor('trenchMan', function (e) {                       // detective: tren
   },
   emitLight(e) {
     const P = trenchPose(e, this);
-    if (P.aim > 0.5 && P.litCig) {
-      const cwx = P.X + P.sway + P.hx + 9 * P.s, cwy = P.gy + P.hy, I = 0.3 + P.flash * 0.6;
-      e.addLight({ x: cwx, y: cwy, col: '255,150,60', r: 84 * P.s, I: I * 0.7, ew: 4 * P.s, eh: 4 * P.s, front: true });
-    }
+    if (!(P.aim > 0.5 && P.litCig)) return;
+    const cwx = P.X + P.sway + P.hx + 9 * P.s, cwy = P.gy + P.hy;
+    e.addLight({ x: cwx, y: cwy, col: '255,150,60', r: 84 * P.s, I: 0.21, ew: 4 * P.s, eh: 4 * P.s, front: true });   // the steady ember
+    // the lighter's flame: a brief, brighter, warmer flare at the instant of lighting, then gone
+    if (P.flash > 0) e.addLight({ x: cwx, y: cwy - 4 * P.s, col: '255,214,150', r: 150 * P.s, I: 0.95 * P.flash, ew: 6 * P.s, eh: 9 * P.s, front: true });
   },
 });
 
@@ -147,10 +156,20 @@ defineActor('gunman', function (e) {                          // shooter, arm ex
   const sx = 6 * s, sy = -86 * s, hx = lerp(13 * s, 34 * s, aim), hy = lerp(-52 * s, -82 * s, aim), ang = Math.atan2(hy - sy, hx - sx);
   c.strokeStyle = PALETTE.ink; c.lineWidth = 8 * s; c.lineCap = 'round'; c.beginPath(); c.moveTo(sx, sy); c.lineTo(hx, hy); c.stroke();
   c.save(); c.translate(hx, hy); c.rotate(ang); drawPistol(c, 0, 0, s); c.restore();
-  if (flash > 0 && aim > 0.82) muzzleFlash(c, hx + Math.cos(ang) * 18 * s, hy + Math.sin(ang) * 18 * s, s, flash);
+  if (flash > 0 && aim > 0.82) muzzleFire(c, hx + Math.cos(ang) * 18 * s, hy + Math.sin(ang) * 18 * s, s, flash, ang);
   c.restore();
 }, {
   shadowW: 22, shadowH: 121,
+  // the gunshot lights the scene: a brief, bright warm flash at the muzzle through the light system
+  // (front, so it reads over the cast), fading with the same flash that drives the fire burst.
+  emitLight(e) {
+    const flash = e.flags.muzzle || 0;
+    if (flash <= 0) return;
+    const s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, dir = this.flip ? -1 : 1;
+    const aim = (this.raiseAt != null) ? (e.lineIdx < this.raiseAt ? 0 : (e.lineIdx === this.raiseAt ? smooth01(e.beat() / 2.4) : 1)) : 1;
+    const sx = 6 * s, sy = -86 * s, hx = lerp(13 * s, 34 * s, aim), hy = lerp(-52 * s, -82 * s, aim), ang = Math.atan2(hy - sy, hx - sx);
+    e.addLight({ x: X + dir * (hx + Math.cos(ang) * 18 * s), y: gy + hy + Math.sin(ang) * 18 * s, col: '255,200,130', r: 220 * s, I: flash, ew: 9 * s, eh: 9 * s, front: true });
+  },
   shadowSil(e, c) {                                            // suit, head, fedora + the extended gun arm
     const s = e.scaleOf(this);
     if (this.flip) c.scale(-1, 1);
