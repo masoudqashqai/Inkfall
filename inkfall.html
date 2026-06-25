@@ -432,7 +432,7 @@ __req("src/library/index.js");
 const { STORIES } = __req("stories/manifest.js");
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 57 Â· landscape + indoor/outdoor lighting'
+const BUILD = 'v2 build 58 Â· 1080p-anchored resolution scaling'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 
@@ -468,7 +468,7 @@ const { bindInput } = __req("src/engine/input.js");
 bindInput(engine.cv, {
   isReady: () => manager.started,
   onTap: () => { const live = manager.started && !manager.transState; manager.advance(); if (live) markControlsSeen(); },   // retire the hint on a real advance
-  onDrag: dx => manager.drag(dx),
+  onDrag: dx => manager.drag(dx / engine.ls),   // pointer deltas are CSS px; the camera looks in logical units, so a drag feels the same at any resolution
   onHold: () => manager.holdLightning(),
 });
 
@@ -634,9 +634,17 @@ __mod["src/engine/engine.js"] = function(__exports, __req){
 const { Frame } = __req("src/engine/frame.js");
 const { ASPECT_MIN, ASPECT_MAX } = __req("src/engine/viewport.js");
 
+// the world is authored in a FIXED virtual resolution: the band is always REF_H logical units tall
+// (1080p, our anchor). The world transform scales that logical space to the real band, so the whole
+// scene is one uniform zoom of the same 1080p composition at any size (a phone, 1080p, 4K). Every
+// number in draw code therefore means "pixels at 1080p". Width is REF_H * aspect (so a wider frame
+// shows more world, never bigger objects), and unit stays 3 everywhere.
+const REF_H = 1080;
+
 class Engine {
   constructor() {
     this.cv = null; this.ctx = null; this.DPR = 1; this.W = 0; this.H = 0; this.unit = 1;
+    this.cssW = 0; this.cssH = 0; this.ls = 1;   // the real band size (CSS px) and logical->CSS scale
     this.lightCv = null; this.lightCtx = null;
     this.shadowCv = null; this.shadowCtx = null;   // the offscreen shadow buffer (projected onto the stage, blitted under the cast)
     this.snapCv = null; this.snapCtx = null;   // a frozen copy of the last frame, for the beat crossfade
@@ -662,14 +670,18 @@ class Engine {
 
   // size the canvas to the landscape aspect band, centered, so the viewport's spare space becomes
   // black bars: top and bottom on a too-tall screen, left and right on a too-wide one. Everything
-  // downstream reads W/H (the band), so the world never knows it is letterboxed.
+  // downstream reads W/H, but those are now LOGICAL units (the band is always REF_H tall): the world
+  // transform scales the logical space onto the real band, so the world never knows its real size
+  // OR that it is letterboxed. The buffers and CSS still use the real band size in device/CSS px.
   resize() {
     this.DPR = Math.min(window.devicePixelRatio || 1, 2);
     const vw = innerWidth, vh = innerHeight, ar = vw / vh;
     let w = vw, h = vh;
     if (ar < ASPECT_MIN) h = Math.round(vw / ASPECT_MIN);        // too tall: cap the height
     else if (ar > ASPECT_MAX) w = Math.round(vh * ASPECT_MAX);   // too wide: cap the width
-    this.W = w; this.H = h;
+    this.cssW = w; this.cssH = h;                                // the real band, in CSS px
+    this.ls = Math.min(w, h) / REF_H;                           // logical -> CSS scale (the band is always REF_H tall)
+    this.W = w / this.ls; this.H = h / this.ls;                 // the LOGICAL band (H == REF_H, W == REF_H * aspect)
     for (const cv of [this.cv, this.lightCv, this.shadowCv, this.snapCv]) { cv.width = Math.floor(w * this.DPR); cv.height = Math.floor(h * this.DPR); }
     this.cv.style.width = w + 'px'; this.cv.style.height = h + 'px';
     this.cv.style.left = Math.floor((vw - w) / 2) + 'px';
@@ -681,8 +693,11 @@ class Engine {
 
   initRain() {
     this.drops.length = 0;
-    const n = Math.floor((this.W * this.H) / 5200);
-    for (let i = 0; i < n; i++) this.drops.push({ x: Math.random() * (this.W + 200) - 100, y: Math.random() * this.H, len: 8 + Math.random() * 16, sp: 9 + Math.random() * 9 });
+    // size + count track the scene scale (k = 1 at a 1080p landscape screen), so rain looks exactly
+    // like 1080p everywhere instead of becoming a flood of fine pixels on a big window.
+    const k = Math.min(this.W, this.H) / 1080;
+    const n = Math.floor((this.W * this.H) / (5200 * k * k));
+    for (let i = 0; i < n; i++) this.drops.push({ x: Math.random() * (this.W + 200) - 100, y: Math.random() * this.H, len: (8 + Math.random() * 16) * k, sp: (9 + Math.random() * 9) * k });
   }
   buildGrain() {
     const g = document.createElement('canvas'); g.width = g.height = 220;
@@ -697,13 +712,15 @@ class Engine {
     f.W = this.W; f.H = this.H; f.unit = Math.min(this.W, this.H) / 360;
     f.t = now / 1000; f.dt = Math.min((now - this.last) / 1000, 0.05);
     f.main = this.ctx; f.light = this.lightCtx; f.shadow = this.shadowCtx; f.ctx = this.ctx;
-    f.drops = this.drops; f.grain = this.grain; f.DPR = this.DPR;
+    f.drops = this.drops; f.grain = this.grain; f.DPR = this.DPR; f.ls = this.ls;
     this.last = now;
     return f;
   }
 
-  // device-pixel transform helpers (buffers + main share the same backing size)
-  setWorldTransform(ctx) { ctx.setTransform(this.DPR, 0, 0, this.DPR, 0, 0); }
+  // transform helpers. World drawing maps LOGICAL units -> device pixels through DPR * ls (the world
+  // is authored at REF_H tall and scaled to the real band), so all draw code is resolution agnostic.
+  // Device drawing (buffer-to-buffer blits, the shadow tint, the crossfade) is 1:1, no logical scale.
+  setWorldTransform(ctx) { const k = this.DPR * this.ls; ctx.setTransform(k, 0, 0, k, 0, 0); }
   setDeviceTransform(ctx) { ctx.setTransform(1, 0, 0, 1, 0, 0); }
 
   // freeze the current on-screen frame so the next beat can crossfade out of it
@@ -726,6 +743,7 @@ class Engine {
   }
 }
 
+__exports.REF_H = REF_H;
 __exports.Engine = Engine;
 };
 __mod["src/engine/frame.js"] = function(__exports, __req){
@@ -740,7 +758,7 @@ const L = __req("src/render/lighting.js");
 
 class Frame {
   constructor() {
-    this.W = this.H = 0; this.unit = 1; this.t = 0; this.dt = 0;
+    this.W = this.H = 0; this.unit = 1; this.t = 0; this.dt = 0; this.DPR = 1; this.ls = 1;
     this.world = this.light = this.shadow = this.main = null;  // the four 2d contexts (world, light buffer, shadow buffer, main)
     this.ctx = null;                              // active draw target (set per pass)
     this.scene = null;                            // active Scene
@@ -1039,12 +1057,20 @@ function drawBeam(c, t, x, y, ew, col, b) {
   const farW = b.farW != null ? b.farW : (b.spread != null ? len * Math.tan(b.spread) : len * 0.45);
   const I = b.I != null ? b.I : 1, fx = x + ax * len, fy = y + ay * len;
   const g = c.createLinearGradient(x, y, fx, fy);
-  g.addColorStop(0, `rgba(${col},${0.30 * I})`); g.addColorStop(0.5, `rgba(${col},${0.10 * I})`); g.addColorStop(1, `rgba(${col},0)`);
+  // carry the light most of the way down the shaft instead of dying at half length, so the beam reads
+  // as throwing light in its direction rather than fading into the air just past the source.
+  g.addColorStop(0, `rgba(${col},${0.34 * I})`); g.addColorStop(0.6, `rgba(${col},${0.18 * I})`); g.addColorStop(1, `rgba(${col},${0.06 * I})`);
   c.save(); c.globalCompositeOperation = 'lighter'; c.fillStyle = g;
   c.beginPath();
   c.moveTo(x - pxv * nearW, y - pyv * nearW); c.lineTo(x + pxv * nearW, y + pyv * nearW);
   c.lineTo(fx + pxv * farW, fy + pyv * farW); c.lineTo(fx - pxv * farW, fy - pyv * farW);
-  c.closePath(); c.fill(); c.restore();
+  c.closePath(); c.fill();
+  // a soft pool where the beam lands, so the light reads as cast onto the surface at the end of the
+  // throw (the floor under a lamp, the table under a hanging bulb), not just hanging in the air.
+  const lp = c.createRadialGradient(fx, fy, 0, fx, fy, farW * 1.4);
+  lp.addColorStop(0, `rgba(${col},${0.18 * I})`); lp.addColorStop(1, `rgba(${col},0)`);
+  c.fillStyle = lp; c.beginPath(); c.ellipse(fx, fy, farW * 1.4, farW * 0.7, 0, 0, Math.PI * 2); c.fill();
+  c.restore();
 }
 function beam(e, L) { drawBeam(e.light, e.t, L.x, L.y, L.ew, L.col, L.beam); }
 
@@ -1966,8 +1992,8 @@ function weather(e) {
 }
 
 function rain(e, bloodRain) {
-  const c = e.ctx, drops = e.drops, drift = [], lit = !bloodRain && e.lights.length > 0;
-  c.lineWidth = bloodRain ? 1.6 : 1.1;   // blood rain falls heavier
+  const c = e.ctx, drops = e.drops, drift = [], lit = !bloodRain && e.lights.length > 0, k = e.unit / 3;
+  c.lineWidth = (bloodRain ? 1.6 : 1.1) * k;   // blood rain falls heavier; width tracks the scene scale (1 at 1080p)
   c.strokeStyle = bloodRain ? `rgba(168,8,16,${ANIM.rainAlpha + 0.22})` : `rgba(180,190,210,${ANIM.rainAlpha})`;
   c.beginPath();
   for (let i = 0; i < drops.length; i++) {
@@ -2464,21 +2490,23 @@ __mod["src/library/effects/ripples.js"] = function(__exports, __req){
 class Ripples {
   constructor() { this.list = []; }
   spawn(e) {
-    const x = Math.random() * e.W, y = e.gy + Math.random() * (e.H - e.gy) * 0.9, blood = e.scene.data.bloodRain;
+    // size + growth track the scene scale (k = 1 at a 1080p screen), so a ripple looks like 1080p
+    // everywhere instead of being huge on a phone and a speck on a desktop.
+    const k = e.unit / 3, x = Math.random() * e.W, y = e.gy + Math.random() * (e.H - e.gy) * 0.9, blood = e.scene.data.bloodRain;
     const col = blood ? [220, 24, 34] : e.litColor(x, 150, 162, 180);
-    this.list.push({ x, y, r: 1, max: 10 + Math.random() * 26, life: 1, col, blood });
+    this.list.push({ x, y, r: k, max: (10 + Math.random() * 26) * k, gr: 34 * k, life: 1, col, blood });
   }
   clear() { this.list.length = 0; }
   update(dt) {
     for (let i = this.list.length - 1; i >= 0; i--) {
-      const p = this.list[i]; p.r += dt * 34; p.life -= dt * 1.1;
+      const p = this.list[i]; p.r += dt * p.gr; p.life -= dt * 1.1;
       if (p.life <= 0 || p.r > p.max) this.list.splice(i, 1);
     }
   }
   draw(e) {
-    const c = e.light; c.save(); c.globalCompositeOperation = 'lighter';
+    const c = e.light, k = e.unit / 3; c.save(); c.globalCompositeOperation = 'lighter';
     for (const p of this.list) {
-      c.globalAlpha = (p.blood ? 0.42 : 0.22) * p.life; c.strokeStyle = `rgb(${p.col[0]},${p.col[1]},${p.col[2]})`; c.lineWidth = p.blood ? 1.9 : 1.2;
+      c.globalAlpha = (p.blood ? 0.42 : 0.22) * p.life; c.strokeStyle = `rgb(${p.col[0]},${p.col[1]},${p.col[2]})`; c.lineWidth = (p.blood ? 1.9 : 1.2) * k;
       c.beginPath(); c.ellipse(p.x, p.y, p.r, p.r * 0.4, 0, 0, Math.PI * 2); c.stroke();
     }
     c.restore(); c.globalAlpha = 1;
@@ -2617,19 +2645,23 @@ function buildSkyline(e, seed, cfgList, groundY) {
   return layers;
 }
 
-// Each layer's buildings + windows are static, so they are rendered once to an offscreen canvas
-// (at device resolution) and cached on the layer. Per frame we just blit that canvas at the
-// parallax offset, instead of re-running the building/window loops every frame.
+// Each layer's buildings + windows are static, so they are rendered once to an offscreen canvas and
+// cached on the layer. Per frame we just blit that canvas at the parallax offset, instead of
+// re-running the building/window loops every frame. The geometry is in LOGICAL units (e.W is the
+// logical band width, constant per aspect ratio), so the sprite is baked at the real device scale
+// DS = DPR * ls and blitted into a logical rect, staying pixel-crisp at any resolution while the
+// composition (building count + layout) stays identical when only the size changes.
 const PAD = 200;   // horizontal margin so parallax + zoom-out never reveal the sprite's edge
 function layerSprite(e, L) {
-  if (L._sprite && L._spriteW === e.W && L._spriteDPR === e.DPR) return L._sprite;
-  const DPR = e.DPR || 1, CW = e.W + PAD * 2, H = e.H;
-  const cv = document.createElement('canvas'); cv.width = Math.floor(CW * DPR); cv.height = Math.floor(H * DPR);
-  const c = cv.getContext('2d'); c.setTransform(DPR, 0, 0, DPR, 0, 0); c.translate(PAD, 0);
+  const DS = (e.DPR || 1) * (e.ls || 1);
+  if (L._sprite && L._spriteW === e.W && L._spriteDS === DS) return L._sprite;
+  const CW = e.W + PAD * 2, H = e.H;
+  const cv = document.createElement('canvas'); cv.width = Math.floor(CW * DS); cv.height = Math.floor(H * DS);
+  const c = cv.getContext('2d'); c.setTransform(DS, 0, 0, DS, 0, 0); c.translate(PAD, 0);
   c.fillStyle = L.shade;
   for (const b of L.blds) { c.fillRect(b.x, b.top, b.w, b.h + 6); if (b.cap) { if (b.cap.type === 'tank') { c.fillRect(b.cap.x - 7, b.top - 14, 14, 14); c.fillRect(b.cap.x - 9, b.top - 2, 18, 3); } else c.fillRect(b.cap.x - 1, b.top - 22, 2, 22); } }
   for (const b of L.blds) for (const wn of b.wins) { c.fillStyle = wn.warm ? PALETTE.warmWin : PALETTE.coolWin; c.fillRect(wn.x, wn.y, 4, 5); }
-  L._sprite = cv; L._spriteW = e.W; L._spriteDPR = e.DPR;
+  L._sprite = cv; L._spriteW = e.W; L._spriteDS = DS;
   return cv;
 }
 
@@ -2654,16 +2686,17 @@ const WARM = '255,224,164', COOL = '188,204,236';
 
 // bake the steady bloom for a layer (skips the live-flicker windows). Cached like the layer sprite.
 function glowSprite(e, L) {
-  if (L._glow && L._glowW === e.W && L._glowDPR === e.DPR) return L._glow;
-  const DPR = e.DPR || 1, CW = e.W + PAD * 2, r = 4.5;
-  const cv = document.createElement('canvas'); cv.width = Math.floor(CW * DPR); cv.height = Math.floor(e.H * DPR);
-  const c = cv.getContext('2d'); c.setTransform(DPR, 0, 0, DPR, 0, 0); c.translate(PAD, 0); c.globalCompositeOperation = 'lighter';
+  const DS = (e.DPR || 1) * (e.ls || 1);
+  if (L._glow && L._glowW === e.W && L._glowDS === DS) return L._glow;
+  const CW = e.W + PAD * 2, r = 4.5;
+  const cv = document.createElement('canvas'); cv.width = Math.floor(CW * DS); cv.height = Math.floor(e.H * DS);
+  const c = cv.getContext('2d'); c.setTransform(DS, 0, 0, DS, 0, 0); c.translate(PAD, 0); c.globalCompositeOperation = 'lighter';
   c.globalAlpha = 0.6;
   for (const b of L.blds) for (const wn of b.wins) {
     if (wn.flk != null) continue;                       // flicker windows are drawn live
     c.drawImage(softGlow(wn.warm ? WARM : COOL), wn.x - r, wn.y - r, r * 2, r * 2);
   }
-  L._glow = cv; L._glowW = e.W; L._glowDPR = e.DPR; return cv;
+  L._glow = cv; L._glowW = e.W; L._glowDS = DS; return cv;
 }
 
 // a failing-tube value 0..1: dark most of the time, then a short buzzing burst now and then
@@ -2847,7 +2880,7 @@ defineLight('lamp', {
     // the drawn bulb (x + 26, gy - 150), so the shaft starts at the lamp, not the lid. The floor wash
     // gives the pool where it lands.
     e.addLight({
-      x: X + 26 * s, y: e.gy - 150 * s, col: '255,250,225', r: 150 * (this.scale || 1), I: 0.5 * flick, ew: 6 * s, eh: 6 * s,
+      x: X + 26 * s, y: e.gy - 150 * s, col: '255,250,225', r: 50 * s, I: 0.5 * flick, ew: 6 * s, eh: 6 * s,
       glow: false,
       beam: { dir: 0, len: 150 * s, farW: 70 * s, I: flick },
     });
@@ -2872,11 +2905,12 @@ defineLight('neon', {
       if (!covering) { const st = e.sceneT(); flick = st < 0.4 ? 0.04 : (st < 1.9 ? (Math.sin(st * 34) > -0.1 ? flick : 0.12) : flick); if (st >= 0.4 && !e.flags._ign) { e.flags._ign = true; Audio2.neonZap(); } }
       else flick = 0.04;
     }
-    this._flick = flick; this._X = X; this._y = y;
-    const lx = X + this.w / 2 + (this.arrow ? this.h * 0.45 : 0), ly = y + this.h / 2;
-    e.addLight({ x: lx, y: ly, col: hexRgb(this.color), r: Math.max(this.w, this.h) * 1.8, I: 0.9 * flick, ew: this.w * 0.55, eh: this.h * 0.55 });
+    const u3 = e.unit / 3, w = this.w * u3, h = this.h * u3;   // sign + halo scale together (= 1080p sizes at 1080p)
+    this._flick = flick; this._X = X; this._y = y; this._w = w; this._h = h;
+    const lx = X + w / 2 + (this.arrow ? h * 0.45 : 0), ly = y + h / 2;
+    e.addLight({ x: lx, y: ly, col: hexRgb(this.color), r: Math.max(w, h) * 1.8, I: 0.9 * flick, ew: w * 0.55, eh: h * 0.55 });
   },
-  draw(e) { neonFixture(e.ctx, this._X, this._y, this.w, this.h, this.color, this.label, this._flick, this.arrow); },
+  draw(e) { neonFixture(e.ctx, this._X, this._y, this._w, this._h, this.color, this.label, this._flick, this.arrow); },
 });
 
 defineLight('bulb', {
@@ -2884,20 +2918,26 @@ defineLight('bulb', {
     const t = e.t, X = e.X(this), y = (this.y != null ? this.y : 0.5) * e.H;
     const flick = this.flicker ? (Math.sin(t * 30 + (this.seed || 0)) > -0.9 ? 1 : 0.4) * (0.85 + 0.15 * Math.sin(t * 7)) : 1;
     this._flick = flick; this._X = X; this._y = y;
-    e.addLight({ x: X, y, col: '255,244,210', r: 150, I: 0.6 * flick, ew: 5, eh: 5 });
+    const u3 = e.unit / 3;   // radius scales with the screen (= 1080p values at 1080p), so coverage is consistent
+    // a hanging bulb throws a soft cone DOWN onto whatever is below it (the table), so the surface it
+    // hangs over reads as lit, not just the bulb glowing. intensity now actually drives the light.
+    e.addLight({
+      x: X, y, col: '255,244,210', r: 160 * u3, I: 0.8 * (this.intensity || 1) * flick, ew: 5 * u3, eh: 5 * u3,
+      beam: { dir: 0, len: (e.gy - y) * 0.82, farW: 96 * u3, I: 0.6 * flick },
+    });
   },
   draw(e) {
-    const c = e.ctx, x = this._X, y = this._y, fl = (this.intensity || 1) * this._flick;
-    c.strokeStyle = e.palette.ink; c.lineWidth = 1; c.beginPath(); c.moveTo(x, y - 95); c.lineTo(x, y); c.stroke();
+    const c = e.ctx, x = this._X, y = this._y, fl = (this.intensity || 1) * this._flick, u3 = e.unit / 3;
+    c.strokeStyle = e.palette.ink; c.lineWidth = 1; c.beginPath(); c.moveTo(x, y - 95 * u3); c.lineTo(x, y); c.stroke();
     // the air glow comes from the lighting system (emitLight). This draws only the lit filament.
-    c.fillStyle = `rgba(255,246,220,${fl})`; c.shadowColor = '#fff'; c.shadowBlur = 16; c.beginPath(); c.arc(x, y, 3.5, 0, 7); c.fill(); c.shadowBlur = 0;
+    c.fillStyle = `rgba(255,246,220,${fl})`; c.shadowColor = '#fff'; c.shadowBlur = 16 * u3; c.beginPath(); c.arc(x, y, 3.5 * u3, 0, 7); c.fill(); c.shadowBlur = 0;
   },
 });
 
 defineLight('glow', {
   emitLight(e) {
-    const X = e.X(this), y = (this.y != null ? this.y : 0.5) * e.H, I = 0.5 * (this.intensity || 1);
-    e.addLight({ x: X, y, col: cssRgb(this.color), r: this.r, I, ew: this.r * 0.3, eh: this.r * 0.3 });
+    const X = e.X(this), y = (this.y != null ? this.y : 0.5) * e.H, I = 0.5 * (this.intensity || 1), r = this.r * e.unit / 3;
+    e.addLight({ x: X, y, col: cssRgb(this.color), r, I, ew: r * 0.3, eh: r * 0.3 });
   },
 });
 
@@ -2932,13 +2972,14 @@ __mod["src/library/actors/people.js"] = function(__exports, __req){
 const { defineActor } = __req("src/objects/registry.js");
 const { PALETTE, ANIM } = __req("src/style/palette.js");
 const { TWO_PI, lerp, smooth01 } = __req("src/engine/math.js");
-const { rimSign, bodyGrad, shade, ember, cigSmoke, drawFedora, drawPistol, muzzleFlash } = __req("src/library/shared.js");
+const { rimSign, bodyGrad, shade, shadeForm, ember, cigSmoke, drawFedora, drawPistol, muzzleFlash } = __req("src/library/shared.js");
 
 // cloth albedos (the cast's own material colours, noir-desaturated). bodyGrad shades from these, so
 // a dark suit stays dark under a bright light and the detective's pale trench lifts more.
 const TRENCH = [120, 112, 94], HEAVY = [54, 58, 66], PINSTRIPE = [44, 46, 56], SUIT = [66, 70, 80];
-// flat bright surfaces (shirt, bare skin) dimmed by the light through shade(), so an unlit figure goes dark
-const SHIRT = [207, 205, 195], BONE = [220, 220, 220], HAND = [188, 186, 176];
+// flat bright surfaces (shirt, bare skin, the motif red) lit through shade()/shadeForm(), so an unlit
+// figure goes dark and the red deepens in shadow instead of staying a fixed pure red.
+const SHIRT = [207, 205, 195], BONE = [220, 220, 220], HAND = [188, 186, 176], RED = [255, 0, 24];
 
 // a one-shot strike (from the legacy build): rises 0 -> 1 over `rise`, then decays over `fall`, so a
 // lighter ignites quickly and settles, instead of starting at full and fading linearly.
@@ -2960,7 +3001,7 @@ defineActor('trenchMan', function (e) {                       // detective: tren
   c.save(); c.translate(X + sway, gy);
   c.fillStyle = '#050608'; c.fillRect(-13 * s, -32 * s, 11 * s, 32 * s); c.fillRect(3 * s, -32 * s, 11 * s, 32 * s);
   c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-9 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(10 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.fill();
-  c.fillStyle = bodyGrad(c, 96, s, rim, TRENCH);
+  c.fillStyle = bodyGrad(c, 96, s, TRENCH);
   c.beginPath(); c.moveTo(-22 * s, -36 * s); c.lineTo(-18 * s, -92 * s); c.lineTo(18 * s, -92 * s); c.lineTo(22 * s, -36 * s); c.quadraticCurveTo(0, -28 * s, -22 * s, -36 * s); c.closePath(); c.fill();
   c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 1.5 * s; c.beginPath(); c.moveTo(2 * s, -90 * s); c.lineTo(5 * s, -38 * s); c.stroke();
   c.fillStyle = '#0c0d10'; c.fillRect(-20 * s, -58 * s, 40 * s, 6 * s); c.fillStyle = '#26282e'; c.fillRect(-4 * s, -58 * s, 8 * s, 6 * s);
@@ -2977,7 +3018,7 @@ defineActor('trenchMan', function (e) {                       // detective: tren
   // the inner-arm highlight (the crease of a bent arm) only shows as the arm bends to smoke
   c.strokeStyle = `rgba(150,160,178,${0.3 * aim})`; c.lineWidth = 1.4 * s; c.beginPath(); c.moveTo(12 * s, -90 * s); c.lineTo(ex, ey); c.stroke();
   c.fillStyle = shade(HAND); c.beginPath(); c.arc(hx, hy, 2.9 * s, 0, TWO_PI); c.arc(-16 * s, -50 * s, 2.9 * s, 0, TWO_PI); c.fill();
-  c.fillStyle = bodyGrad(c, 24, s, rim, TRENCH);
+  c.fillStyle = bodyGrad(c, 24, s, TRENCH);
   c.beginPath(); c.moveTo(-26 * s, -90 * s); c.quadraticCurveTo(0, -104 * s, 26 * s, -90 * s); c.lineTo(18 * s, -84 * s); c.quadraticCurveTo(0, -94 * s, -18 * s, -84 * s); c.closePath(); c.fill();
   c.fillStyle = PALETTE.ink; c.beginPath(); c.moveTo(-10 * s, -96 * s); c.lineTo(-2 * s, -107 * s); c.lineTo(-1 * s, -92 * s); c.closePath(); c.moveTo(10 * s, -96 * s); c.lineTo(2 * s, -107 * s); c.lineTo(1 * s, -92 * s); c.closePath(); c.fill();
   c.fillStyle = '#15161a'; c.fillRect(-6 * s, -104 * s, 12 * s, 10 * s);
@@ -3026,11 +3067,11 @@ defineActor('thug', function (e) {                            // the heavy: broa
   c.save(); c.translate(X, gy);
   c.fillStyle = '#050608'; c.fillRect(-18 * s, -36 * s, 15 * s, 36 * s); c.fillRect(3 * s, -36 * s, 15 * s, 36 * s);
   c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-11 * s, -1 * s, 12 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(12 * s, -1 * s, 12 * s, 4 * s, 0, 0, TWO_PI); c.fill();
-  c.fillStyle = bodyGrad(c, 82, s, rim, HEAVY);
+  c.fillStyle = bodyGrad(c, 82, s, HEAVY);
   c.beginPath(); c.moveTo(-30 * s, -36 * s); c.lineTo(-34 * s, -78 * s); c.quadraticCurveTo(0, -96 * s, 34 * s, -78 * s); c.lineTo(30 * s, -36 * s); c.quadraticCurveTo(0, -28 * s, -30 * s, -36 * s); c.closePath(); c.fill();
   c.fillStyle = shade(SHIRT); c.beginPath(); c.moveTo(-6 * s, -82 * s); c.lineTo(6 * s, -82 * s); c.lineTo(3 * s, -54 * s); c.lineTo(-3 * s, -54 * s); c.closePath(); c.fill();
-  c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(-2.5 * s, -80 * s); c.lineTo(2.5 * s, -80 * s); c.lineTo(1.5 * s, -56 * s); c.lineTo(-1.5 * s, -56 * s); c.closePath(); c.fill();
-  c.fillStyle = bodyGrad(c, 36, s, rim, HEAVY); c.beginPath(); c.moveTo(-12 * s, -84 * s); c.lineTo(-6 * s, -82 * s); c.lineTo(-7 * s, -52 * s); c.lineTo(-16 * s, -56 * s); c.closePath(); c.moveTo(12 * s, -84 * s); c.lineTo(6 * s, -82 * s); c.lineTo(7 * s, -52 * s); c.lineTo(16 * s, -56 * s); c.closePath(); c.fill();
+  c.fillStyle = shade(RED); c.beginPath(); c.moveTo(-2.5 * s, -80 * s); c.lineTo(2.5 * s, -80 * s); c.lineTo(1.5 * s, -56 * s); c.lineTo(-1.5 * s, -56 * s); c.closePath(); c.fill();
+  c.fillStyle = bodyGrad(c, 36, s, HEAVY); c.beginPath(); c.moveTo(-12 * s, -84 * s); c.lineTo(-6 * s, -82 * s); c.lineTo(-7 * s, -52 * s); c.lineTo(-16 * s, -56 * s); c.closePath(); c.moveTo(12 * s, -84 * s); c.lineTo(6 * s, -82 * s); c.lineTo(7 * s, -52 * s); c.lineTo(16 * s, -56 * s); c.closePath(); c.fill();
   c.fillStyle = PALETTE.ink; c.fillRect(-34 * s, -80 * s, 9 * s, 42 * s); c.fillRect(25 * s, -80 * s, 9 * s, 42 * s);
   c.beginPath(); c.arc(-30 * s, -36 * s, 7 * s, 0, TWO_PI); c.arc(30 * s, -36 * s, 7 * s, 0, TWO_PI); c.fill();
   c.fillStyle = '#1a1b20'; c.beginPath(); c.arc(0, -90 * s, 11 * s, 0, TWO_PI); c.fill();
@@ -3054,11 +3095,11 @@ defineActor('boss', function (e) {                            // mob boss: pinst
   c.save(); c.translate(X, gy);
   c.fillStyle = '#050608'; c.fillRect(-13 * s, -32 * s, 11 * s, 32 * s); c.fillRect(3 * s, -32 * s, 11 * s, 32 * s);
   c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-9 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(10 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.fill();
-  c.fillStyle = bodyGrad(c, 92, s, rim, PINSTRIPE);
+  c.fillStyle = bodyGrad(c, 92, s, PINSTRIPE);
   c.beginPath(); c.moveTo(-24 * s, -34 * s); c.lineTo(-20 * s, -88 * s); c.quadraticCurveTo(0, -100 * s, 20 * s, -88 * s); c.lineTo(24 * s, -34 * s); c.quadraticCurveTo(0, -28 * s, -24 * s, -34 * s); c.closePath(); c.fill();
   c.strokeStyle = 'rgba(150,160,180,0.16)'; c.lineWidth = 1; for (let i = -3; i <= 3; i++) { c.beginPath(); c.moveTo(i * 6 * s, -88 * s); c.lineTo(i * 6 * s + i * 1.2 * s, -34 * s); c.stroke(); }
   c.fillStyle = shade(SHIRT); c.beginPath(); c.moveTo(-5 * s, -88 * s); c.lineTo(5 * s, -88 * s); c.lineTo(3 * s, -60 * s); c.lineTo(-3 * s, -60 * s); c.closePath(); c.fill();
-  c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(-2.5 * s, -86 * s); c.lineTo(2.5 * s, -86 * s); c.lineTo(1.4 * s, -58 * s); c.lineTo(-1.4 * s, -58 * s); c.closePath(); c.fill();
+  c.fillStyle = shade(RED); c.beginPath(); c.moveTo(-2.5 * s, -86 * s); c.lineTo(2.5 * s, -86 * s); c.lineTo(1.4 * s, -58 * s); c.lineTo(-1.4 * s, -58 * s); c.closePath(); c.fill();
   c.fillStyle = '#15161a'; c.fillRect(-5 * s, -100 * s, 10 * s, 10 * s);
   c.fillStyle = '#1a1b20'; c.beginPath(); c.arc(0, -108 * s, 9 * s, 0, TWO_PI); c.fill();
   c.fillStyle = PALETTE.ink; c.beginPath(); c.arc(0, -108 * s, 9 * s, Math.PI * 1.1, Math.PI * 2.0); c.fill();
@@ -3088,7 +3129,7 @@ defineActor('gunman', function (e) {                          // shooter, arm ex
   c.save(); c.translate(X, gy); if (this.flip) c.scale(-1, 1);
   c.fillStyle = '#050608'; c.fillRect(-12 * s, -32 * s, 10 * s, 32 * s); c.fillRect(4 * s, -32 * s, 10 * s, 32 * s);
   c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-8 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(11 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.fill();
-  c.fillStyle = bodyGrad(c, 88, s, rim, SUIT);
+  c.fillStyle = bodyGrad(c, 88, s, SUIT);
   c.beginPath(); c.moveTo(-20 * s, -34 * s); c.lineTo(-16 * s, -86 * s); c.quadraticCurveTo(0, -98 * s, 16 * s, -86 * s); c.lineTo(20 * s, -34 * s); c.quadraticCurveTo(0, -28 * s, -20 * s, -34 * s); c.closePath(); c.fill();
   c.fillStyle = '#1a1b20'; c.beginPath(); c.arc(0, -104 * s, 9 * s, 0, TWO_PI); c.fill();
   c.fillStyle = PALETTE.ink; c.beginPath(); c.arc(0, -104 * s, 9 * s, Math.PI * 1.1, Math.PI * 2.0); c.fill();
@@ -3133,7 +3174,7 @@ defineActor('womanInRed', function (e) {                      // femme fatale â€
   c.save(); c.translate(X, gy);
   // a leg through the thigh slit (bone) + a red heel
   c.fillStyle = shade(BONE); c.save(); c.translate(walk * 2 * s, 0); c.beginPath(); c.moveTo(-2 * s, -36 * s); c.lineTo(3 * s, -36 * s); c.lineTo(4 * s, -2 * s); c.lineTo(0, -2 * s); c.closePath(); c.fill(); c.restore();
-  c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(sw, -2 * s); c.lineTo(8 * s + sw, 0); c.lineTo(sw, 1 * s); c.closePath(); c.fill();
+  c.fillStyle = shade(RED); c.beginPath(); c.moveTo(sw, -2 * s); c.lineTo(8 * s + sw, 0); c.lineTo(sw, 1 * s); c.closePath(); c.fill();
   // slim bone arms with a soft bend, hands resting at the waist
   c.strokeStyle = shade(BONE); c.lineWidth = 3.2 * s; c.lineCap = 'round'; c.lineJoin = 'round';
   c.beginPath(); c.moveTo(-7 * s, -70 * s); c.lineTo(-12 * s, -56 * s); c.lineTo(-9 * s, -44 * s); c.stroke();
@@ -3143,7 +3184,7 @@ defineActor('womanInRed', function (e) {                      // femme fatale â€
   // the gown: shaded by the lighting system (a red material, lit edge toward the light, not a baked
   // sheen), sweetheart neckline, cinched waist, curvy hips, a long mermaid skirt. The soft red bleed
   // is her motif (the colour that bleeds).
-  c.fillStyle = bodyGrad(c, 80, s, rim, [205, 14, 24]); c.shadowColor = 'rgba(210,0,24,0.45)'; c.shadowBlur = 16 * s;
+  c.fillStyle = bodyGrad(c, 80, s, [205, 14, 24]);
   c.beginPath();
   c.moveTo(-9 * s, -66 * s);                                   // left bust
   c.quadraticCurveTo(-5 * s, -52 * s, -5 * s, -48 * s);        // into the cinched waist
@@ -3155,14 +3196,13 @@ defineActor('womanInRed', function (e) {                      // femme fatale â€
   c.quadraticCurveTo(0, -67 * s, -3 * s, -72 * s);             // the sweetheart dip
   c.quadraticCurveTo(-7 * s, -74 * s, -9 * s, -66 * s);        // left cup
   c.closePath(); c.fill();
-  c.shadowBlur = 0;
   c.strokeStyle = '#b8000d'; c.lineWidth = 1.3 * s;            // thin shoulder straps
   c.beginPath(); c.moveTo(-6 * s, -73 * s); c.lineTo(-3 * s, -82 * s); c.moveTo(6 * s, -73 * s); c.lineTo(3 * s, -82 * s); c.stroke();
   // head (bone), dark bob, red lips
-  c.fillStyle = shade(BONE); c.beginPath(); c.arc(0, -84 * s, 6.5 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = shadeForm(c, 0, -84 * s, 6.5 * s, BONE); c.beginPath(); c.arc(0, -84 * s, 6.5 * s, 0, TWO_PI); c.fill();
   c.fillStyle = '#070708'; c.beginPath(); c.arc(0, -86 * s, 8 * s, Math.PI * 0.9, Math.PI * 2.2); c.fill();
   c.beginPath(); c.moveTo(6 * s, -88 * s); c.quadraticCurveTo(12 * s, -78 * s, 7 * s, -66 * s); c.quadraticCurveTo(4 * s, -74 * s, 4 * s, -84 * s); c.closePath(); c.fill();
-  c.fillStyle = PALETTE.redHot; c.beginPath(); c.ellipse(-1 * s, -81 * s, 2.2 * s, 1.1 * s, 0, 0, TWO_PI); c.fill();
+  c.fillStyle = shade(RED); c.beginPath(); c.ellipse(-1 * s, -81 * s, 2.2 * s, 1.1 * s, 0, 0, TWO_PI); c.fill();
   c.restore();
 }, {
   shadowW: 15, shadowH: 91,
@@ -3179,11 +3219,11 @@ defineActor('womanInRed', function (e) {                      // femme fatale â€
 defineActor('dealer', function (e) {                          // croupier behind the table (the felt covers his lower half)
   const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, rim = rimSign(e, this);
   c.save(); c.translate(X, gy);
-  c.fillStyle = bodyGrad(c, 70, s, rim);
+  c.fillStyle = bodyGrad(c, 70, s);
   c.beginPath(); c.moveTo(-19 * s, 0); c.lineTo(-17 * s, -52 * s); c.quadraticCurveTo(-22 * s, -64 * s, -12 * s, -68 * s); c.quadraticCurveTo(0, -76 * s, 12 * s, -68 * s); c.quadraticCurveTo(22 * s, -64 * s, 17 * s, -52 * s); c.lineTo(19 * s, 0); c.closePath(); c.fill();
   c.fillStyle = shade([205, 203, 193]); c.beginPath(); c.moveTo(-4 * s, -66 * s); c.lineTo(4 * s, -66 * s); c.lineTo(3 * s, -30 * s); c.lineTo(-3 * s, -30 * s); c.closePath(); c.fill();
   c.fillStyle = '#0c0e13'; c.beginPath(); c.moveTo(-12 * s, -68 * s); c.lineTo(-4 * s, -66 * s); c.lineTo(-3 * s, -30 * s); c.lineTo(-13 * s, -36 * s); c.closePath(); c.moveTo(12 * s, -68 * s); c.lineTo(4 * s, -66 * s); c.lineTo(3 * s, -30 * s); c.lineTo(13 * s, -36 * s); c.closePath(); c.fill();
-  c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(-4.5 * s, -67 * s); c.lineTo(0, -64 * s); c.lineTo(-4.5 * s, -61 * s); c.closePath(); c.moveTo(4.5 * s, -67 * s); c.lineTo(0, -64 * s); c.lineTo(4.5 * s, -61 * s); c.closePath(); c.fill();
+  c.fillStyle = shade(RED); c.beginPath(); c.moveTo(-4.5 * s, -67 * s); c.lineTo(0, -64 * s); c.lineTo(-4.5 * s, -61 * s); c.closePath(); c.moveTo(4.5 * s, -67 * s); c.lineTo(0, -64 * s); c.lineTo(4.5 * s, -61 * s); c.closePath(); c.fill();
   c.fillStyle = '#7a0008'; c.fillRect(-1.2 * s, -65.5 * s, 2.4 * s, 3 * s);
   c.strokeStyle = '#101319'; c.lineWidth = 7 * s; c.lineCap = 'round';
   c.beginPath(); c.moveTo(-13 * s, -56 * s); c.lineTo(-22 * s, -30 * s); c.moveTo(13 * s, -56 * s); c.lineTo(22 * s, -30 * s); c.stroke();
@@ -3204,9 +3244,9 @@ defineActor('singer', function (e) {                          // lounge singer a
   c.beginPath(); c.moveTo(-6 * s, -66 * s); c.quadraticCurveTo(-7 * s, -78 * s, -4 * s, -84 * s); c.lineTo(4 * s, -84 * s); c.quadraticCurveTo(7 * s, -78 * s, 6 * s, -66 * s); c.closePath(); c.fill(); c.shadowBlur = 0;
   c.strokeStyle = gown; c.lineWidth = 5 * s; c.lineCap = 'round'; c.beginPath(); c.moveTo(4 * s, -80 * s); c.lineTo(16 * s, -92 * s); c.stroke();
   c.fillStyle = shade(BONE); c.beginPath(); c.arc(16 * s, -92 * s, 3.5 * s, 0, TWO_PI); c.fill();
-  c.beginPath(); c.arc(0, -92 * s, 6.5 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = shadeForm(c, 0, -92 * s, 6.5 * s, BONE); c.beginPath(); c.arc(0, -92 * s, 6.5 * s, 0, TWO_PI); c.fill();
   c.fillStyle = '#070708'; c.beginPath(); c.arc(0, -94 * s, 8 * s, Math.PI * 0.85, Math.PI * 2.25); c.fill();
-  c.fillStyle = PALETTE.redHot; c.beginPath(); c.ellipse(0, -89 * s, 2.2 * s, 1.1 * s, 0, 0, TWO_PI); c.fill();
+  c.fillStyle = shade(RED); c.beginPath(); c.ellipse(0, -89 * s, 2.2 * s, 1.1 * s, 0, 0, TWO_PI); c.fill();
   c.strokeStyle = PALETTE.ink; c.lineWidth = 2.5 * s; c.beginPath(); c.moveTo(21 * s, -86 * s); c.lineTo(21 * s, 0); c.stroke();
   c.fillStyle = '#1a1d22'; c.beginPath(); c.ellipse(20 * s, -90 * s, 4 * s, 5 * s, 0, 0, TWO_PI); c.fill();
   c.strokeStyle = 'rgba(200,210,225,0.4)'; c.lineWidth = 1; c.beginPath(); c.ellipse(20 * s, -90 * s, 4 * s, 5 * s, 0, 0, TWO_PI); c.stroke();
@@ -3231,7 +3271,7 @@ __mod["src/library/shared.js"] = function(__exports, __req){
 // helpers so library files import their shading from one place.
 const { TWO_PI } = __req("src/engine/math.js");
 const { PALETTE, ANIM } = __req("src/style/palette.js");
-{ const __m = __req("src/style/materials.js"); __exports.rimSign = __m.rimSign; __exports.bodyGrad = __m.bodyGrad; __exports.shade = __m.shade; }
+{ const __m = __req("src/style/materials.js"); __exports.rimSign = __m.rimSign; __exports.bodyGrad = __m.bodyGrad; __exports.shade = __m.shade; __exports.shadeForm = __m.shadeForm; }
 
 function ember(c, x, y, s, t) { const em = 0.6 + 0.4 * Math.sin(t * ANIM.emberSpeed); c.save(); c.fillStyle = `rgba(255,60,30,${0.7 + 0.3 * em})`; c.shadowColor = PALETTE.ember; c.shadowBlur = 10 * em; c.beginPath(); c.arc(x, y, 1.9 * s, 0, TWO_PI); c.fill(); c.restore(); }
 
@@ -3348,38 +3388,54 @@ function rimSign(e, node) {
   return node._rim = sign;
 }
 
-// the cloth: ambient fill + a half-Lambert wrap of direct light, sampled across the body as a smooth
-// multi-stop gradient (no hard knee), the axis tilted by the light's vertical lean.
-function bodyGrad(c, h, s, rim, albedo) {
-  const A = albedo || BASE, cl = v => v < 0 ? 0 : v > 255 ? 255 : Math.round(v);
-  const dir = _lhx >= 0 ? 1 : -1, obl = Math.min(1, Math.abs(_lhx) + 0.15);   // how side-on the light is
-  const gx = dir * 36 * s, gvy = -_vb * 18 * s;                  // axis: lit edge -> far edge
-  const g = c.createLinearGradient(gx, gvy, -gx, -gvy);
+// one band of the surface at direct-light level d (0..1): albedo x (ambient fill + direct light).
+const _cl = v => v < 0 ? 0 : v > 255 ? 255 : Math.round(v);
+const band = (A, d) => `rgb(${_cl(A[0] * (_fill * _amb[0] + (1 - _fill) * d * _lcol[0]))},${_cl(A[1] * (_fill * _amb[1] + (1 - _fill) * d * _lcol[1]))},${_cl(A[2] * (_fill * _amb[2] + (1 - _fill) * d * _lcol[2]))})`;
+
+// the light's direction in screen space (horizontal lean _lhx, vertical lean _vb), normalised. The
+// shading ramp points AT the light, so an overhead source reads top-lit, a side source side-lit, a
+// low fire up-lit. This is what makes light DIRECTION visible on the form (not just its amount).
+function lightAxis() {
+  let dx = _lhx, dy = -_vb; const m = Math.hypot(dx, dy);
+  return m < 0.001 ? [0, -1] : [dx / m, dy / m];
+}
+
+const WRAP = 0.8;   // how directional the form light is (a clear lit -> shadow ramp; ambient fills the shadow)
+
+// the cloth: ambient fill + a half-Lambert wrap of direct light along the light direction, sampled
+// as a smooth multi-stop gradient (no hard knee). The shadow side falls to the ambient fill, never black.
+function bodyGrad(c, h, s, albedo) {
+  const A = albedo || BASE, [dx, dy] = lightAxis(), R = 34 * s;
+  const g = c.createLinearGradient(dx * R, dy * R, -dx * R, -dy * R);
   for (let i = 0; i <= 6; i++) {
-    const t = i / 6, u = 1 - 2 * t;                             // +1 lit edge .. -1 far edge
-    const hl = (1 - obl) + obl * Math.max(0, 0.5 + 0.5 * u);     // half-Lambert wrap (smooth)
-    const d = _lit * hl * hl;                                    // direct light at this band, soft terminator
-    const r = A[0] * (_fill * _amb[0] + (1 - _fill) * d * _lcol[0]);
-    const gg = A[1] * (_fill * _amb[1] + (1 - _fill) * d * _lcol[1]);
-    const b = A[2] * (_fill * _amb[2] + (1 - _fill) * d * _lcol[2]);
-    g.addColorStop(t, `rgb(${cl(r)},${cl(gg)},${cl(b)})`);
+    const t = i / 6, u = 1 - 2 * t, hl = (1 - WRAP) + WRAP * Math.max(0, 0.5 + 0.5 * u);
+    g.addColorStop(t, band(A, _lit * hl * hl));
   }
   return g;
 }
 
-// a FLAT surface (a white shirt, bare skin, a tie): the same ambient fill + direct light without a
-// gradient, since these are small. Keeps a shirt or a face consistent with the cloth around it, so
-// an unlit figure goes uniformly dark and lifts (and takes the light's hue) as light reaches it.
-function shade(rgb) {
-  const cl = v => v < 0 ? 0 : v > 255 ? 255 : Math.round(v), d = _lit;
-  const r = rgb[0] * (_fill * _amb[0] + (1 - _fill) * d * _lcol[0]);
-  const g = rgb[1] * (_fill * _amb[1] + (1 - _fill) * d * _lcol[1]);
-  const b = rgb[2] * (_fill * _amb[2] + (1 - _fill) * d * _lcol[2]);
-  return `rgb(${cl(r)},${cl(g)},${cl(b)})`;
+// a round FORM (a face, a head): a GENTLE directional wrap across a small disc, so a face catches the
+// light direction (a touch brighter on the side toward the light) but stays readable, not half black.
+// Skin is a highlight feature, so it leans bright: a soft wrap, no squared falloff.
+const FACE_WRAP = 0.4;
+function shadeForm(c, cx, cy, r, rgb) {
+  const [dx, dy] = lightAxis();
+  const g = c.createLinearGradient(cx + dx * r, cy + dy * r, cx - dx * r, cy - dy * r);
+  for (let i = 0; i <= 3; i++) {
+    const t = i / 3, u = 1 - 2 * t, hl = (1 - FACE_WRAP) + FACE_WRAP * Math.max(0, 0.5 + 0.5 * u);
+    g.addColorStop(t, band(rgb, _lit * hl));
+  }
+  return g;
 }
+
+// a small FLAT surface (a tie, lips, a cigarette): ambient fill + direct light, no gradient. So a
+// motif red still reacts to the light (deepens in shadow, lifts and warms under a source) instead of
+// staying a fixed pure red, but stays small enough not to need a directional ramp.
+function shade(rgb) { return band(rgb, _lit); }
 
 __exports.rimSign = rimSign;
 __exports.bodyGrad = bodyGrad;
+__exports.shadeForm = shadeForm;
 __exports.shade = shade;
 };
 __mod["src/library/actors/animals.js"] = function(__exports, __req){

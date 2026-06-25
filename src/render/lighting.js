@@ -187,12 +187,20 @@ export function drawBeam(c, t, x, y, ew, col, b) {
   const farW = b.farW != null ? b.farW : (b.spread != null ? len * Math.tan(b.spread) : len * 0.45);
   const I = b.I != null ? b.I : 1, fx = x + ax * len, fy = y + ay * len;
   const g = c.createLinearGradient(x, y, fx, fy);
-  g.addColorStop(0, `rgba(${col},${0.30 * I})`); g.addColorStop(0.5, `rgba(${col},${0.10 * I})`); g.addColorStop(1, `rgba(${col},0)`);
+  // carry the light most of the way down the shaft instead of dying at half length, so the beam reads
+  // as throwing light in its direction rather than fading into the air just past the source.
+  g.addColorStop(0, `rgba(${col},${0.34 * I})`); g.addColorStop(0.6, `rgba(${col},${0.18 * I})`); g.addColorStop(1, `rgba(${col},${0.06 * I})`);
   c.save(); c.globalCompositeOperation = 'lighter'; c.fillStyle = g;
   c.beginPath();
   c.moveTo(x - pxv * nearW, y - pyv * nearW); c.lineTo(x + pxv * nearW, y + pyv * nearW);
   c.lineTo(fx + pxv * farW, fy + pyv * farW); c.lineTo(fx - pxv * farW, fy - pyv * farW);
-  c.closePath(); c.fill(); c.restore();
+  c.closePath(); c.fill();
+  // a soft pool where the beam lands, so the light reads as cast onto the surface at the end of the
+  // throw (the floor under a lamp, the table under a hanging bulb), not just hanging in the air.
+  const lp = c.createRadialGradient(fx, fy, 0, fx, fy, farW * 1.4);
+  lp.addColorStop(0, `rgba(${col},${0.18 * I})`); lp.addColorStop(1, `rgba(${col},0)`);
+  c.fillStyle = lp; c.beginPath(); c.ellipse(fx, fy, farW * 1.4, farW * 0.7, 0, 0, Math.PI * 2); c.fill();
+  c.restore();
 }
 function beam(e, L) { drawBeam(e.light, e.t, L.x, L.y, L.ew, L.col, L.beam); }
 

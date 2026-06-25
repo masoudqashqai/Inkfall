@@ -9,7 +9,7 @@ import * as L from '../render/lighting.js';
 
 export class Frame {
   constructor() {
-    this.W = this.H = 0; this.unit = 1; this.t = 0; this.dt = 0;
+    this.W = this.H = 0; this.unit = 1; this.t = 0; this.dt = 0; this.DPR = 1; this.ls = 1;
     this.world = this.light = this.shadow = this.main = null;  // the four 2d contexts (world, light buffer, shadow buffer, main)
     this.ctx = null;                              // active draw target (set per pass)
     this.scene = null;                            // active Scene

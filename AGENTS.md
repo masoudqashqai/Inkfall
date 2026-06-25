@@ -83,6 +83,18 @@ system.
   too wide one gets bars left and right. Everything downstream reads `e.W/e.H` (the band), so the
   world never knows it is letterboxed. The cap is loose on purpose, so normal desktops and modern
   phones in landscape fill edge to edge and only genuine ultrawides pillarbox.
+- 1080p anchor (the scaling contract): the world is drawn in a FIXED virtual resolution. The band is
+  always `REF_H` logical units tall (1080, our anchor), so `e.H` is always 1080 and `e.W` is
+  `1080 * aspect`. The engine folds a single scale `ls` (real band height over 1080) into the world
+  transform (`DPR * ls`), so the whole scene is one uniform zoom of the same 1080p composition at any
+  size: a phone, a 1080p screen, a 4K screen all show the identical framing, just at more or fewer
+  pixels. The upshot for draw code: every size literal means "pixels at 1080p", and `e.unit` is a
+  constant 3. Same aspect ratio, bigger or smaller screen is a pure uniform zoom. A different aspect
+  ratio keeps the same vertical scale and only shows more or less world on the sides, it never
+  resizes objects. Offscreen sprites that cache art (the skyline) bake at the real device scale
+  `DPR * ls` so they stay crisp, while their geometry stays in logical units so the composition is
+  identical at any resolution. Pointer drags are CSS px, so `boot.js` divides them by `ls` before the
+  camera, keeping the look feel the same everywhere.
 - Rotate gate (`viewport.js`): on a touch device held in portrait, starting a story goes fullscreen
   and asks for landscape (`screen.orientation.lock`), and the "rotate your screen" prompt shows only
   if that is refused. Reverting to portrait mid story shows the prompt again, and a "watch anyway"
