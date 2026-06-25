@@ -6,6 +6,12 @@
 <meta name="theme-color" content="#000000" />
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
 <title>INKFALL — a noir story engine</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Inkfall" />
+<link rel="apple-touch-icon" href="assets/icon.svg" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Special+Elite&display=swap" rel="stylesheet">
@@ -29,6 +35,7 @@
 <div id="topbar">
   <div class="hud-row">
     <button id="shoot" class="hud-btn hud-sm" title="save a poster of this frame">❏</button>
+    <button id="fsbtn" class="hud-btn hud-sm" title="fullscreen">⛶</button>
     <button id="menubtn" class="hud-btn hud-sm" title="menu">☰</button>
   </div>
   <div id="actsel">
@@ -39,7 +46,9 @@
 
 <div id="rotate" class="overlay">
   <div class="rotate-phone" aria-hidden="true"><span class="rotate-cam"></span></div>
-  <div class="rotate-text">For the best experience, rotate your screen</div>
+  <div class="rotate-text rt-fs">This story plays best in fullscreen, landscape.</div>
+  <div class="rotate-text rt-nofs">Rotate your phone for the best view.</div>
+  <button id="rotate-fs" class="rotate-fs">ENTER FULLSCREEN</button>
   <button id="rotate-skip" class="rotate-skip">WATCH ANYWAY</button>
 </div>
 
@@ -54,6 +63,7 @@
   <div class="sm-panel">
     <div class="sm-head">MENU</div>
     <button id="sm-sound">SOUND: ON</button>
+    <button id="sm-fs">FULLSCREEN</button>
     <button id="sm-back">BACK TO START MENU</button>
     <button id="sm-edit">EDIT STORY</button>
     <button id="sm-cancel">CLOSE</button>

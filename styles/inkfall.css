@@ -83,7 +83,9 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
   display: none; color: #7c7c7c; font-size: var(--fs-note); letter-spacing: 0.06em; }
 #build { position: fixed; left: 8px; bottom: 4px; z-index: var(--z-build); color: #3a3a3a; font-size: 9px;
   letter-spacing: 0.1em; font-family: var(--f-mono); }
-#menubtn, #shoot { font-variant-emoji: text; }   /* keep the HUD glyphs monochrome (noir), never colour emoji */
+#menubtn, #shoot, #fsbtn { font-variant-emoji: text; }   /* keep the HUD glyphs monochrome (noir), never colour emoji */
+#fsbtn { display: none; }                                /* the HUD fullscreen button, shown by the viewport when not immersive */
+#fsbtn.show { display: inline-flex; }
 #topbar { position: fixed; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); z-index: var(--z-hud);
   display: flex; flex-direction: column; align-items: flex-end; gap: var(--hud-gap); }
 .hud-row { display: flex; gap: var(--hud-gap); }
@@ -175,10 +177,17 @@ body[data-stage="menu"] #intro { opacity: 1; pointer-events: auto; }
   #caption { font-size: 18px; width: min(52vw, 600px); }
 }
 
-/* rotate prompt: the .overlay primitive, but opaque and on top of everything */
-#rotate { z-index: var(--z-prompt); background: var(--c-bg); gap: 32px; }
+/* immersion prompt: the .overlay primitive, but opaque and on top of everything */
+#rotate { z-index: var(--z-prompt); background: var(--c-bg); gap: 28px; }
 #rotate .rotate-text { font-family: var(--f-display); color: var(--c-cream); max-width: 420px;
   font-size: var(--fs-sub); letter-spacing: 0.16em; font-weight: 600; line-height: 1.6; }
+#rotate .rt-nofs { display: none; }                      /* copy swaps when fullscreen is impossible */
+#rotate.no-fs .rt-fs { display: none; }
+#rotate.no-fs .rt-nofs { display: block; }
+#rotate.no-fs .rotate-fs { display: none; }              /* no fullscreen button where it cannot work */
+#rotate .rotate-fs { font-family: var(--f-display); cursor: pointer; background: var(--c-red); color: #fff;
+  border: 1px solid var(--c-red); font-size: var(--fs-menu); letter-spacing: 0.18em; font-weight: 600; padding: 15px 34px; }
+#rotate .rotate-fs:hover, #rotate .rotate-fs:active { background: #c2000e; border-color: #c2000e; }
 #rotate .rotate-skip { display: none; font-family: var(--f-display); cursor: pointer;
   background: transparent; color: rgba(236,230,214,0.85); border: 1px solid rgba(236,230,214,0.45);
   font-size: var(--fs-menu); letter-spacing: 0.22em; font-weight: 600; padding: 14px 28px; }

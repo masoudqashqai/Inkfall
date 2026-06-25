@@ -10,7 +10,7 @@ import './library/index.js';
 import { STORIES } from '../stories/manifest.js';
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 42 · landscape frame + rotate gate'
+const BUILD = 'v2 build 43 · fullscreen immersion + menu'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 
@@ -27,7 +27,7 @@ el('actbtn').addEventListener('click', () => {
 // keep the story in a landscape frame: go fullscreen + ask for landscape on a phone/tablet, hold
 // the start behind a "rotate your screen" prompt while portrait, and letterbox everywhere else.
 const viewport = new Viewport(engine);
-viewport.attach({ overlay: el('rotate'), skip: el('rotate-skip') });
+viewport.attach({ overlay: el('rotate'), skip: el('rotate-skip'), fsCta: el('rotate-fs'), fsBtn: el('fsbtn') });
 viewport.onStart = () => manager.requestStart();
 viewport.onPause = () => Audio2.suspend();     // full story pause behind the prompt: clock + sound
 viewport.onResume = () => Audio2.resumeAll();
@@ -137,10 +137,14 @@ function goToStartMenu() {
   viewport.reset(); manager.reset();                        // drop back to act one, not started, so ENTER replays cleanly
   setStage('menu');                                          // CSS fades the intro back in and hides the HUD
 }
-const soundBtn = el('sm-sound');
-const syncSound = () => { soundBtn.textContent = Audio2.isOn() ? 'SOUND: ON' : 'SOUND: OFF'; };
-soundBtn.addEventListener('click', () => { Audio2.toggle(); syncSound(); });
-el('menubtn').addEventListener('click', () => { syncSound(); storymenu.classList.add('show'); });
+const soundBtn = el('sm-sound'), fsItem = el('sm-fs');
+const syncMenu = () => {
+  soundBtn.textContent = Audio2.isOn() ? 'SOUND: ON' : 'SOUND: OFF';
+  fsItem.textContent = viewport.fullscreenOn() ? 'EXIT FULLSCREEN' : 'FULLSCREEN';
+};
+soundBtn.addEventListener('click', () => { Audio2.toggle(); syncMenu(); });
+fsItem.addEventListener('click', () => { viewport.toggleFullscreen(); setTimeout(syncMenu, 100); });
+el('menubtn').addEventListener('click', () => { syncMenu(); storymenu.classList.add('show'); });
 el('sm-cancel').addEventListener('click', () => storymenu.classList.remove('show'));
 storymenu.addEventListener('click', e => { if (e.target === storymenu) storymenu.classList.remove('show'); });
 el('sm-back').addEventListener('click', goToStartMenu);
