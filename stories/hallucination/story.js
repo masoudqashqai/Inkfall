@@ -6,7 +6,7 @@ export default {
   subtitle: 'A HALLUCINATION OF SIN CITY',
   blurb: 'It always rains in Basin City. The whole town is black and white, except the things that bleed. Tap through the long, wet night.',
   audio: {
-    music: 'burning_silence.mp3', musicVol: 0.5, musicStart: 55, rain: 'rain.mp3', rainVol: 0.16,
+    music: 'piano_noir.wav', musicVol: 0.62, rain: 'rain.mp3', rainVol: 0.16,
     sfx: {
       gunshot: { src: 'gunshot.mp3', vol: 0.95, n: 3 },
       shell: { src: 'shell.mp3', vol: 0.5, n: 4 },
