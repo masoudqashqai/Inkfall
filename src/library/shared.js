@@ -38,26 +38,11 @@ export function drawPistol(c, x, y, s) {
   c.restore();
 }
 
-// MUZZLE FIRE — a gunshot as a burst of fire, not a drawn star: a white-hot core, a flame plume
-// blown forward along the barrel, and sparks thrown out that fly and fade as the flash dies (f: 1
-// just fired -> 0 gone). The actual scene light comes from the gunman's emitLight, this is the body.
-const _rnd = i => { const x = Math.sin(i * 12.9898) * 43758.5453; return x - Math.floor(x); };
-
-export function muzzleFire(c, x, y, s, f, ang) {
-  if (f <= 0) return;
-  const age = 1 - f;
-  c.save(); c.translate(x, y); c.globalCompositeOperation = 'lighter';
-  for (let i = 0; i < 14; i++) {                               // sparks, forward-biased, flying out + fading
-    const a = ang + (_rnd(i) - 0.5) * 1.7, sp = 0.4 + _rnd(i + 21);
-    const d = age * sp * 52 * s, px = Math.cos(a) * d, py = Math.sin(a) * d, al = f * (0.9 - 0.6 * _rnd(i + 7));
-    c.globalAlpha = al < 0 ? 0 : al; c.fillStyle = i % 3 ? '#ffb030' : '#ffe070';
-    c.beginPath(); c.arc(px, py, (1 + 1.4 * f) * s, 0, TWO_PI); c.fill();
-  }
-  c.save(); c.rotate(ang);                                     // flame plume down the barrel
-  const len = (14 + 26 * f) * s, w = (6 + 5 * f) * s, g = c.createLinearGradient(0, 0, len, 0);
-  g.addColorStop(0, `rgba(255,245,205,${0.85 * f})`); g.addColorStop(0.45, `rgba(255,150,45,${0.65 * f})`); g.addColorStop(1, 'rgba(255,70,20,0)');
-  c.fillStyle = g; c.beginPath(); c.moveTo(0, -w); c.quadraticCurveTo(len * 0.55, -w * 0.5, len, 0); c.quadraticCurveTo(len * 0.55, w * 0.5, 0, w); c.closePath(); c.fill();
-  c.restore();
-  c.globalAlpha = f; c.fillStyle = '#fff'; c.beginPath(); c.arc(0, 0, (2.5 + 4 * f) * s, 0, TWO_PI); c.fill();
-  c.restore();
+// MUZZLE FLASH — the original burst: a soft yellow star with a white-hot centre (f: 1 just fired ->
+// 0 gone). The flash that actually floods the alley and shimmers on the wet floor is real light, the
+// gunman registers it in emitLight, so this is only the spark at the barrel.
+export function muzzleFlash(c, x, y, s, f) {
+  c.save(); c.translate(x, y); c.globalAlpha = f; c.fillStyle = PALETTE.amber; c.shadowColor = '#ff3000'; c.shadowBlur = 30;
+  c.beginPath(); for (let i = 0; i < 10; i++) { const a = i / 10 * TWO_PI, r = (i % 2 ? 6 : 18) * s * (0.6 + f); c.lineTo(Math.cos(a) * r, Math.sin(a) * r); } c.closePath(); c.fill();
+  c.fillStyle = '#fff'; c.beginPath(); c.arc(0, 0, 5 * s * f, 0, TWO_PI); c.fill(); c.restore();
 }

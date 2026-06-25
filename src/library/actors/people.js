@@ -4,7 +4,7 @@
 import { defineActor } from '../../objects/registry.js';
 import { PALETTE, ANIM } from '../../style/palette.js';
 import { TWO_PI, lerp, smooth01 } from '../../engine/math.js';
-import { rimSign, bodyGrad, ember, cigSmoke, drawFedora, drawPistol, muzzleFire } from '../shared.js';
+import { rimSign, bodyGrad, ember, cigSmoke, drawFedora, drawPistol, muzzleFlash } from '../shared.js';
 
 // cloth albedos (the cast's own material colours, noir-desaturated). bodyGrad shades from these, so
 // a dark suit stays dark under a bright light and the detective's pale trench lifts more.
@@ -156,19 +156,21 @@ defineActor('gunman', function (e) {                          // shooter, arm ex
   const sx = 6 * s, sy = -86 * s, hx = lerp(13 * s, 34 * s, aim), hy = lerp(-52 * s, -82 * s, aim), ang = Math.atan2(hy - sy, hx - sx);
   c.strokeStyle = PALETTE.ink; c.lineWidth = 8 * s; c.lineCap = 'round'; c.beginPath(); c.moveTo(sx, sy); c.lineTo(hx, hy); c.stroke();
   c.save(); c.translate(hx, hy); c.rotate(ang); drawPistol(c, 0, 0, s); c.restore();
-  if (flash > 0 && aim > 0.82) muzzleFire(c, hx + Math.cos(ang) * 18 * s, hy + Math.sin(ang) * 18 * s, s, flash, ang);
+  if (flash > 0 && aim > 0.82) muzzleFlash(c, hx + Math.cos(ang) * 18 * s, hy + Math.sin(ang) * 18 * s, s, flash);
   c.restore();
 }, {
   shadowW: 22, shadowH: 121,
-  // the gunshot lights the scene: a brief, bright warm flash at the muzzle through the light system
-  // (front, so it reads over the cast), fading with the same flash that drives the fire burst.
+  // the gunshot floods the scene like the original: a warm flash over the cast (front halo) plus real
+  // light on the wet floor and the back wall with a reflection, all through the light system.
   emitLight(e) {
     const flash = e.flags.muzzle || 0;
     if (flash <= 0) return;
     const s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, dir = this.flip ? -1 : 1;
     const aim = (this.raiseAt != null) ? (e.lineIdx < this.raiseAt ? 0 : (e.lineIdx === this.raiseAt ? smooth01(e.beat() / 2.4) : 1)) : 1;
-    const sx = 6 * s, sy = -86 * s, hx = lerp(13 * s, 34 * s, aim), hy = lerp(-52 * s, -82 * s, aim), ang = Math.atan2(hy - sy, hx - sx);
-    e.addLight({ x: X + dir * (hx + Math.cos(ang) * 18 * s), y: gy + hy + Math.sin(ang) * 18 * s, col: '255,200,130', r: 220 * s, I: flash, ew: 9 * s, eh: 9 * s, front: true });
+    const sy = -86 * s, hx = lerp(13 * s, 34 * s, aim), hy = lerp(-52 * s, -82 * s, aim), ang = Math.atan2(hy - sy, hx - 6 * s);
+    const mx = X + dir * (hx + Math.cos(ang) * 18 * s), my = gy + hy + Math.sin(ang) * 18 * s;
+    e.addLight({ x: mx, y: my, col: '255,178,90', r: 240 * s, I: flash, ew: 9 * s, eh: 9 * s, front: true });                                   // the flash over the scene
+    e.addLight({ x: mx, y: my, col: '255,150,60', r: 300 * s, I: 0.9 * flash, glow: false, reflW: 22 * s, reflI: 0.55 * flash, reflLen: 0.5 }); // floor + wall + the wet shimmer
   },
   shadowSil(e, c) {                                            // suit, head, fedora + the extended gun arm
     const s = e.scaleOf(this);
