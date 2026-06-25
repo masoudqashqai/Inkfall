@@ -253,13 +253,13 @@ defineActor('dealer', function (e) {                          // croupier behind
   c.save(); c.translate(X, gy);
   c.fillStyle = bodyGrad(c, 70, s, rim);
   c.beginPath(); c.moveTo(-19 * s, 0); c.lineTo(-17 * s, -52 * s); c.quadraticCurveTo(-22 * s, -64 * s, -12 * s, -68 * s); c.quadraticCurveTo(0, -76 * s, 12 * s, -68 * s); c.quadraticCurveTo(22 * s, -64 * s, 17 * s, -52 * s); c.lineTo(19 * s, 0); c.closePath(); c.fill();
-  c.fillStyle = '#cdcbc1'; c.beginPath(); c.moveTo(-4 * s, -66 * s); c.lineTo(4 * s, -66 * s); c.lineTo(3 * s, -30 * s); c.lineTo(-3 * s, -30 * s); c.closePath(); c.fill();
+  c.fillStyle = shade([205, 203, 193]); c.beginPath(); c.moveTo(-4 * s, -66 * s); c.lineTo(4 * s, -66 * s); c.lineTo(3 * s, -30 * s); c.lineTo(-3 * s, -30 * s); c.closePath(); c.fill();
   c.fillStyle = '#0c0e13'; c.beginPath(); c.moveTo(-12 * s, -68 * s); c.lineTo(-4 * s, -66 * s); c.lineTo(-3 * s, -30 * s); c.lineTo(-13 * s, -36 * s); c.closePath(); c.moveTo(12 * s, -68 * s); c.lineTo(4 * s, -66 * s); c.lineTo(3 * s, -30 * s); c.lineTo(13 * s, -36 * s); c.closePath(); c.fill();
   c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(-4.5 * s, -67 * s); c.lineTo(0, -64 * s); c.lineTo(-4.5 * s, -61 * s); c.closePath(); c.moveTo(4.5 * s, -67 * s); c.lineTo(0, -64 * s); c.lineTo(4.5 * s, -61 * s); c.closePath(); c.fill();
   c.fillStyle = '#7a0008'; c.fillRect(-1.2 * s, -65.5 * s, 2.4 * s, 3 * s);
   c.strokeStyle = '#101319'; c.lineWidth = 7 * s; c.lineCap = 'round';
   c.beginPath(); c.moveTo(-13 * s, -56 * s); c.lineTo(-22 * s, -30 * s); c.moveTo(13 * s, -56 * s); c.lineTo(22 * s, -30 * s); c.stroke();
-  c.fillStyle = '#bdbbb0'; c.beginPath(); c.arc(-23 * s, -28 * s, 3.5 * s, 0, TWO_PI); c.arc(23 * s, -28 * s, 3.5 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = shade([189, 187, 176]); c.beginPath(); c.arc(-23 * s, -28 * s, 3.5 * s, 0, TWO_PI); c.arc(23 * s, -28 * s, 3.5 * s, 0, TWO_PI); c.fill();
   c.fillStyle = '#1a1b20'; c.beginPath(); c.arc(0, -80 * s, 8 * s, 0, TWO_PI); c.fill();
   c.fillStyle = PALETTE.ink; c.beginPath(); c.arc(0, -82 * s, 8 * s, Math.PI, 0); c.fill();
   c.fillStyle = 'rgba(170,135,45,0.6)'; c.beginPath(); c.ellipse(0, -79 * s, 9.5 * s, 3 * s, 0, 0, Math.PI); c.fill();
@@ -267,8 +267,9 @@ defineActor('dealer', function (e) {                          // croupier behind
 }, { castsShadow: false });
 
 defineActor('singer', function (e) {                          // lounge singer at the mic, in a spotlight
-  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, gown = this.red ? '#cf0a16' : '#cdc9bf';
-  rimSign(e, this);                                            // set the light amount for shade() (her skin)
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit;
+  rimSign(e, this);                                            // set the light field for shade() (gown + skin)
+  const gown = shade(this.red ? [207, 10, 22] : [205, 201, 191]);
   c.save(); c.translate(X, gy);
   c.fillStyle = gown; c.shadowColor = this.red ? 'rgba(210,0,24,0.4)' : 'rgba(0,0,0,0)'; c.shadowBlur = this.red ? 14 * s : 0;
   c.beginPath(); c.moveTo(-6 * s, -66 * s); c.quadraticCurveTo(-10 * s, -30 * s, -16 * s, 0); c.quadraticCurveTo(0, 5 * s, 16 * s, 0); c.quadraticCurveTo(10 * s, -30 * s, 6 * s, -66 * s); c.closePath(); c.fill();

@@ -3,6 +3,7 @@
 import { defineProp } from '../../objects/registry.js';
 import { PALETTE } from '../../style/palette.js';
 import { TWO_PI } from '../../engine/math.js';
+import { rimSign, shade } from '../shared.js';
 
 defineProp('barrelFire', function (e) {                       // a drum fire in the alley
   const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, t = e.t;
@@ -92,9 +93,10 @@ defineProp('waterTower', function (e) {
 
 defineProp('dumpster', function (e) {
   const c = e.ctx, s = e.scaleOf(this), X = e.X(this), g = e.gy, bw = 30 * s, bh = 46 * s;
+  rimSign(e, this);                                            // the steel darkens in an unlit corner, lifts near a light
   c.save();
-  c.fillStyle = '#1c2027'; c.fillRect(X - bw / 2, g - bh, bw, bh);
-  c.fillStyle = '#272c35'; c.fillRect(X - bw / 2 - 3 * s, g - bh - 3 * s, bw + 6 * s, 3.5 * s);
+  c.fillStyle = shade([28, 32, 39]); c.fillRect(X - bw / 2, g - bh, bw, bh);
+  c.fillStyle = shade([39, 44, 53]); c.fillRect(X - bw / 2 - 3 * s, g - bh - 3 * s, bw + 6 * s, 3.5 * s);
   c.strokeStyle = 'rgba(0,0,0,0.55)'; c.lineWidth = 1.5; c.strokeRect(X - bw / 2, g - bh, bw, bh);
   c.beginPath(); for (let i = 1; i < 4; i++) { c.moveTo(X - bw / 2 + i * bw / 4, g - bh); c.lineTo(X - bw / 2 + i * bw / 4, g); } c.stroke();
   c.restore();
