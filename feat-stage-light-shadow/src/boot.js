@@ -9,7 +9,7 @@ import './library/index.js';
 import { STORIES } from '../stories/manifest.js';
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 53 · ambient + diffuse surface light model'
+const BUILD = 'v2 build 54 · props react to the light field too'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 
