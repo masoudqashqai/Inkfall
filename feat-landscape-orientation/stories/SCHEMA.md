@@ -25,6 +25,10 @@ export default {
   keyLight: { x: 0.3, y: 0.5 }, // fallback rim direction when no real light dominates
   moon: { x: 0.78, y: 0.18 },   // optional moon position (a weak cool light)
   hideMoon: false,              // optional: walls occlude the moon (alley)
+  ambient: { level: 0.16, col: '40,46,60' },  // optional: scene fill so shadow cores read grey, not black
+  wallTop: 0,                   // optional 0..1 (or px): a near back wall from here down to the floor that
+                                // light washes and shadows project onto. Omit on open sets (floor only).
+                                // Backdrops with a wall (room, alley) declare this, so you rarely set it.
   indoor: false,                // optional: no rain/lightning (also implied by an indoor backdrop)
   bloodRain: false,             // optional: rain + ripples run red
   ambience: 'amb_street.mp3',   // optional per-scene looping bed
@@ -57,6 +61,12 @@ Common: `x` (0..1), `y` (0..1), `par` (parallax factor), `intensity`, `flicker`,
 Common: `x` (0..1), `y` (0..1, floating props), `scale`, `dy` (vertical nudge in units),
 `par` (parallax factor), `flip`. Reveal/hide by event flag: `onFlag` / `hideOnFlag` (flags
 are set by a line's `fx`). Optional `depth` controls draw order (lower drawn first).
+
+Shadows are automatic: any object that casts (actors do) is projected through the strongest lights
+onto the floor and, where the set has a wall, up the wall. The shape comes from the object, so a
+story never draws a shadow. Rare per-cast overrides: `shadowDensity` (0..1, lighter for a
+translucent shape), `shadowW` / `shadowH` (the fallback billboard size in local px, only used by
+objects with no authored silhouette).
 
 Per-type options used today: `walk` (array of x marks, one per line) + `walkDur`, `passX`
 (womanInRed, redCar), `raiseAt` / `lightAt` (trenchMan), `raiseAt` (gunman), `greenAt`

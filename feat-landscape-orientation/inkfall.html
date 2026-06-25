@@ -432,7 +432,7 @@ __req("src/library/index.js");
 const { STORIES } = __req("stories/manifest.js");
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 44 · noir UI + clean audio pause'
+const BUILD = 'v2 build 58 · 1080p-anchored resolution scaling'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 
@@ -468,7 +468,7 @@ const { bindInput } = __req("src/engine/input.js");
 bindInput(engine.cv, {
   isReady: () => manager.started,
   onTap: () => { const live = manager.started && !manager.transState; manager.advance(); if (live) markControlsSeen(); },   // retire the hint on a real advance
-  onDrag: dx => manager.drag(dx),
+  onDrag: dx => manager.drag(dx / engine.ls),   // pointer deltas are CSS px; the camera looks in logical units, so a drag feels the same at any resolution
   onHold: () => manager.holdLightning(),
 });
 
@@ -634,10 +634,19 @@ __mod["src/engine/engine.js"] = function(__exports, __req){
 const { Frame } = __req("src/engine/frame.js");
 const { ASPECT_MIN, ASPECT_MAX } = __req("src/engine/viewport.js");
 
+// the world is authored in a FIXED virtual resolution: the band is always REF_H logical units tall
+// (1080p, our anchor). The world transform scales that logical space to the real band, so the whole
+// scene is one uniform zoom of the same 1080p composition at any size (a phone, 1080p, 4K). Every
+// number in draw code therefore means "pixels at 1080p". Width is REF_H * aspect (so a wider frame
+// shows more world, never bigger objects), and unit stays 3 everywhere.
+const REF_H = 1080;
+
 class Engine {
   constructor() {
     this.cv = null; this.ctx = null; this.DPR = 1; this.W = 0; this.H = 0; this.unit = 1;
+    this.cssW = 0; this.cssH = 0; this.ls = 1;   // the real band size (CSS px) and logical->CSS scale
     this.lightCv = null; this.lightCtx = null;
+    this.shadowCv = null; this.shadowCtx = null;   // the offscreen shadow buffer (projected onto the stage, blitted under the cast)
     this.snapCv = null; this.snapCtx = null;   // a frozen copy of the last frame, for the beat crossfade
     this.frame = new Frame();
     this.drops = []; this.grain = null;     // rain particles + film-grain tile (persist across scenes)
@@ -650,6 +659,8 @@ class Engine {
     this.ctx = this.cv.getContext('2d', { alpha: false });   // NOT desynchronized: the low-latency surface tears/flickers badly on real phones (fine on desktop + emulation, so it hid)
     this.lightCv = document.createElement('canvas');
     this.lightCtx = this.lightCv.getContext('2d');
+    this.shadowCv = document.createElement('canvas');
+    this.shadowCtx = this.shadowCv.getContext('2d');
     this.snapCv = document.createElement('canvas');
     this.snapCtx = this.snapCv.getContext('2d');
     addEventListener('resize', () => this.resize());
@@ -659,15 +670,19 @@ class Engine {
 
   // size the canvas to the landscape aspect band, centered, so the viewport's spare space becomes
   // black bars: top and bottom on a too-tall screen, left and right on a too-wide one. Everything
-  // downstream reads W/H (the band), so the world never knows it is letterboxed.
+  // downstream reads W/H, but those are now LOGICAL units (the band is always REF_H tall): the world
+  // transform scales the logical space onto the real band, so the world never knows its real size
+  // OR that it is letterboxed. The buffers and CSS still use the real band size in device/CSS px.
   resize() {
     this.DPR = Math.min(window.devicePixelRatio || 1, 2);
     const vw = innerWidth, vh = innerHeight, ar = vw / vh;
     let w = vw, h = vh;
     if (ar < ASPECT_MIN) h = Math.round(vw / ASPECT_MIN);        // too tall: cap the height
     else if (ar > ASPECT_MAX) w = Math.round(vh * ASPECT_MAX);   // too wide: cap the width
-    this.W = w; this.H = h;
-    for (const cv of [this.cv, this.lightCv, this.snapCv]) { cv.width = Math.floor(w * this.DPR); cv.height = Math.floor(h * this.DPR); }
+    this.cssW = w; this.cssH = h;                                // the real band, in CSS px
+    this.ls = Math.min(w, h) / REF_H;                           // logical -> CSS scale (the band is always REF_H tall)
+    this.W = w / this.ls; this.H = h / this.ls;                 // the LOGICAL band (H == REF_H, W == REF_H * aspect)
+    for (const cv of [this.cv, this.lightCv, this.shadowCv, this.snapCv]) { cv.width = Math.floor(w * this.DPR); cv.height = Math.floor(h * this.DPR); }
     this.cv.style.width = w + 'px'; this.cv.style.height = h + 'px';
     this.cv.style.left = Math.floor((vw - w) / 2) + 'px';
     this.cv.style.top = Math.floor((vh - h) / 2) + 'px';
@@ -678,8 +693,11 @@ class Engine {
 
   initRain() {
     this.drops.length = 0;
-    const n = Math.floor((this.W * this.H) / 5200);
-    for (let i = 0; i < n; i++) this.drops.push({ x: Math.random() * (this.W + 200) - 100, y: Math.random() * this.H, len: 8 + Math.random() * 16, sp: 9 + Math.random() * 9 });
+    // size + count track the scene scale (k = 1 at a 1080p landscape screen), so rain looks exactly
+    // like 1080p everywhere instead of becoming a flood of fine pixels on a big window.
+    const k = Math.min(this.W, this.H) / 1080;
+    const n = Math.floor((this.W * this.H) / (5200 * k * k));
+    for (let i = 0; i < n; i++) this.drops.push({ x: Math.random() * (this.W + 200) - 100, y: Math.random() * this.H, len: (8 + Math.random() * 16) * k, sp: (9 + Math.random() * 9) * k });
   }
   buildGrain() {
     const g = document.createElement('canvas'); g.width = g.height = 220;
@@ -693,14 +711,16 @@ class Engine {
     const f = this.frame;
     f.W = this.W; f.H = this.H; f.unit = Math.min(this.W, this.H) / 360;
     f.t = now / 1000; f.dt = Math.min((now - this.last) / 1000, 0.05);
-    f.main = this.ctx; f.light = this.lightCtx; f.ctx = this.ctx;
-    f.drops = this.drops; f.grain = this.grain; f.DPR = this.DPR;
+    f.main = this.ctx; f.light = this.lightCtx; f.shadow = this.shadowCtx; f.ctx = this.ctx;
+    f.drops = this.drops; f.grain = this.grain; f.DPR = this.DPR; f.ls = this.ls;
     this.last = now;
     return f;
   }
 
-  // device-pixel transform helpers (buffers + main share the same backing size)
-  setWorldTransform(ctx) { ctx.setTransform(this.DPR, 0, 0, this.DPR, 0, 0); }
+  // transform helpers. World drawing maps LOGICAL units -> device pixels through DPR * ls (the world
+  // is authored at REF_H tall and scaled to the real band), so all draw code is resolution agnostic.
+  // Device drawing (buffer-to-buffer blits, the shadow tint, the crossfade) is 1:1, no logical scale.
+  setWorldTransform(ctx) { const k = this.DPR * this.ls; ctx.setTransform(k, 0, 0, k, 0, 0); }
   setDeviceTransform(ctx) { ctx.setTransform(1, 0, 0, 1, 0, 0); }
 
   // freeze the current on-screen frame so the next beat can crossfade out of it
@@ -723,21 +743,23 @@ class Engine {
   }
 }
 
+__exports.REF_H = REF_H;
 __exports.Engine = Engine;
 };
 __mod["src/engine/frame.js"] = function(__exports, __req){
 // FRAME — the per-frame facade handed to passes and to every object's draw/update/emitLight.
-// It bundles the live timing + sizes, the three drawing contexts (world buffer, additive
-// light buffer, main), and the coordinate + lighting helpers. Objects read `e.ctx` as their
-// target and call helpers like `e.X(node)`, `e.groundShadow(...)`, `e.pushLight(...)`.
+// It bundles the live timing + sizes, the drawing contexts (main, the additive light buffer, the
+// shadow buffer), and the coordinate + lighting helpers. Objects read `e.ctx` as their target and
+// call helpers like `e.X(node)`, `e.addLight(...)`. Shadows are not registered by objects: the
+// compositor turns every castsShadow object into a caster and paints it (see render/shadows.js).
 const { PALETTE } = __req("src/style/palette.js");
 const { lerp, smooth01 } = __req("src/engine/math.js");
 const L = __req("src/render/lighting.js");
 
 class Frame {
   constructor() {
-    this.W = this.H = 0; this.unit = 1; this.t = 0; this.dt = 0;
-    this.world = this.light = this.main = null;  // the three 2d contexts
+    this.W = this.H = 0; this.unit = 1; this.t = 0; this.dt = 0; this.DPR = 1; this.ls = 1;
+    this.world = this.light = this.shadow = this.main = null;  // the four 2d contexts (world, light buffer, shadow buffer, main)
     this.ctx = null;                              // active draw target (set per pass)
     this.scene = null;                            // active Scene
     this.lights = [];                             // light records, rebuilt each frame
@@ -779,9 +801,18 @@ class Frame {
   // Objects describe a light once with addLight({...}); the lighting pass draws halo + refl.
   addLight(rec) { L.addLight(this, rec); }
   dominantLight(x) { return L.dominantLight(this, x); }
-  litTint(x) { return L.litTint(this, x); }
+  // the ambient tint at x. Pass the node to LOW-PASS it on the node over time, so a flickering neon
+  // tints the form steadily instead of strobing the cloth frame to frame.
+  litTint(x, node) {
+    const t = L.litTint(this, x);
+    if (!node) return t;
+    if (!t) { node._tint = null; return null; }
+    const p = node._tint;
+    if (!p) return node._tint = t;
+    const k = 0.03;
+    return node._tint = [p[0] + (t[0] - p[0]) * k, p[1] + (t[1] - p[1]) * k, p[2] + (t[2] - p[2]) * k];
+  }
   litColor(x, gr, gg, gb) { return L.litColor(this, x, gr, gg, gb); }
-  groundShadow(x, halfW, objH) { L.groundShadow(this, x, halfW, objH); }
 }
 
 Frame.prototype.palette = PALETTE;
@@ -845,6 +876,8 @@ __mod["src/render/lighting.js"] = function(__exports, __req){
 //      emitter size, height above the floor (distance) and power, so it matches the source.
 // rim / tint / shadow all read the same records, which keeps the look uniform.
 const { lerp } = __req("src/engine/math.js");
+const { stageOf } = __req("src/render/stage.js");
+const { WASH } = __req("src/style/shadows.js");
 
 // register a light this frame. Fields:
 //   x, y        position (y above the floor = the light's height)
@@ -855,6 +888,15 @@ const { lerp } = __req("src/engine/math.js");
 //                 uses these for a tight bright halo while keeping a large faint influence.
 //   refl        draw the wet-floor reflection (default true)
 //   reflW, reflI, reflLen   optional overrides (used by the moon for a bespoke faint streak)
+//   wash        draw the diffuse floor + wall surface washes (default true; a distant light sets false)
+//   front       the light sits IN FRONT of the cast (a cigarette ember, a held match): its glow is
+//               painted after the cast. Default false, so scene light (neon, lamps, the moon) sits
+//               behind the cast and a foreground figure occludes it, as it should.
+//   shade       the fixture caps the light (a lamp hood): the glow is blocked above the emitter, so
+//               it only spills downward. Default false (a bare bulb, neon, the moon glow all ways).
+//   beam        optional volumetric cone of light in the air (the lamp's downward shaft, the rooftop
+//               searchlight's sweep): { dir (0 = straight down, radians), len, farW or spread,
+//               I (0..1), sweep, sweepSpeed }. The lighting pass paints it on the additive buffer.
 function addLight(e, rec) {
   if (rec.col == null) rec.col = '255,250,225';
   if (rec.r == null) rec.r = 150;
@@ -867,6 +909,14 @@ function addLight(e, rec) {
   if (rec.glowR == null) rec.glowR = rec.r;
   if (rec.glowI == null) rec.glowI = rec.I;
   if (rec.refl == null) rec.refl = true;
+  if (rec.wash == null) rec.wash = true;
+  if (rec.beam) {
+    const b = rec.beam;
+    if (b.dir == null) b.dir = 0;
+    if (b.I == null) b.I = 1;
+    if (b.len == null) b.len = 200;
+    if (b.farW == null) b.farW = b.spread != null ? b.len * Math.tan(b.spread) : b.len * 0.45;
+  }
   e.lights.push(rec);
 }
 
@@ -902,17 +952,21 @@ function softColumn(col) {                       // a soft vertical streak: brig
   return _sprites[key] = cv;
 }
 
+// a shaded fixture (a lamp hood) caps the glow above the emitter: clip it to spill downward only.
+function clipShade(c, L, e) { if (!L.shade) return; c.beginPath(); c.rect(-e.W * 2, L.y - L.eh, e.W * 5, e.H * 3); c.clip(); }
+
 // tight near-field glow shaped to the emitter: the light hitting the surface it sits on
 function surfaceGlow(e, L) {
   const rx = Math.max(L.ew * 1.25, 8) + L.r * 0.10, ry = Math.max(L.eh * 1.25, 8) + L.r * 0.10, c = e.light;
-  c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.30 * L.glowI;
+  c.save(); clipShade(c, L, e); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.30 * L.glowI;
   c.drawImage(softRadial(L.col), L.x - rx, L.y - ry, rx * 2, ry * 2); c.restore();
 }
 
-// soft, wide atmospheric bloom — kept gentle (the "glow in the air", dialled down)
+// soft atmospheric bloom — the "glow in the air". Kept tight so it concentrates around the source
+// instead of washing across the frame (a ring light, the moon, keeps its wider radius).
 function airGlow(e, L) {
-  const R = L.glowR, c = e.light;
-  c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.15 * L.glowI;
+  const R = L.glowR * (L.ring ? 1 : 0.55), c = e.light;
+  c.save(); clipShade(c, L, e); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.2 * L.glowI;
   c.drawImage(L.ring ? softRing(L.col) : softRadial(L.col), L.x - R, L.y - R, R * 2, R * 2); c.restore();
 }
 
@@ -940,52 +994,109 @@ function floorRefl(e, L) {
   streak(e, L.x, L.col, I, w, len);
 }
 
-// the strongest light reaching a point (rim side, form tint, shadow direction)
+// the strongest light reaching a point (rim side, form tint, shadow direction). `front` lights (a
+// cigarette ember) are local foreground glows, not scene form-light, so they are skipped here.
 function dominantLight(e, wx) {
   let best = null, bw = 0.12;
-  for (const L of e.lights) { const w = L.I * (1 - Math.abs(wx - L.x) / (L.r * 1.1)); if (w > bw) { bw = w; best = L; } }
+  for (const L of e.lights) { if (L.front) continue; const w = L.I * (1 - Math.abs(wx - L.x) / (L.r * 1.1)); if (w > bw) { bw = w; best = L; } }
   return best;
 }
 // the ambient light colour at a point, as a smooth weighted BLEND of nearby lights (not a single
 // dominant pick) so a figure between two flickering lights gets a gentle tint, not a hard flip.
+// `front` lights are excluded so a held cigarette does not retint the whole figure.
 function litTint(e, wx) {
   let r = 0, g = 0, b = 0, wsum = 0;
-  for (const L of e.lights) { const w = L.I * (1 - Math.abs(wx - L.x) / (L.r * 1.1)); if (w > 0) { const cc = L.col.split(','); r += cc[0] * w; g += cc[1] * w; b += cc[2] * w; wsum += w; } }
+  for (const L of e.lights) { if (L.front) continue; const w = L.I * (1 - Math.abs(wx - L.x) / (L.r * 1.1)); if (w > 0) { const cc = L.col.split(','); r += cc[0] * w; g += cc[1] * w; b += cc[2] * w; wsum += w; } }
   return wsum < 0.12 ? null : [r / wsum, g / wsum, b / wsum];
 }
 
 // blended colour of every light reaching x (red + green → amber), else the fallback grey
 function litColor(e, x, gr, gg, gb) {
   let r = 0, g = 0, b = 0, wsum = 0;
-  for (const L of e.lights) { const w = L.I * (1 - Math.abs(x - L.x) / (L.r * 0.6)); if (w > 0) { const cc = L.col.split(','); r += cc[0] * w; g += cc[1] * w; b += cc[2] * w; wsum += w; } }
+  for (const L of e.lights) { if (L.front) continue; const w = L.I * (1 - Math.abs(x - L.x) / (L.r * 0.6)); if (w > 0) { const cc = L.col.split(','); r += cc[0] * w; g += cc[1] * w; b += cc[2] * w; wsum += w; } }
   if (wsum < 0.18) return [gr, gg, gb];
   const m = Math.min(1, wsum * 0.9 + 0.2);
   return [Math.round(lerp(gr, r / wsum, m)), Math.round(lerp(gg, g / wsum, m)), Math.round(lerp(gb, b / wsum, m))];
 }
 
-// systematic directional ground shadow used by EVERY grounded object (drawn to the world ctx).
-// A pre-rendered soft black sprite gives the soft edge with no per-frame blur filter.
-function groundShadow(e, wx, halfW, objH) {
-  const c = e.ctx, g = e.gy, sp = softRadial('0,0,0');
-  const cands = e.lights.map(L => ({ L, w: L.I * (1 - Math.abs(wx - L.x) / (L.r * 1.2)) })).filter(o => o.w > 0.06).sort((a, b) => b.w - a.w).slice(0, 2);
-  c.save();
-  if (!cands.length) { c.globalAlpha = 0.32; const rX = halfW * 1.25, rY = halfW * 0.3; c.drawImage(sp, wx - rX, g + 4 - rY, rX * 2, rY * 2); c.restore(); return; }
-  for (const { L, w } of cands) {
-    const dir = wx >= L.x ? 1 : -1, dist = Math.abs(wx - L.x), vert = Math.max(24, g - L.y);
-    const len = Math.min(objH * 2.2, halfW + objH * (dist / vert) * 0.9 + objH * 0.2);
-    const rX = halfW * 0.7 + len * 0.55, rY = halfW * 0.3;
-    c.globalAlpha = Math.min(0.42, 0.32 * w);
-    c.drawImage(sp, wx + dir * len * 0.45 - rX, g + 4 - rY, rX * 2, rY * 2);
-  }
-  c.restore();
+// DIFFUSE SURFACE WASHES — light pooling on the stage as oriented surfaces (separate from the
+// tight surface glow and the wet specular streak). A soft pool on the floor near the light's base,
+// and, where the set has a near wall, a soft pool climbing the wall. These make light placement
+// read in the same floor + wall box the shadows are cast into, so the two systems agree.
+// light spreads as it travels, so the pool a source throws on a surface is wider (and softer) the
+// farther the source is from it. The width grows with that distance and the brightness falls off,
+// instead of matching the emitter size one to one.
+function floorWash(e, L, st) {
+  const c = e.light, h = Math.max(20, st.gy - L.y);          // the source's distance up off the floor
+  const rx = L.r * 0.5 + h * 0.7, ry = (st.H - st.gy) * WASH.floorReach;
+  c.save(); c.beginPath(); c.rect(L.x - rx, st.gy, rx * 2, st.H - st.gy); c.clip();
+  c.globalCompositeOperation = 'lighter'; c.globalAlpha = WASH.floorAlpha * st.env.wash * L.glowI * (L.r / (L.r + h * 0.7));
+  c.drawImage(softRadial(L.col), L.x - rx, st.gy - ry * 0.35, rx * 2, ry * 1.7); c.restore();
+}
+function wallWash(e, L, st) {
+  const c = e.light, w = st.wall, d = Math.max(20, st.gy - L.y);
+  const rx = L.r * 0.55 + d * 0.5, ry = (st.gy - w.top) * WASH.wallReach;
+  const cy = Math.min(st.gy, Math.max(w.top, L.y));          // the pool centres where the light meets the wall
+  c.save(); c.beginPath(); c.rect(L.x - rx, w.top, rx * 2, st.gy - w.top); c.clip();
+  c.globalCompositeOperation = 'lighter'; c.globalAlpha = WASH.wallAlpha * st.env.wash * L.glowI * (L.r / (L.r + d * 0.6));
+  // light runs DOWN the wall more than up it (it falls toward the floor), so the pool is weighted
+  // below the source: drawn taller and shifted down rather than a symmetric disc.
+  c.drawImage(softRadial(L.col), L.x - rx, cy - ry * 0.72, rx * 2, ry * 2.3); c.restore();
 }
 
-// the lighting pass body: surface + air glow, then the wet-floor reflection, per light
-function drawLightLayer(e) {
+// VOLUMETRIC BEAM — a cone of light hanging in the wet air (the lamp's shaft, the searchlight's
+// sweep). Apex at the emitter, fading along its length, tinted by the colour, painted additively so
+// the rain and grain read through it. dir 0 points straight down; a beam can sweep (the searchlight)
+// by oscillating its direction. Shared so a near beam can draw on the light buffer (in front of the
+// backdrop) and a distant one, like the rooftop searchlight, can draw in the back world layer
+// (behind the backdrop buildings), both from one beam model.
+function drawBeam(c, t, x, y, ew, col, b) {
+  let dir = b.dir + (b.sweep ? Math.sin(t * (b.sweepSpeed || 0.4)) * b.sweep : 0);
+  const ax = Math.sin(dir), ay = Math.cos(dir), pxv = -ay, pyv = ax;   // axis + perpendicular
+  const nearW = Math.max(ew * 0.6, 3), len = b.len != null ? b.len : 200;
+  const farW = b.farW != null ? b.farW : (b.spread != null ? len * Math.tan(b.spread) : len * 0.45);
+  const I = b.I != null ? b.I : 1, fx = x + ax * len, fy = y + ay * len;
+  const g = c.createLinearGradient(x, y, fx, fy);
+  // carry the light most of the way down the shaft instead of dying at half length, so the beam reads
+  // as throwing light in its direction rather than fading into the air just past the source.
+  g.addColorStop(0, `rgba(${col},${0.34 * I})`); g.addColorStop(0.6, `rgba(${col},${0.18 * I})`); g.addColorStop(1, `rgba(${col},${0.06 * I})`);
+  c.save(); c.globalCompositeOperation = 'lighter'; c.fillStyle = g;
+  c.beginPath();
+  c.moveTo(x - pxv * nearW, y - pyv * nearW); c.lineTo(x + pxv * nearW, y + pyv * nearW);
+  c.lineTo(fx + pxv * farW, fy + pyv * farW); c.lineTo(fx - pxv * farW, fy - pyv * farW);
+  c.closePath(); c.fill();
+  // a soft pool where the beam lands, so the light reads as cast onto the surface at the end of the
+  // throw (the floor under a lamp, the table under a hanging bulb), not just hanging in the air.
+  const lp = c.createRadialGradient(fx, fy, 0, fx, fy, farW * 1.4);
+  lp.addColorStop(0, `rgba(${col},${0.18 * I})`); lp.addColorStop(1, `rgba(${col},0)`);
+  c.fillStyle = lp; c.beginPath(); c.ellipse(fx, fy, farW * 1.4, farW * 0.7, 0, 0, Math.PI * 2); c.fill();
+  c.restore();
+}
+function beam(e, L) { drawBeam(e.light, e.t, L.x, L.y, L.ew, L.col, L.beam); }
+
+// BACK light: everything that belongs behind the cast (so a foreground figure occludes it). A flat
+// ambient lift, then per non-front light its beam, surface + air glow, floor + wall washes, and the
+// wet-floor reflection. The compositor blits this before drawing the cast.
+function drawBackLight(e) {
+  const st = stageOf(e), R = e.coverRect(), c = e.light;
+  c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = WASH.ambientAlpha * st.ambient.level / 0.16;
+  c.fillStyle = `rgb(${st.ambient.col})`; c.fillRect(R.x, R.y, R.w, R.h); c.restore();
   for (const L of e.lights) {
+    if (L.beam) beam(e, L);
+    if (L.front) continue;
+    if (L.I < 0.02) continue;                              // flickered or declared near-dark: nothing to add
+    if (L.x + L.r < R.x || L.x - L.r > R.x + R.w) continue;   // its whole influence is off-screen
     if (L.glow) { if (L.surface) surfaceGlow(e, L); airGlow(e, L); }
+    if (L.wash) { floorWash(e, L, st); if (st.wall) wallWash(e, L, st); }
     if (L.refl) floorRefl(e, L);
   }
+}
+
+// FRONT light: only the glow of lights that sit in front of the cast (a cigarette ember, a held
+// match). Blitted after the cast so it reads over a figure. No washes or reflection (those are the
+// floor and wall, which are behind the figure).
+function drawFrontLight(e) {
+  for (const L of e.lights) if (L.front && L.glow) { if (L.surface) surfaceGlow(e, L); airGlow(e, L); }
 }
 
 __exports.addLight = addLight;
@@ -993,8 +1104,101 @@ __exports.streak = streak;
 __exports.dominantLight = dominantLight;
 __exports.litTint = litTint;
 __exports.litColor = litColor;
-__exports.groundShadow = groundShadow;
-__exports.drawLightLayer = drawLightLayer;
+__exports.drawBeam = drawBeam;
+__exports.drawBackLight = drawBackLight;
+__exports.drawFrontLight = drawFrontLight;
+};
+__mod["src/render/stage.js"] = function(__exports, __req){
+// STAGE — the shared pseudo 3D geometry that BOTH the lighting service and the shadow service
+// read. The scene is treated as a shallow stage box: a FLOOR plane (from the ground line gy down
+// to the bottom of the screen, nearest the camera) and an optional back WALL plane (from a top
+// line down to gy) when the backdrop declares one (the alley brick, the room wall). A light's
+// HEIGHT is gy minus its screen y. Keeping this in one place means improving the geometry improves
+// light and shadow together, and neither service owns the surfaces.
+const { AMBIENT, ENV } = __req("src/style/shadows.js");
+
+// build the per-frame stage description from the active scene.
+function stageOf(e) {
+  const gy = e.gy, H = e.H, s = e.scene, bd = s.backdrop, d = s.data;
+  // a near wall exists only where the set has one: scene data wins, else the backdrop declares it.
+  let wt = d.wallTop != null ? d.wallTop : (bd && bd.wallTop != null ? bd.wallTop : null);
+  const wall = wt != null ? { top: wt <= 1 ? wt * H : wt, bottom: gy } : null;
+  // the environment profile (indoor splashes more, outdoor falls into the dark). Every subsystem
+  // reads st.env; the ambient fill defaults from it unless the scene overrides level/col.
+  const env = ENV[s.indoor ? 'indoor' : 'outdoor'];
+  const a = d.ambient || {};
+  return {
+    gy, H, wall, indoor: s.indoor, env,
+    floor: { top: gy, bottom: H },
+    ambient: { level: a.level != null ? a.level : env.ambient, col: a.col || AMBIENT.col },
+  };
+}
+
+// the height of a light above the floor (clamped so a light at/under the floor still projects).
+function lightHeight(stage, ly) { return Math.max(20, stage.gy - ly); }
+
+// the throw of a caster's shadow from one light: direction away from the light and a 0..1 measure
+// of how LOW the light sits relative to the caster's head (0 = at/above the head, 1 = on the floor).
+// Low lights lengthen the floor shadow and lift it onto the wall, high lights keep it short. Both
+// the floor and the wall stamp read this, so the two stay consistent.
+function shadowThrow(stage, lx, ly, bx, headY) {
+  const dir = bx >= lx ? 1 : -1;
+  const lh = lightHeight(stage, ly);
+  const low = Math.max(0, Math.min(1, (ly - headY) / Math.max(1, stage.gy - headY)));
+  return { dir, lh, low };
+}
+
+__exports.stageOf = stageOf;
+__exports.lightHeight = lightHeight;
+__exports.shadowThrow = shadowThrow;
+};
+__mod["src/style/shadows.js"] = function(__exports, __req){
+// SHADOW + AMBIENT + SURFACE-WASH knobs — the central style for the stage-aware light and shadow
+// system. Like palette.js and materials.js this is a look knob: tune the noir here and the whole
+// cast restyles. SHADE drives the shadow service, AMBIENT the floor light both services read, and
+// WASH the diffuse pools lights paint on the floor and the wall.
+const SHADE = {
+  color: '4,5,8',        // the ink a shadow is tinted with (deep cool near-black, never pure 0)
+  floorAlpha: 0.7,        // peak opacity of a floor shadow at the contact point
+  wallAlpha: 0.64,       // peak opacity of a wall shadow at its base
+  contactAlpha: 0.5,      // the dark grounding dab right under every caster
+  floorTilt: 0.32,       // how far a floor shadow lays toward the camera (down screen) vs its length
+  lengthGain: 1.0,       // global multiplier on projected shadow length
+  maxLen: 3.4,           // cap on shadow length as a multiple of the caster height
+  penumbra: 0.5,         // base softness; emitter size and length widen it further
+  softTaps: 5,           // layered stamps used to fake a soft edge (no blur filter on mobile)
+  edgeFeather: 0.05,     // per tap outward growth, so the edge fades on all sides (not a razor copy)
+  maxLights: 2,          // how many of the strongest lights throw a shadow per caster
+  minWeight: 0.07,       // a light weaker than this at the caster throws no shadow
+};
+
+// AMBIENT — the scene fill so a shadow core is deep grey, not a black hole, and unlit surfaces
+// still read. A scene can override level/col in its data; these are the defaults.
+const AMBIENT = { level: 0.16, col: '40,46,60' };
+
+// WASH — the diffuse light pools painted on the stage surfaces (separate from the existing tight
+// surface glow and the wet specular streak). Gentle, so they read as light on brick and floor.
+const WASH = {
+  floorAlpha: 0.2, floorReach: 0.55,   // floor pool brightness + how far down the floor it reaches
+  wallAlpha: 0.22, wallReach: 0.7,      // wall pool brightness + how far up the wall it reaches
+  ambientAlpha: 0.05,                    // a flat ambient lift on the lit buffer, tinted by AMBIENT
+};
+
+// ENV — the one place the system splits indoor from outdoor, the whole light/shadow/material model
+// reads it off the stage. The physics: OUTDOOR light falls into open dark (low fill, deep long hard
+// shadows, contained reach), INDOOR light bounces off walls/floor/ceiling and splashes (more fill,
+// softer lighter shorter shadows, broader reach, stronger surface washes). A future window scene
+// rides the indoor profile: the window is just another light (a soft beam + cool wash) on top of it.
+const ENV = {
+  //         ambient  fill  reach  shadow  soft  length  wash
+  outdoor: { ambient: 0.16, fill: 0.20, reach: 1.8, shadow: 1.0, soft: 1.0, length: 1.0, wash: 1.0 },
+  indoor: { ambient: 0.30, fill: 0.34, reach: 2.5, shadow: 0.68, soft: 1.7, length: 0.8, wash: 1.5 },
+};
+
+__exports.SHADE = SHADE;
+__exports.AMBIENT = AMBIENT;
+__exports.WASH = WASH;
+__exports.ENV = ENV;
 };
 __mod["src/engine/viewport.js"] = function(__exports, __req){
 // VIEWPORT — keeps the story in a wide, fullscreen, landscape frame, degrading gracefully so it
@@ -1430,13 +1634,41 @@ __mod["src/engine/compositor.js"] = function(__exports, __req){
 // additive light layer to the offscreen buffer, composites them, then weather over the top and
 // the screen-space post + transition. Two buffers keep the light layer separable for the look.
 const { sky } = __req("src/render/passes/sky.js");
-const { lighting } = __req("src/render/passes/lighting.js");
+const { casterRecord, paintCaster, tintRect, shadowBounds } = __req("src/render/shadows.js");
+const { lightingBack, lightingFront } = __req("src/render/passes/lighting.js");
 const { weather } = __req("src/render/passes/weather.js");
 const { post } = __req("src/render/passes/post.js");
 const { transition } = __req("src/render/passes/transition.js");
 
+// transform a WORLD rect to a clamped device-pixel rect through the active context matrix M (which
+// already folds in DPR + the camera). Used to scope shadow work to a caster's region.
+function devRect(M, b, cw, ch) {
+  const xs = [M.a * b.x0 + M.c * b.y0 + M.e, M.a * b.x1 + M.c * b.y0 + M.e, M.a * b.x0 + M.c * b.y1 + M.e, M.a * b.x1 + M.c * b.y1 + M.e];
+  const ys = [M.b * b.x0 + M.d * b.y0 + M.f, M.b * b.x1 + M.d * b.y0 + M.f, M.b * b.x0 + M.d * b.y1 + M.f, M.b * b.x1 + M.d * b.y1 + M.f];
+  const x0 = Math.max(0, Math.floor(Math.min(...xs)) - 1), y0 = Math.max(0, Math.floor(Math.min(...ys)) - 1);
+  const x1 = Math.min(cw, Math.ceil(Math.max(...xs)) + 1), y1 = Math.min(ch, Math.ceil(Math.max(...ys)) + 1);
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
 class Compositor {
   constructor(engine) { this.engine = engine; }
+
+  // paint one caster's shadow and composite it onto the main canvas. Called in depth order during
+  // the cast, so each shadow lands on the floor, the wall and the cast behind it. Only the caster's
+  // device-pixel region is cleared, tinted and composited (not the whole screen), which is the main
+  // shadow-cost saving.
+  castShadow(e, cr) {
+    const eng = this.engine, main = e.main, shadow = e.shadow, cam = e.scene.camera, cv = eng.shadowCv;
+    eng.setWorldTransform(shadow); shadow.save(); cam.apply(shadow);
+    const r = devRect(shadow.getTransform(), shadowBounds(e, cr), cv.width, cv.height);
+    if (r.w < 1 || r.h < 1) { shadow.restore(); return; }
+    shadow.save(); shadow.setTransform(1, 0, 0, 1, 0, 0); shadow.clearRect(r.x, r.y, r.w, r.h); shadow.restore();
+    e.ctx = shadow; paintCaster(e, cr);
+    shadow.restore();
+    tintRect(e, r.x, r.y, r.w, r.h);
+    eng.setDeviceTransform(main); main.globalCompositeOperation = 'source-over';
+    main.drawImage(cv, r.x, r.y, r.w, r.h, r.x, r.y, r.w, r.h);
+  }
 
   render(e) {
     const eng = this.engine, main = e.main, light = e.light, cam = e.scene.camera;
@@ -1450,31 +1682,53 @@ class Compositor {
       return;
     }
 
-    // WORLD → main, camera-applied (the establishing zoom stays >= 1, so the world always overfills)
+    // WORLD (set) → main, camera-applied (the establishing zoom stays >= 1, so the world overfills)
     eng.setWorldTransform(main);
     main.fillStyle = '#000'; main.fillRect(0, 0, e.W, e.H);
     main.save(); cam.apply(main); e.ctx = main;
     sky(e);                       // sky + moon (moon registers its light)
-    e.scene.collectLights(e);     // declared lights + emissive props → e.lights (before objects)
+    e.scene.collectLights(e);     // declared lights + emissive props → e.lights (before anything reads them)
     e.scene.drawBack(e);          // distant elements (e.g. a searchlight beam) behind the backdrop
     e.scene.drawBackdrop(e);
     e.scene.drawFixtures(e);      // the visible lamp/neon/bulb fixtures
-    e.scene.drawObjects(e);       // props/actors/movers/effects (depth order) + brass
     main.restore();
 
-    // LIGHT BUFFER → camera-applied
+    // BACK LIGHT BUFFER → camera-applied: environmental light (window bloom, beams, washes,
+    // reflections, ripples, scene halos), composited BEFORE the cast so a foreground figure
+    // occludes the light behind it.
     eng.setWorldTransform(light);
     light.clearRect(0, 0, e.W, e.H);
     light.save(); cam.apply(light); e.ctx = light;
-    lighting(e);                  // halos + reflections for every light + static neon reflections
-    e.scene.drawLightExtras(e);   // ripples
+    lightingBack(e);
     light.restore();
-
-    // composite the light layer additively onto the world (device pixels, 1:1)
-    eng.setDeviceTransform(main);
-    main.globalCompositeOperation = 'lighter';
-    main.drawImage(eng.lightCv, 0, 0);
+    eng.setDeviceTransform(main); main.globalCompositeOperation = 'lighter'; main.drawImage(eng.lightCv, 0, 0);
     main.globalCompositeOperation = 'source-over';
+
+    // CAST → main, back to front. Each caster's shadow is painted right BEFORE its object, so it
+    // falls on the floor, the back wall AND the cast already drawn behind it (a figure in front
+    // shadows one behind). The object then draws over its own shadow.
+    for (const o of e.scene.midObjects(e)) {
+      if (o.castsShadow) this.castShadow(e, casterRecord(e, o));
+      eng.setWorldTransform(main); main.save(); cam.apply(main); e.ctx = main;
+      o.draw(e);
+      main.restore();
+    }
+    eng.setWorldTransform(main); main.save(); cam.apply(main); e.ctx = main;
+    e.scene.drawShells(e);        // ejected brass, over the cast
+    main.restore();
+
+    // FRONT LIGHT BUFFER → camera-applied: only lights in front of the cast (a cigarette ember),
+    // composited AFTER the cast so the glow reads over the figure. Skipped entirely (no buffer clear
+    // or composite) when nothing is in front, which is most scenes.
+    if (e.lights.some(L => L.front)) {
+      eng.setWorldTransform(light);
+      light.clearRect(0, 0, e.W, e.H);
+      light.save(); cam.apply(light); e.ctx = light;
+      lightingFront(e);
+      light.restore();
+      eng.setDeviceTransform(main); main.globalCompositeOperation = 'lighter'; main.drawImage(eng.lightCv, 0, 0);
+      main.globalCompositeOperation = 'source-over';
+    }
 
     // WEATHER over the lit scene, camera-applied
     eng.setWorldTransform(main); main.save(); cam.apply(main); e.ctx = main;
@@ -1521,6 +1775,11 @@ function sky(e) {
 
   if (scene.indoor) return;   // no sky/moon indoors (the room wall would occlude it anyway)
   const m = scene.moon || { x: 0.78, y: 0.18 }, mx = m.x * e.W + scene.camera.look * 0.1, my = m.y * e.H, mr = 34;
+  // a moon behind a wall lights nothing: skip the disc, the halo AND the floor reflection together,
+  // so the reflection can never leak onto the floor while the disc is occluded. The backdrop knows
+  // its own geometry (the alley walls), the scene can also force it with hideMoon.
+  const bd = scene.backdrop;
+  if (scene.hideMoon || (bd && bd.occludesMoon && bd.occludesMoon(e, mx, my))) return;
 
   // the moon disc: a soft radially-shaded body with a few faint craters
   const md = c.createRadialGradient(mx - mr * 0.32, my - mr * 0.32, mr * 0.15, mx, my, mr);
@@ -1545,21 +1804,179 @@ function sky(e) {
 
 __exports.sky = sky;
 };
+__mod["src/render/shadows.js"] = function(__exports, __req){
+// SHADOW SERVICE — the stage-aware companion to the lighting service. Each object whose castsShadow
+// is true is turned into a CASTER record and its shadow is painted to the offscreen shadow buffer,
+// projected through the strongest lights onto the stage floor and, where the set has one, climbing
+// the back wall. The compositor paints each caster's shadow in depth order, right before the object
+// is drawn, so a shadow lands not only on the floor and wall but on the cast already behind it (a
+// figure in front shadows a figure behind). A caster may hand a shadowSil(e, c) that strokes only
+// its solid body shape; without one it falls back to a tapered billboard from its width and height.
+const { SHADE } = __req("src/style/shadows.js");
+const { stageOf, shadowThrow } = __req("src/render/stage.js");
+
+// build a caster record from a placed object (its feet point, silhouette size, shape and density).
+//   bx, baseY   the ground contact point (feet) in world space
+//   w, h        silhouette half-width and height in world px (the billboard fallback + softness)
+//   sil         optional shadowSil(e, c): draw the solid shape in LOCAL coords (origin at the feet,
+//               up = negative y, widths already scaled), plain fills only
+//   density     0..1 shadow opacity multiplier (lighter for glass/translucent props; default 1)
+function casterRecord(e, o) {
+  const s = e.scaleOf(o);
+  return {
+    node: o, bx: e.walkX(o), baseY: e.gy + (o.dy || 0) * e.unit,
+    w: (o.shadowW != null ? o.shadowW : 26) * s,
+    h: (o.shadowH != null ? o.shadowH : 80) * s,
+    density: o.shadowDensity != null ? o.shadowDensity : 1,
+    sil: o.shadowSil || null,
+  };
+}
+
+// a soft round black sprite for the contact dab (soft edge with no blur filter, as the rest of
+// the engine does).
+let _blob = null;
+function softBlob() {
+  if (_blob) return _blob;
+  const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+  const c = cv.getContext('2d'), g = c.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(0.55, 'rgba(0,0,0,0.4)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = g; c.fillRect(0, 0, 128, 128);
+  return _blob = cv;
+}
+
+// the strongest lights reaching a caster, sorted, capped — the ones that throw a shadow.
+function shadowLights(e, bx) {
+  return e.lights
+    .map(L => ({ L, w: L.I * (1 - Math.abs(bx - L.x) / (L.r * 1.2)) }))
+    .filter(o => o.w > SHADE.minWeight)
+    .sort((a, b) => b.w - a.w)
+    .slice(0, SHADE.maxLights);
+}
+
+// draw a caster's silhouette under a prepared transform: the authored shape if it has one, else a
+// tapered billboard (wide at the feet, narrower at the head) so a bare caster still reads as a body.
+function stampShape(e, c, cr) {
+  if (cr.sil) { cr.sil.call(cr.node, e, c); return; }
+  const w = cr.w, h = cr.h;
+  c.beginPath();
+  c.moveTo(-w, 0); c.lineTo(-w * 0.5, -h * 0.92);
+  c.quadraticCurveTo(0, -h * 1.04, w * 0.5, -h * 0.92); c.lineTo(w, 0);
+  c.closePath(); c.fill();
+}
+
+// one projected stamp (floor or wall), feathered with a few layered taps to fake a soft edge.
+// `mat(f)` returns the ctx.transform args at expansion factor f (1 = core, >1 = penumbra halo).
+function projStamp(e, c, cr, alpha, soft, mat, softMul = 1) {
+  const taps = SHADE.softTaps, step = (0.05 + Math.min(0.14, soft)) * softMul;
+  for (let i = taps - 1; i >= 0; i--) {
+    const f = 1 + i * step;                 // outer taps reach a little further along the projection
+    const grow = 1 + i * SHADE.edgeFeather * softMul; // and grow the silhouette outward, so the edge feathers on
+    c.save();                               // every side and fades into the surface, recognisable but soft
+    c.globalAlpha = alpha / taps;
+    c.fillStyle = '#000';
+    const m = mat(f); c.transform(m[0], m[1], m[2], m[3], 0, 0); c.scale(grow, grow);
+    stampShape(e, c, cr);
+    c.restore();
+  }
+}
+
+function castOne(e, c, st, cr) {
+  const bx = cr.bx, baseY = cr.baseY, h = cr.h, headY = baseY - h, dens = cr.density;
+  const lit = shadowLights(e, bx);
+
+  // contact dab: grounds every caster even with no dominant light.
+  c.save(); c.globalAlpha = SHADE.contactAlpha * dens * st.env.shadow;
+  const cr0 = cr.w * 1.2; c.drawImage(softBlob(), bx - cr0, baseY - cr0 * 0.28, cr0 * 2, cr0 * 0.56);
+  c.restore();
+
+  for (const { L, w } of lit) {
+    const t = shadowThrow(st, L.x, L.y, bx, headY);
+    const emitSoft = Math.min(0.5, (L.ew + L.eh) / (2 * t.lh));   // a broad emitter throws a softer edge
+    // opacity from the light's weight, but with a gentle curve so a dim light (the high moon) still
+    // throws a readable shadow while a strong light is barely changed.
+    const wA = Math.pow(w, 0.6);
+    c.save(); c.translate(bx, baseY);
+
+    // FLOOR: lay the silhouette away from the light, foreshortened toward the camera. Recedes as
+    // the light drops (the wall takes over), so the two stamps never both run at full strength.
+    const throwScale = Math.min(SHADE.maxLen, Math.max(0.3, Math.abs(bx - L.x) / t.lh) * SHADE.lengthGain * st.env.length);
+    const fAlpha = SHADE.floorAlpha * wA * dens * (1 - 0.5 * t.low) * st.env.shadow;
+    const fSoft = emitSoft + throwScale * 0.04 + SHADE.penumbra * 0.05;
+    c.save(); c.beginPath(); c.rect(-st.gy * 4, 0, st.gy * 8, st.H); c.clip();   // floor only (below feet)
+    projStamp(e, c, cr, fAlpha, fSoft, f => [1, 0, -t.dir * throwScale * f, -throwScale * SHADE.floorTilt * f, 0, 0], st.env.soft);
+    c.restore();
+
+    // WALL: only where the set has a near wall and the light sits low enough to throw up it.
+    if (st.wall && t.low > 0.2) {
+      const rise = 1.1 + t.low * 2.0, lean = (Math.abs(bx - L.x) / t.lh) * 0.5 + 0.1;
+      const wAlpha = SHADE.wallAlpha * wA * dens * t.low * st.env.shadow;
+      const wSoft = emitSoft + SHADE.penumbra * 0.06;
+      const wallTop = st.wall.top - baseY;   // local y where the wall ends (negative, above feet)
+      c.save(); c.beginPath(); c.rect(-st.gy * 4, wallTop, st.gy * 8, baseY - st.wall.top); c.clip();   // wall band only
+      projStamp(e, c, cr, wAlpha, wSoft, f => [1, 0, -t.dir * lean * f, rise * f, 0, 0], st.env.soft);
+      c.restore();
+    }
+    c.restore();
+  }
+}
+
+// paint one caster's shadow (black) onto the shadow buffer. The buffer is cleared and camera-applied
+// by the compositor, which then tints and composites it before drawing the object, so each caster's
+// shadow falls on the floor, the wall and the cast already behind it.
+function paintCaster(e, cr) { castOne(e, e.shadow, stageOf(e), cr); }
+
+// a generous WORLD-space box that contains everything paintCaster will draw for this caster (the
+// contact dab, the floor shadow laid toward the camera, and the wall shadow climbing to wallTop).
+// The compositor transforms it to device pixels so it can clear, tint and composite only that
+// region instead of the whole screen, which is the main shadow-cost saving.
+function shadowBounds(e, cr) {
+  const st = stageOf(e);
+  const reach = (cr.w + cr.h * SHADE.maxLen) * 1.5 + 30;        // horizontal throw (both ways, two lights)
+  const down = cr.h * SHADE.maxLen * SHADE.floorTilt * 1.6 + cr.w + 30;
+  const top = (st.wall ? st.wall.top : cr.baseY - cr.w * 1.3) - 24;
+  return { x0: cr.bx - reach, y0: top, x1: cr.bx + reach, y1: cr.baseY + down };
+}
+
+// recolour a device-pixel rect of the buffer to the shadow ink (source-in keeps the soft alpha and
+// swaps the colour), so only the caster's region is touched, not the whole canvas.
+function tintRect(e, x, y, w, h) {
+  const c = e.shadow;
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
+  c.globalCompositeOperation = 'source-in';
+  c.fillStyle = `rgba(${SHADE.color},1)`; c.fillRect(x, y, w, h);
+  c.restore();
+}
+
+__exports.casterRecord = casterRecord;
+__exports.paintCaster = paintCaster;
+__exports.shadowBounds = shadowBounds;
+__exports.tintRect = tintRect;
+};
 __mod["src/render/passes/lighting.js"] = function(__exports, __req){
-// LIGHTING PASS — paints the additive light buffer: every registered light's halo + wet-floor
-// reflection, plus the scene's static neon reflections (the backdrop `reflect` data, which v1
-// declared but never drew). The compositor then composites this buffer onto the scene.
-const { drawLightLayer, streak } = __req("src/render/lighting.js");
+// LIGHTING PASS — paints the additive light buffer in two phases so depth reads correctly:
+//   lightingBack runs before the cast (distant window bloom, static neon reflections, surface
+//   washes, wet-floor reflections, ripples, and the halo of every scene light), so a foreground
+//   figure occludes the light behind it.
+//   lightingFront runs after the cast (only lights flagged `front`, e.g. a cigarette ember), so
+//   that glow reads over the figure.
+const { drawBackLight, drawFrontLight, streak } = __req("src/render/lighting.js");
 const { cssRgb } = __req("src/engine/math.js");
 
-function lighting(e) {
+function lightingBack(e) {
+  // distant window bloom + flicker (the backdrop paints it onto the light buffer)
+  const bdo = e.scene.backdrop;
+  if (bdo && bdo.glow) bdo.glow(e);
   // static off-screen neon reflections on the wet floor (skyline backdrop `reflect`)
   const bd = e.scene.data.backdrop, refl = bd && bd.reflect;
   if (refl) for (const r of refl) streak(e, r.x * e.W + e.scene.camera.look * 0.5, cssRgb(r.color), 0.42, 16, (e.H - e.gy) * 0.7);
-  drawLightLayer(e);
+  drawBackLight(e);
+  e.scene.drawLightExtras(e);   // ripples (on the wet floor, behind the cast)
 }
 
-__exports.lighting = lighting;
+function lightingFront(e) { drawFrontLight(e); }
+
+__exports.lightingBack = lightingBack;
+__exports.lightingFront = lightingFront;
 };
 __mod["src/render/passes/weather.js"] = function(__exports, __req){
 // WEATHER PASS — rain (coloured by the light each drop falls through, or bloody on a blood-rain
@@ -1575,8 +1992,8 @@ function weather(e) {
 }
 
 function rain(e, bloodRain) {
-  const c = e.ctx, drops = e.drops, drift = [], lit = !bloodRain && e.lights.length > 0;
-  c.lineWidth = bloodRain ? 1.6 : 1.1;   // blood rain falls heavier
+  const c = e.ctx, drops = e.drops, drift = [], lit = !bloodRain && e.lights.length > 0, k = e.unit / 3;
+  c.lineWidth = (bloodRain ? 1.6 : 1.1) * k;   // blood rain falls heavier; width tracks the scene scale (1 at 1080p)
   c.strokeStyle = bloodRain ? `rgba(168,8,16,${ANIM.rainAlpha + 0.22})` : `rgba(180,190,210,${ANIM.rainAlpha})`;
   c.beginPath();
   for (let i = 0; i < drops.length; i++) {
@@ -1747,10 +2164,10 @@ class Scene {
   // visible objects of a layer, back-to-front by depth
   _layer(layer) { return this.objects.filter(o => this.visible(o) && (o.layer || 'mid') === layer).sort((a, b) => (a.depth || 0) - (b.depth || 0)); }
   drawBack(e) { for (const o of this._layer('back')) o.draw(e); }   // distant elements, behind the backdrop
-  drawObjects(e) {
-    for (const o of this._layer('mid')) o.draw(e);
-    this.shells.draw(e);
-  }
+  // the cast, back to front. The compositor walks this so it can paint each caster's shadow right
+  // before its object (so the shadow lands on the cast already behind it), then draw the object.
+  midObjects(e) { return this._layer('mid'); }
+  drawShells(e) { this.shells.draw(e); }
   drawLightExtras(e) { this.ripples.draw(e); }   // additive ripples onto the light buffer
 
   update(dt, e) {
@@ -1792,7 +2209,7 @@ const { Light } = __req("src/objects/light.js");
 const BASES = { node: Node, actor: Actor, mover: Mover, prop: Prop, effect: Effect, light: Light };
 const registry = new Map();
 
-// methods: { draw, update?, emitLight?, castsShadow?, depth? } as plain functions (use `this`)
+// methods: { draw, update?, emitLight?, shadowSil?, castsShadow?, shadowW?, shadowH?, shadowDensity?, depth? } as plain functions (use `this`)
 function define(name, kind, methods = {}) { registry.set(name, { kind, methods }); }
 const defineActor = (name, draw, m = {}) => define(name, 'actor', { draw, ...m });
 const defineMover = (name, draw, m = {}) => define(name, 'mover', { draw, ...m });
@@ -1816,7 +2233,11 @@ function create(name, params = {}) {
   if (m.draw) obj.draw = m.draw;
   if (m.update) obj.update = m.update;
   if (m.emitLight) obj.emitLight = m.emitLight;
+  if (m.shadowSil) obj.shadowSil = m.shadowSil;
   if (m.castsShadow != null) obj.castsShadow = m.castsShadow;
+  if (m.shadowW != null && params.shadowW == null) obj.shadowW = m.shadowW;
+  if (m.shadowH != null && params.shadowH == null) obj.shadowH = m.shadowH;
+  if (m.shadowDensity != null && params.shadowDensity == null) obj.shadowDensity = m.shadowDensity;
   if (m.depth != null && params.depth == null) obj.depth = m.depth;
   if (m.layer != null && params.layer == null) obj.layer = m.layer;
   return obj;
@@ -1835,16 +2256,19 @@ __exports.create = create;
 };
 __mod["src/objects/node.js"] = function(__exports, __req){
 // NODE — the base for everything placed in a scene. Holds a normalized transform and the
-// optional lifecycle hooks (update, draw, emitLight). Specializations (Actor, Mover, Prop,
-// Effect, Light) stay thin on purpose; the design is built to grow (e.g. an Actor clip system)
-// without changing this contract. `e` passed to hooks is the per-frame Frame facade.
+// optional lifecycle hooks (update, draw, emitLight, shadowSil). Specializations (Actor, Mover,
+// Prop, Effect, Light) stay thin on purpose; the design is built to grow (e.g. an Actor clip
+// system) without changing this contract. `e` passed to hooks is the per-frame Frame facade.
 class Node {
   constructor(params = {}) {
     this.x = 0.5; this.par = 0.5; this.scale = 1; this.depth = 0;
     this.layer = 'mid';                   // 'back' = behind the backdrop (distant), 'mid' = with the cast
-    Object.assign(this, params);          // story params (x, y, scale, par, dy, flip, seed, ...)
+    this.shadowW = null; this.shadowH = null;   // silhouette half-width + height in LOCAL px (pre-scale); null = sensible default
+    this.shadowDensity = 1;               // shadow opacity multiplier (lighter for glass/translucent shapes)
+    Object.assign(this, params);          // story params (x, y, scale, par, dy, flip, seed, shadowW, ...)
     this.kind = 'node';
-    this.castsShadow = false;
+    this.castsShadow = false;             // when true the scene registers this as a shadow caster
+    this.shadowSil = null;                // optional sil(e, c): draw the solid shape in local feet-origin coords
   }
   update(dt, e) {}     // advance simulation/animation state
   emitLight(e) {}      // register lights via e.addLight({...})
@@ -2066,21 +2490,23 @@ __mod["src/library/effects/ripples.js"] = function(__exports, __req){
 class Ripples {
   constructor() { this.list = []; }
   spawn(e) {
-    const x = Math.random() * e.W, y = e.gy + Math.random() * (e.H - e.gy) * 0.9, blood = e.scene.data.bloodRain;
+    // size + growth track the scene scale (k = 1 at a 1080p screen), so a ripple looks like 1080p
+    // everywhere instead of being huge on a phone and a speck on a desktop.
+    const k = e.unit / 3, x = Math.random() * e.W, y = e.gy + Math.random() * (e.H - e.gy) * 0.9, blood = e.scene.data.bloodRain;
     const col = blood ? [220, 24, 34] : e.litColor(x, 150, 162, 180);
-    this.list.push({ x, y, r: 1, max: 10 + Math.random() * 26, life: 1, col, blood });
+    this.list.push({ x, y, r: k, max: (10 + Math.random() * 26) * k, gr: 34 * k, life: 1, col, blood });
   }
   clear() { this.list.length = 0; }
   update(dt) {
     for (let i = this.list.length - 1; i >= 0; i--) {
-      const p = this.list[i]; p.r += dt * 34; p.life -= dt * 1.1;
+      const p = this.list[i]; p.r += dt * p.gr; p.life -= dt * 1.1;
       if (p.life <= 0 || p.r > p.max) this.list.splice(i, 1);
     }
   }
   draw(e) {
-    const c = e.light; c.save(); c.globalCompositeOperation = 'lighter';
+    const c = e.light, k = e.unit / 3; c.save(); c.globalCompositeOperation = 'lighter';
     for (const p of this.list) {
-      c.globalAlpha = (p.blood ? 0.42 : 0.22) * p.life; c.strokeStyle = `rgb(${p.col[0]},${p.col[1]},${p.col[2]})`; c.lineWidth = p.blood ? 1.9 : 1.2;
+      c.globalAlpha = (p.blood ? 0.42 : 0.22) * p.life; c.strokeStyle = `rgb(${p.col[0]},${p.col[1]},${p.col[2]})`; c.lineWidth = (p.blood ? 1.9 : 1.2) * k;
       c.beginPath(); c.ellipse(p.x, p.y, p.r, p.r * 0.4, 0, 0, Math.PI * 2); c.stroke();
     }
     c.restore(); c.globalAlpha = 1;
@@ -2173,7 +2599,7 @@ __req("src/library/effects/atmosphere.js");
 __mod["src/library/backdrops/skyline.js"] = function(__exports, __req){
 // SKYLINE — the open city: parallax layers of windowed buildings over the wet street.
 const { defineBackdrop } = __req("src/objects/registry.js");
-const { buildSkyline, paintSkyline, wetFloor } = __req("src/library/backdrops/skyline-core.js");
+const { buildSkyline, paintSkyline, windowGlow, wetFloor } = __req("src/library/backdrops/skyline-core.js");
 
 defineBackdrop('skyline', data => ({
   build(e) {
@@ -2181,6 +2607,7 @@ defineBackdrop('skyline', data => ({
     return buildSkyline(e, data.backdrop.seed, layers, (data.ground || 0.8) * e.H);
   },
   draw(e) { paintSkyline(e, this.geom, e.scene.camera.look); wetFloor(e); },
+  glow(e) { windowGlow(e, this.geom, e.scene.camera.look); },   // distant window bloom + bokeh + flicker (on the light buffer)
 }));
 
 };
@@ -2191,6 +2618,11 @@ __mod["src/library/backdrops/skyline-core.js"] = function(__exports, __req){
 const { PALETTE } = __req("src/style/palette.js");
 const { rand32 } = __req("src/engine/math.js");
 
+// a stable 0..1 pseudo-random from a position, used for per-window flicker phase + bokeh size so a
+// window's behaviour is deterministic WITHOUT consuming the layout rng (which would shift the seed
+// and move every building). Keeps existing skylines identical.
+function hash2(x, y) { const h = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453; return h - Math.floor(h); }
+
 function buildSkyline(e, seed, cfgList, groundY) {
   const rng = rand32(seed), layers = [];
   for (const cfg of cfgList) {
@@ -2198,7 +2630,13 @@ function buildSkyline(e, seed, cfgList, groundY) {
     while (x < e.W + 220) {
       const w = cfg.minW + rng() * (cfg.maxW - cfg.minW), h = (cfg.minH + rng() * (cfg.maxH - cfg.minH)) * (groundY - cfg.top), top = groundY - h, wins = [];
       const cols = Math.max(2, w / 16 | 0), rows = Math.max(3, h / 20 | 0);
-      for (let r = 0; r < rows; r++) for (let ci = 0; ci < cols; ci++) { if (rng() > cfg.win) continue; wins.push({ x: x + 7 + ci * (w - 14) / cols, y: top + 10 + r * (h - 16) / rows, warm: rng() > 0.8 }); }
+      for (let r = 0; r < rows; r++) for (let ci = 0; ci < cols; ci++) {
+        if (rng() > cfg.win) continue;
+        const wx = x + 7 + ci * (w - 14) / cols, wy = top + 10 + r * (h - 16) / rows, hh = hash2(wx, wy);
+        // ~6% of windows are failing tubes: their bloom is drawn live (and can drop dark), the rest
+        // bake into a static glow sprite.
+        wins.push({ x: wx, y: wy, warm: rng() > 0.8, flk: hh < 0.06 ? hh * 104 % 6.283 : null });
+      }
       const cap = rng() < 0.25 ? { type: rng() < 0.5 ? 'tank' : 'ant', x: x + w * (0.3 + rng() * 0.4) } : null;
       blds.push({ x, w, top, h, wins, cap }); x += w + 2 + rng() * 16;
     }
@@ -2207,25 +2645,82 @@ function buildSkyline(e, seed, cfgList, groundY) {
   return layers;
 }
 
-// Each layer's buildings + windows are static, so they are rendered once to an offscreen canvas
-// (at device resolution) and cached on the layer. Per frame we just blit that canvas at the
-// parallax offset, instead of re-running the building/window loops every frame.
+// Each layer's buildings + windows are static, so they are rendered once to an offscreen canvas and
+// cached on the layer. Per frame we just blit that canvas at the parallax offset, instead of
+// re-running the building/window loops every frame. The geometry is in LOGICAL units (e.W is the
+// logical band width, constant per aspect ratio), so the sprite is baked at the real device scale
+// DS = DPR * ls and blitted into a logical rect, staying pixel-crisp at any resolution while the
+// composition (building count + layout) stays identical when only the size changes.
 const PAD = 200;   // horizontal margin so parallax + zoom-out never reveal the sprite's edge
 function layerSprite(e, L) {
-  if (L._sprite && L._spriteW === e.W && L._spriteDPR === e.DPR) return L._sprite;
-  const DPR = e.DPR || 1, CW = e.W + PAD * 2, H = e.H;
-  const cv = document.createElement('canvas'); cv.width = Math.floor(CW * DPR); cv.height = Math.floor(H * DPR);
-  const c = cv.getContext('2d'); c.setTransform(DPR, 0, 0, DPR, 0, 0); c.translate(PAD, 0);
+  const DS = (e.DPR || 1) * (e.ls || 1);
+  if (L._sprite && L._spriteW === e.W && L._spriteDS === DS) return L._sprite;
+  const CW = e.W + PAD * 2, H = e.H;
+  const cv = document.createElement('canvas'); cv.width = Math.floor(CW * DS); cv.height = Math.floor(H * DS);
+  const c = cv.getContext('2d'); c.setTransform(DS, 0, 0, DS, 0, 0); c.translate(PAD, 0);
   c.fillStyle = L.shade;
   for (const b of L.blds) { c.fillRect(b.x, b.top, b.w, b.h + 6); if (b.cap) { if (b.cap.type === 'tank') { c.fillRect(b.cap.x - 7, b.top - 14, 14, 14); c.fillRect(b.cap.x - 9, b.top - 2, 18, 3); } else c.fillRect(b.cap.x - 1, b.top - 22, 2, 22); } }
   for (const b of L.blds) for (const wn of b.wins) { c.fillStyle = wn.warm ? PALETTE.warmWin : PALETTE.coolWin; c.fillRect(wn.x, wn.y, 4, 5); }
-  L._sprite = cv; L._spriteW = e.W; L._spriteDPR = e.DPR;
+  L._sprite = cv; L._spriteW = e.W; L._spriteDS = DS;
   return cv;
 }
 
 function paintSkyline(e, layers, par) {
   const c = e.ctx, CW = e.W + PAD * 2;
   for (const L of layers) c.drawImage(layerSprite(e, L), par * L.depth - PAD, 0, CW, e.H);
+}
+
+// --- distant window lights: a soft bloom over the lit window squares, blitted ADDITIVELY on the
+// light buffer (they are atmosphere, not real lights, so they never touch the foreground lighting
+// maths). The backdrop's glow hook runs in the BACK light pass, so the bloom sits behind the cast. ---
+const _soft = {};
+function softGlow(col) {                   // a soft round bloom, peak at the centre
+  if (_soft[col]) return _soft[col];
+  const cv = document.createElement('canvas'); cv.width = cv.height = 64;
+  const c = cv.getContext('2d'), g = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, `rgba(${col},1)`); g.addColorStop(0.5, `rgba(${col},0.45)`); g.addColorStop(1, `rgba(${col},0)`);
+  c.fillStyle = g; c.fillRect(0, 0, 64, 64);
+  return _soft[col] = cv;
+}
+const WARM = '255,224,164', COOL = '188,204,236';
+
+// bake the steady bloom for a layer (skips the live-flicker windows). Cached like the layer sprite.
+function glowSprite(e, L) {
+  const DS = (e.DPR || 1) * (e.ls || 1);
+  if (L._glow && L._glowW === e.W && L._glowDS === DS) return L._glow;
+  const CW = e.W + PAD * 2, r = 4.5;
+  const cv = document.createElement('canvas'); cv.width = Math.floor(CW * DS); cv.height = Math.floor(e.H * DS);
+  const c = cv.getContext('2d'); c.setTransform(DS, 0, 0, DS, 0, 0); c.translate(PAD, 0); c.globalCompositeOperation = 'lighter';
+  c.globalAlpha = 0.6;
+  for (const b of L.blds) for (const wn of b.wins) {
+    if (wn.flk != null) continue;                       // flicker windows are drawn live
+    c.drawImage(softGlow(wn.warm ? WARM : COOL), wn.x - r, wn.y - r, r * 2, r * 2);
+  }
+  L._glow = cv; L._glowW = e.W; L._glowDS = DS; return cv;
+}
+
+// a failing-tube value 0..1: dark most of the time, then a short buzzing burst now and then
+function flickerVal(t, ph) {
+  if (Math.sin(t * 0.6 + ph * 9.0) < 0.55) return 0;     // not in a flicker burst right now
+  const buzz = Math.sin(t * 34 + ph * 6.28);
+  return buzz > -0.1 ? 0.55 + 0.45 * Math.sin(t * 60 + ph) : 0.12;
+}
+
+// paint the window bloom for a backdrop's layers on the light buffer at the parallax offset.
+function windowGlow(e, layers, par) {
+  const c = e.light, CW = e.W + PAD * 2, t = e.t, r = 4.5;
+  c.save(); c.globalCompositeOperation = 'lighter';
+  for (const L of layers) { c.globalAlpha = 0.85; c.drawImage(glowSprite(e, L), par * L.depth - PAD, 0, CW, e.H); }
+  for (const L of layers) {                              // live failing-tube windows over the steady bloom
+    const off = par * L.depth;
+    for (const b of L.blds) for (const wn of b.wins) {
+      if (wn.flk == null) continue;
+      const v = flickerVal(t, wn.flk); if (v <= 0) continue;
+      c.globalAlpha = v * 0.85;
+      c.drawImage(softGlow(wn.warm ? WARM : COOL), wn.x + off - r, wn.y - r, r * 2, r * 2);
+    }
+  }
+  c.restore();
 }
 
 // the shared dark wet floor (coloured light reflections are added later on the light buffer)
@@ -2268,6 +2763,7 @@ function balcony(c, x, y, w) {
 
 __exports.buildSkyline = buildSkyline;
 __exports.paintSkyline = paintSkyline;
+__exports.windowGlow = windowGlow;
 __exports.wetFloor = wetFloor;
 __exports.brickWall = brickWall;
 __exports.fireEscape = fireEscape;
@@ -2277,9 +2773,20 @@ __mod["src/library/backdrops/alley.js"] = function(__exports, __req){
 // ALLEY — two brick walls converging on a far slice of skyline, with a fire escape.
 const { defineBackdrop } = __req("src/objects/registry.js");
 const { PALETTE } = __req("src/style/palette.js");
+const { lerp } = __req("src/engine/math.js");
 const { buildSkyline, paintSkyline, wetFloor, brickWall, fireEscape, balcony } = __req("src/library/backdrops/skyline-core.js");
 
+// no window glow here: the brick walls cover most of the skyline, so an additive bloom would leak
+// onto the brick. The far slice is tiny anyway.
 defineBackdrop('alley', data => ({
+  wallTop: 0,            // brick walls rise the full height, so a figure's shadow can climb them
+  // the brick walls hide the moon unless it sits in the central sky gap between them, so a moon to
+  // the side lights nothing (no leaking floor reflection). Same gap the draw carves out.
+  occludesMoon(e, mx, my) {
+    const vx = e.W * 0.5 + e.scene.camera.look * 0.3, vy = e.H * 0.4, t = Math.min(1, Math.max(0, my) / vy);
+    const left = lerp(e.W * 0.4, vx - e.W * 0.1, t), right = lerp(e.W * 0.6, vx + e.W * 0.1, t);
+    return mx < left || mx > right;
+  },
   build(e) { return buildSkyline(e, data.backdrop.seed || 77123, [{ depth: 0.4, top: e.H * 0.3, shade: PALETTE.farInk, minW: 50, maxW: 110, minH: 0.3, maxH: 0.55, win: 0.18 }], e.H * 0.62); },
   draw(e) {
     const c = e.ctx, g = e.gy, look = e.scene.camera.look, vx = e.W * 0.5 + look * 0.3, vy = e.H * 0.4;
@@ -2298,10 +2805,11 @@ __mod["src/library/backdrops/rooftop.js"] = function(__exports, __req){
 // ROOFTOP — above the city: distant skyline, washing lines, a low parapet.
 const { defineBackdrop } = __req("src/objects/registry.js");
 const { PALETTE } = __req("src/style/palette.js");
-const { buildSkyline, paintSkyline } = __req("src/library/backdrops/skyline-core.js");
+const { buildSkyline, paintSkyline, windowGlow } = __req("src/library/backdrops/skyline-core.js");
 
 defineBackdrop('rooftop', data => ({
   build(e) { return buildSkyline(e, data.backdrop.seed || 55512, [{ depth: 0.3, top: e.H * 0.4, shade: PALETTE.farInk, minW: 40, maxW: 100, minH: 0.2, maxH: 0.45, win: 0.22 }, { depth: 0.6, top: e.H * 0.46, shade: '#06070b', minW: 60, maxW: 140, minH: 0.16, maxH: 0.38, win: 0.18 }], e.H * 0.72); },
+  glow(e) { windowGlow(e, this.geom, e.scene.camera.look * 0.5); },   // distant window bloom + bokeh + flicker
   draw(e) {
     const c = e.ctx, g = e.gy, par = e.scene.camera.look;
     const glow = c.createLinearGradient(0, e.H * 0.5, 0, e.H * 0.74); glow.addColorStop(0, 'rgba(40,46,60,0)'); glow.addColorStop(1, 'rgba(70,80,105,0.35)'); c.fillStyle = glow; c.fillRect(0, e.H * 0.5, e.W, e.H * 0.24);
@@ -2322,6 +2830,7 @@ const { PALETTE } = __req("src/style/palette.js");
 
 defineBackdrop('room', data => ({
   indoor: true,
+  wallTop: 0,            // a flat back wall spans the full height above the floor, so shadows climb it
   draw(e) {
     const c = e.ctx, g = e.gy, b = data.backdrop || {}, ox = e.scene.camera.look * 0.3;
     const wall = c.createLinearGradient(0, 0, 0, g); wall.addColorStop(0, b.wallTop || '#0a0c11'); wall.addColorStop(1, b.wall || '#06070b');
@@ -2366,16 +2875,22 @@ defineLight('lamp', {
     const t = e.t, X = e.X(this), s = e.unit * (this.scale || 1);
     const flick = this.flicker ? (Math.sin(t * 30 + (this.seed || 0)) > -0.9 ? 1 : 0.4) * (0.85 + 0.15 * Math.sin(t * 7)) : 1;
     this._flick = flick; this._X = X; this._s = s;
-    e.addLight({ x: X + 26 * s, y: e.gy - 150 * s, col: '255,250,225', r: 150 * (this.scale || 1), I: 0.5 * flick, ew: 6 * s, eh: 6 * s });
+    // the lamp throws a volumetric beam from the BULB down to the wet floor. No air glow: the halo
+    // sat around the hood above the bulb and read like the lid was glowing. The light sits exactly at
+    // the drawn bulb (x + 26, gy - 150), so the shaft starts at the lamp, not the lid. The floor wash
+    // gives the pool where it lands.
+    e.addLight({
+      x: X + 26 * s, y: e.gy - 150 * s, col: '255,250,225', r: 50 * s, I: 0.5 * flick, ew: 6 * s, eh: 6 * s,
+      glow: false,
+      beam: { dir: 0, len: 150 * s, farW: 70 * s, I: flick },
+    });
   },
   draw(e) {
     const c = e.ctx, X = this._X, s = this._s, gy = e.gy, fl = (this.intensity || 1) * this._flick, ink = e.palette.ink;
     const topY = gy - 150 * s; c.fillStyle = ink;
     c.fillRect(X - 2 * s, topY, 4 * s, 150 * s);
     c.beginPath(); c.moveTo(X, topY); c.lineTo(X + 26 * s, topY - 4 * s); c.lineTo(X + 26 * s, topY + 3 * s); c.closePath(); c.fill();
-    const lx = X + 26 * s, ly = topY - 2 * s, g = c.createRadialGradient(lx, ly, 0, lx, ly + 110 * s, 150 * s);
-    g.addColorStop(0, `rgba(255,250,225,${0.30 * fl})`); g.addColorStop(0.4, `rgba(230,235,255,${0.10 * fl})`); g.addColorStop(1, 'rgba(230,235,255,0)');
-    c.fillStyle = g; c.beginPath(); c.moveTo(lx, ly); c.lineTo(lx - 70 * s, gy); c.lineTo(lx + 70 * s, gy); c.closePath(); c.fill();
+    const lx = X + 26 * s, ly = topY - 2 * s;
     c.fillStyle = `rgba(255,250,230,${fl})`; c.shadowColor = '#fff'; c.shadowBlur = 24 * fl; c.beginPath(); c.arc(lx, ly + 4 * s, 4 * s, 0, 7); c.fill(); c.shadowBlur = 0;
     c.fillStyle = ink; c.beginPath(); c.moveTo(lx - 7 * s, ly - 6 * s); c.lineTo(lx + 7 * s, ly - 6 * s); c.lineTo(lx + 4 * s, ly + 2 * s); c.lineTo(lx - 4 * s, ly + 2 * s); c.closePath(); c.fill();
   },
@@ -2390,11 +2905,12 @@ defineLight('neon', {
       if (!covering) { const st = e.sceneT(); flick = st < 0.4 ? 0.04 : (st < 1.9 ? (Math.sin(st * 34) > -0.1 ? flick : 0.12) : flick); if (st >= 0.4 && !e.flags._ign) { e.flags._ign = true; Audio2.neonZap(); } }
       else flick = 0.04;
     }
-    this._flick = flick; this._X = X; this._y = y;
-    const lx = X + this.w / 2 + (this.arrow ? this.h * 0.45 : 0), ly = y + this.h / 2;
-    e.addLight({ x: lx, y: ly, col: hexRgb(this.color), r: Math.max(this.w, this.h) * 1.8, I: 0.9 * flick, ew: this.w * 0.55, eh: this.h * 0.55 });
+    const u3 = e.unit / 3, w = this.w * u3, h = this.h * u3;   // sign + halo scale together (= 1080p sizes at 1080p)
+    this._flick = flick; this._X = X; this._y = y; this._w = w; this._h = h;
+    const lx = X + w / 2 + (this.arrow ? h * 0.45 : 0), ly = y + h / 2;
+    e.addLight({ x: lx, y: ly, col: hexRgb(this.color), r: Math.max(w, h) * 1.8, I: 0.9 * flick, ew: w * 0.55, eh: h * 0.55 });
   },
-  draw(e) { neonFixture(e.ctx, this._X, this._y, this.w, this.h, this.color, this.label, this._flick, this.arrow); },
+  draw(e) { neonFixture(e.ctx, this._X, this._y, this._w, this._h, this.color, this.label, this._flick, this.arrow); },
 });
 
 defineLight('bulb', {
@@ -2402,21 +2918,26 @@ defineLight('bulb', {
     const t = e.t, X = e.X(this), y = (this.y != null ? this.y : 0.5) * e.H;
     const flick = this.flicker ? (Math.sin(t * 30 + (this.seed || 0)) > -0.9 ? 1 : 0.4) * (0.85 + 0.15 * Math.sin(t * 7)) : 1;
     this._flick = flick; this._X = X; this._y = y;
-    e.addLight({ x: X, y, col: '255,244,210', r: 150, I: 0.6 * flick, ew: 5, eh: 5 });
+    const u3 = e.unit / 3;   // radius scales with the screen (= 1080p values at 1080p), so coverage is consistent
+    // a hanging bulb throws a soft cone DOWN onto whatever is below it (the table), so the surface it
+    // hangs over reads as lit, not just the bulb glowing. intensity now actually drives the light.
+    e.addLight({
+      x: X, y, col: '255,244,210', r: 160 * u3, I: 0.8 * (this.intensity || 1) * flick, ew: 5 * u3, eh: 5 * u3,
+      beam: { dir: 0, len: (e.gy - y) * 0.82, farW: 96 * u3, I: 0.6 * flick },
+    });
   },
   draw(e) {
-    const c = e.ctx, x = this._X, y = this._y, fl = (this.intensity || 1) * this._flick;
-    c.strokeStyle = e.palette.ink; c.lineWidth = 1; c.beginPath(); c.moveTo(x, y - 95); c.lineTo(x, y); c.stroke();
-    const g = c.createRadialGradient(x, y, 0, x, y, 120); g.addColorStop(0, `rgba(255,244,210,${0.22 * fl})`); g.addColorStop(1, 'rgba(255,244,210,0)');
-    c.fillStyle = g; c.beginPath(); c.arc(x, y, 120, 0, 7); c.fill();
-    c.fillStyle = `rgba(255,246,220,${fl})`; c.shadowColor = '#fff'; c.shadowBlur = 16; c.beginPath(); c.arc(x, y, 3.5, 0, 7); c.fill(); c.shadowBlur = 0;
+    const c = e.ctx, x = this._X, y = this._y, fl = (this.intensity || 1) * this._flick, u3 = e.unit / 3;
+    c.strokeStyle = e.palette.ink; c.lineWidth = 1; c.beginPath(); c.moveTo(x, y - 95 * u3); c.lineTo(x, y); c.stroke();
+    // the air glow comes from the lighting system (emitLight). This draws only the lit filament.
+    c.fillStyle = `rgba(255,246,220,${fl})`; c.shadowColor = '#fff'; c.shadowBlur = 16 * u3; c.beginPath(); c.arc(x, y, 3.5 * u3, 0, 7); c.fill(); c.shadowBlur = 0;
   },
 });
 
 defineLight('glow', {
   emitLight(e) {
-    const X = e.X(this), y = (this.y != null ? this.y : 0.5) * e.H, I = 0.5 * (this.intensity || 1);
-    e.addLight({ x: X, y, col: cssRgb(this.color), r: this.r, I, ew: this.r * 0.3, eh: this.r * 0.3 });
+    const X = e.X(this), y = (this.y != null ? this.y : 0.5) * e.H, I = 0.5 * (this.intensity || 1), r = this.r * e.unit / 3;
+    e.addLight({ x: X, y, col: cssRgb(this.color), r, I, ew: r * 0.3, eh: r * 0.3 });
   },
 });
 
@@ -2451,38 +2972,53 @@ __mod["src/library/actors/people.js"] = function(__exports, __req){
 const { defineActor } = __req("src/objects/registry.js");
 const { PALETTE, ANIM } = __req("src/style/palette.js");
 const { TWO_PI, lerp, smooth01 } = __req("src/engine/math.js");
-const { rimSign, bodyGrad, shadowPool, ember, cigSmoke, drawFedora, drawPistol, muzzleFlash } = __req("src/library/shared.js");
+const { rimSign, bodyGrad, shade, shadeForm, ember, cigSmoke, drawFedora, drawPistol, muzzleFlash } = __req("src/library/shared.js");
+
+// cloth albedos (the cast's own material colours, noir-desaturated). bodyGrad shades from these, so
+// a dark suit stays dark under a bright light and the detective's pale trench lifts more.
+const TRENCH = [120, 112, 94], HEAVY = [54, 58, 66], PINSTRIPE = [44, 46, 56], SUIT = [66, 70, 80];
+// flat bright surfaces (shirt, bare skin, the motif red) lit through shade()/shadeForm(), so an unlit
+// figure goes dark and the red deepens in shadow instead of staying a fixed pure red.
+const SHIRT = [207, 205, 195], BONE = [220, 220, 220], HAND = [188, 186, 176], RED = [255, 0, 24];
+
+// a one-shot strike (from the legacy build): rises 0 -> 1 over `rise`, then decays over `fall`, so a
+// lighter ignites quickly and settles, instead of starting at full and fading linearly.
+const pulse = (b, rise, fall) => b < rise ? smooth01(b / rise) : Math.max(0, 1 - (b - rise) / fall);
 
 // shared detective pose (so emitLight and draw agree without storing state)
 function trenchPose(e, p) {
   const s = e.scaleOf(p), X = e.X(p), gy = e.gy + (p.dy || 0) * e.unit, t = e.t, sway = Math.sin(t * ANIM.swaySpeed) * 1.2;
   const aim = p.raiseAt == null ? 1 : (e.lineIdx < p.raiseAt ? 0 : (e.lineIdx === p.raiseAt ? smooth01(e.beat() / 2.2) : 1));
   const litCig = p.lightAt == null ? true : (e.lineIdx >= p.lightAt);
-  const flash = (p.lightAt != null && e.lineIdx === p.lightAt) ? Math.max(0, 1 - e.beat() / 0.8) : 0;
-  const hx = lerp(17 * s, 13 * s, aim), hy = lerp(-44 * s, -101 * s, aim);
+  const flash = (p.lightAt != null && e.lineIdx === p.lightAt) ? pulse(e.beat(), 0.12, 0.6) : 0;
+  const hx = lerp(16 * s, 13 * s, aim), hy = lerp(-50 * s, -101 * s, aim);   // down hand rests high (a short arm), up at the mouth
   return { s, X, gy, t, sway, aim, litCig, flash, hx, hy };
 }
 
 defineActor('trenchMan', function (e) {                       // detective: trench coat + fedora
   const c = e.ctx, P = trenchPose(e, this), s = P.s, X = P.X, gy = P.gy, t = P.t, sway = P.sway;
-  const rim = rimSign(e, this), tint = e.litTint(X);
-  e.groundShadow(X + sway, 22 * s, 96 * s);
+  const rim = rimSign(e, this);
   c.save(); c.translate(X + sway, gy);
   c.fillStyle = '#050608'; c.fillRect(-13 * s, -32 * s, 11 * s, 32 * s); c.fillRect(3 * s, -32 * s, 11 * s, 32 * s);
   c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-9 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(10 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.fill();
-  c.fillStyle = bodyGrad(c, 96, s, rim, tint);
+  c.fillStyle = bodyGrad(c, 96, s, TRENCH);
   c.beginPath(); c.moveTo(-22 * s, -36 * s); c.lineTo(-18 * s, -92 * s); c.lineTo(18 * s, -92 * s); c.lineTo(22 * s, -36 * s); c.quadraticCurveTo(0, -28 * s, -22 * s, -36 * s); c.closePath(); c.fill();
   c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 1.5 * s; c.beginPath(); c.moveTo(2 * s, -90 * s); c.lineTo(5 * s, -38 * s); c.stroke();
   c.fillStyle = '#0c0d10'; c.fillRect(-20 * s, -58 * s, 40 * s, 6 * s); c.fillStyle = '#26282e'; c.fillRect(-4 * s, -58 * s, 8 * s, 6 * s);
   const aim = P.aim, litCig = P.litCig, flash = P.flash;
-  const ex = lerp(16 * s, 26 * s, aim), ey = lerp(-60 * s, -73 * s, aim), hx = P.hx, hy = P.hy;
+  const hx = P.hx, hy = P.hy, sx = 11 * s, sy = -87 * s;
+  // the cigarette arm: its elbow sits ON the shoulder->hand line while the arm is down (so it reads
+  // as a straight, relaxed arm with no false bent-arm line), and bows out into a crook only as it
+  // raises to the mouth. Driven by aim, so it interpolates cleanly through the raise.
+  const ex = sx + (hx - sx) * 0.5 + 14 * s * aim, ey = sy + (hy - sy) * 0.5 + 21 * s * aim;
   c.lineCap = 'round'; c.lineJoin = 'round';
   c.strokeStyle = '#2a2f37'; c.lineWidth = 8.5 * s;
-  c.beginPath(); c.moveTo(11 * s, -87 * s); c.lineTo(ex, ey); c.lineTo(hx, hy); c.stroke();
-  c.beginPath(); c.moveTo(-13 * s, -87 * s); c.lineTo(-21 * s, -50 * s); c.stroke();
-  c.strokeStyle = 'rgba(150,160,178,0.3)'; c.lineWidth = 1.4 * s; c.beginPath(); c.moveTo(12 * s, -90 * s); c.lineTo(ex, ey); c.stroke();
-  c.fillStyle = '#bcbab0'; c.beginPath(); c.arc(hx, hy, 2.9 * s, 0, TWO_PI); c.arc(-21 * s, -48 * s, 3.2 * s, 0, TWO_PI); c.fill();
-  c.fillStyle = bodyGrad(c, 24, s, rim, tint);
+  c.beginPath(); c.moveTo(sx, sy); c.lineTo(ex, ey); c.lineTo(hx, hy); c.stroke();
+  c.beginPath(); c.moveTo(-11 * s, -87 * s); c.lineTo(-16 * s, -50 * s); c.stroke();   // the other arm: same length, hangs straight at his side
+  // the inner-arm highlight (the crease of a bent arm) only shows as the arm bends to smoke
+  c.strokeStyle = `rgba(150,160,178,${0.3 * aim})`; c.lineWidth = 1.4 * s; c.beginPath(); c.moveTo(12 * s, -90 * s); c.lineTo(ex, ey); c.stroke();
+  c.fillStyle = shade(HAND); c.beginPath(); c.arc(hx, hy, 2.9 * s, 0, TWO_PI); c.arc(-16 * s, -50 * s, 2.9 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = bodyGrad(c, 24, s, TRENCH);
   c.beginPath(); c.moveTo(-26 * s, -90 * s); c.quadraticCurveTo(0, -104 * s, 26 * s, -90 * s); c.lineTo(18 * s, -84 * s); c.quadraticCurveTo(0, -94 * s, -18 * s, -84 * s); c.closePath(); c.fill();
   c.fillStyle = PALETTE.ink; c.beginPath(); c.moveTo(-10 * s, -96 * s); c.lineTo(-2 * s, -107 * s); c.lineTo(-1 * s, -92 * s); c.closePath(); c.moveTo(10 * s, -96 * s); c.lineTo(2 * s, -107 * s); c.lineTo(1 * s, -92 * s); c.closePath(); c.fill();
   c.fillStyle = '#15161a'; c.fillRect(-6 * s, -104 * s, 12 * s, 10 * s);
@@ -2490,51 +3026,80 @@ defineActor('trenchMan', function (e) {                       // detective: tren
   c.fillStyle = PALETTE.ink; c.beginPath(); c.arc(0, -112 * s, 10 * s, Math.PI * 1.15, Math.PI * 1.95); c.fill();
   drawFedora(c, 0, -120 * s, 13 * s, rim);
   if (aim > 0.5) {
-    c.save(); c.translate(hx, hy); c.fillStyle = '#d8d2c4'; c.fillRect(2 * s, -1 * s, 7 * s, 2 * s); c.restore();
+    c.save(); c.translate(hx, hy); c.fillStyle = shade([216, 210, 196]); c.fillRect(2 * s, -1 * s, 7 * s, 2 * s); c.restore();
     if (litCig) { cigSmoke(c, hx + 9 * s, hy, s, t); ember(c, hx + 9 * s, hy, s, t); }
-    if (flash > 0) { c.save(); c.globalCompositeOperation = 'lighter'; const fg = c.createRadialGradient(hx + 6 * s, hy, 0, hx + 6 * s, hy, 46 * s); fg.addColorStop(0, `rgba(255,170,80,${0.55 * flash})`); fg.addColorStop(1, 'rgba(255,170,80,0)'); c.fillStyle = fg; c.beginPath(); c.arc(hx + 6 * s, hy, 46 * s, 0, TWO_PI); c.fill(); c.restore(); }
+    // the lighter held to the cigarette: a small teardrop flame that flickers for a moment then is
+    // gone. Its glow on the scene comes from emitLight (the light system), not a painted gradient.
+    if (flash > 0) {
+      const lx = hx + 9 * s, ly = hy, fh = (7 + Math.sin(t * 40) * 1.6) * s * (0.5 + 0.5 * flash);
+      c.save(); c.globalCompositeOperation = 'lighter';
+      c.fillStyle = `rgba(255,140,40,${0.85 * flash})`; c.beginPath(); c.moveTo(lx - 2.4 * s, ly); c.quadraticCurveTo(lx - 2.2 * s, ly - fh * 0.6, lx, ly - fh); c.quadraticCurveTo(lx + 2.2 * s, ly - fh * 0.6, lx + 2.4 * s, ly); c.quadraticCurveTo(lx, ly + 1.6 * s, lx - 2.4 * s, ly); c.fill();
+      c.fillStyle = `rgba(255,242,190,${0.95 * flash})`; c.beginPath(); c.moveTo(lx - 1.1 * s, ly); c.quadraticCurveTo(lx - 1 * s, ly - fh * 0.45, lx, ly - fh * 0.7); c.quadraticCurveTo(lx + 1 * s, ly - fh * 0.45, lx + 1.1 * s, ly); c.quadraticCurveTo(lx, ly + s, lx - 1.1 * s, ly); c.fill();
+      c.restore();
+    }
   }
   c.restore();
 }, {
+  shadowW: 22, shadowH: 130,
+  shadowSil(e, c) {                                            // coat + shoulders + head + fedora
+    const s = e.scaleOf(this);
+    c.beginPath(); c.rect(-13 * s, -34 * s, 11 * s, 34 * s); c.rect(3 * s, -34 * s, 11 * s, 34 * s); c.fill();
+    c.beginPath(); c.moveTo(-22 * s, -36 * s); c.lineTo(-18 * s, -92 * s); c.lineTo(18 * s, -92 * s); c.lineTo(22 * s, -36 * s); c.closePath(); c.fill();
+    c.beginPath(); c.moveTo(-26 * s, -90 * s); c.quadraticCurveTo(0, -104 * s, 26 * s, -90 * s); c.lineTo(0, -84 * s); c.closePath(); c.fill();
+    c.beginPath(); c.arc(0, -112 * s, 10 * s, 0, TWO_PI); c.fill();
+    c.beginPath(); c.ellipse(0, -119 * s, 17 * s, 5 * s, 0, 0, TWO_PI); c.fill();
+    c.beginPath(); c.rect(-9 * s, -130 * s, 18 * s, 12 * s); c.fill();
+  },
   emitLight(e) {
     const P = trenchPose(e, this);
-    if (P.aim > 0.5 && P.litCig) {
-      const cwx = P.X + P.sway + P.hx + 9 * P.s, cwy = P.gy + P.hy, I = 0.3 + P.flash * 0.6;
-      e.addLight({ x: cwx, y: cwy, col: '255,150,60', r: 84 * P.s, I: I * 0.7, ew: 4 * P.s, eh: 4 * P.s });
-    }
+    if (!(P.aim > 0.5 && P.litCig)) return;
+    const cwx = P.X + P.sway + P.hx + 9 * P.s, cwy = P.gy + P.hy;
+    e.addLight({ x: cwx, y: cwy, col: '255,150,60', r: 84 * P.s, I: 0.21, ew: 4 * P.s, eh: 4 * P.s, front: true });   // the steady ember
+    // its glint on the wet floor, faint for the ember and flaring as the lighter strikes (legacy floorRefl)
+    e.addLight({ x: cwx, y: cwy, col: '255,160,70', r: 100 * P.s, I: 0.3, glow: false, wash: false, reflW: (8 + 6 * P.flash) * P.s, reflI: 0.13 + 0.5 * P.flash, reflLen: 0.32 + 0.12 * P.flash });
+    // the lighter's flame: a brief, brighter, warmer flare at the instant of lighting, then gone
+    if (P.flash > 0) e.addLight({ x: cwx, y: cwy - 4 * P.s, col: '255,214,150', r: 150 * P.s, I: 0.95 * P.flash, ew: 6 * P.s, eh: 9 * P.s, front: true });
   },
 });
 
 defineActor('thug', function (e) {                            // the heavy: broad, flat cap, big fists
   const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, rim = rimSign(e, this);
-  e.groundShadow(X, 30 * s, 86 * s);
   c.save(); c.translate(X, gy);
   c.fillStyle = '#050608'; c.fillRect(-18 * s, -36 * s, 15 * s, 36 * s); c.fillRect(3 * s, -36 * s, 15 * s, 36 * s);
   c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-11 * s, -1 * s, 12 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(12 * s, -1 * s, 12 * s, 4 * s, 0, 0, TWO_PI); c.fill();
-  c.fillStyle = bodyGrad(c, 82, s, rim);
+  c.fillStyle = bodyGrad(c, 82, s, HEAVY);
   c.beginPath(); c.moveTo(-30 * s, -36 * s); c.lineTo(-34 * s, -78 * s); c.quadraticCurveTo(0, -96 * s, 34 * s, -78 * s); c.lineTo(30 * s, -36 * s); c.quadraticCurveTo(0, -28 * s, -30 * s, -36 * s); c.closePath(); c.fill();
-  c.fillStyle = '#cfcdc3'; c.beginPath(); c.moveTo(-6 * s, -82 * s); c.lineTo(6 * s, -82 * s); c.lineTo(3 * s, -54 * s); c.lineTo(-3 * s, -54 * s); c.closePath(); c.fill();
-  c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(-2.5 * s, -80 * s); c.lineTo(2.5 * s, -80 * s); c.lineTo(1.5 * s, -56 * s); c.lineTo(-1.5 * s, -56 * s); c.closePath(); c.fill();
-  c.fillStyle = bodyGrad(c, 36, s, rim); c.beginPath(); c.moveTo(-12 * s, -84 * s); c.lineTo(-6 * s, -82 * s); c.lineTo(-7 * s, -52 * s); c.lineTo(-16 * s, -56 * s); c.closePath(); c.moveTo(12 * s, -84 * s); c.lineTo(6 * s, -82 * s); c.lineTo(7 * s, -52 * s); c.lineTo(16 * s, -56 * s); c.closePath(); c.fill();
+  c.fillStyle = shade(SHIRT); c.beginPath(); c.moveTo(-6 * s, -82 * s); c.lineTo(6 * s, -82 * s); c.lineTo(3 * s, -54 * s); c.lineTo(-3 * s, -54 * s); c.closePath(); c.fill();
+  c.fillStyle = shade(RED); c.beginPath(); c.moveTo(-2.5 * s, -80 * s); c.lineTo(2.5 * s, -80 * s); c.lineTo(1.5 * s, -56 * s); c.lineTo(-1.5 * s, -56 * s); c.closePath(); c.fill();
+  c.fillStyle = bodyGrad(c, 36, s, HEAVY); c.beginPath(); c.moveTo(-12 * s, -84 * s); c.lineTo(-6 * s, -82 * s); c.lineTo(-7 * s, -52 * s); c.lineTo(-16 * s, -56 * s); c.closePath(); c.moveTo(12 * s, -84 * s); c.lineTo(6 * s, -82 * s); c.lineTo(7 * s, -52 * s); c.lineTo(16 * s, -56 * s); c.closePath(); c.fill();
   c.fillStyle = PALETTE.ink; c.fillRect(-34 * s, -80 * s, 9 * s, 42 * s); c.fillRect(25 * s, -80 * s, 9 * s, 42 * s);
   c.beginPath(); c.arc(-30 * s, -36 * s, 7 * s, 0, TWO_PI); c.arc(30 * s, -36 * s, 7 * s, 0, TWO_PI); c.fill();
   c.fillStyle = '#1a1b20'; c.beginPath(); c.arc(0, -90 * s, 11 * s, 0, TWO_PI); c.fill();
   c.fillStyle = PALETTE.ink; c.beginPath(); c.arc(0, -90 * s, 11 * s, Math.PI * 1.1, Math.PI * 2.0); c.fill();
   c.beginPath(); c.arc(0, -98 * s, 11 * s, Math.PI, 0); c.fill(); c.beginPath(); c.ellipse(-9 * s, -98 * s, 9 * s, 3 * s, 0, 0, TWO_PI); c.fill();
   c.restore();
+}, {
+  shadowW: 34, shadowH: 102,
+  shadowSil(e, c) {                                            // broad torso, fists, flat cap
+    const s = e.scaleOf(this);
+    c.beginPath(); c.rect(-18 * s, -38 * s, 15 * s, 38 * s); c.rect(3 * s, -38 * s, 15 * s, 38 * s); c.fill();
+    c.beginPath(); c.moveTo(-30 * s, -36 * s); c.lineTo(-34 * s, -78 * s); c.quadraticCurveTo(0, -96 * s, 34 * s, -78 * s); c.lineTo(30 * s, -36 * s); c.closePath(); c.fill();
+    c.beginPath(); c.rect(-34 * s, -80 * s, 9 * s, 44 * s); c.rect(25 * s, -80 * s, 9 * s, 44 * s); c.fill();
+    c.beginPath(); c.arc(0, -90 * s, 11 * s, 0, TWO_PI); c.fill();
+    c.beginPath(); c.arc(0, -98 * s, 11 * s, Math.PI, 0); c.fill();
+  },
 });
 
 defineActor('boss', function (e) {                            // mob boss: pinstripe suit, fedora, cigar
   const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, t = e.t, rim = rimSign(e, this);
-  e.groundShadow(X, 24 * s, 92 * s);
   c.save(); c.translate(X, gy);
   c.fillStyle = '#050608'; c.fillRect(-13 * s, -32 * s, 11 * s, 32 * s); c.fillRect(3 * s, -32 * s, 11 * s, 32 * s);
   c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-9 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(10 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.fill();
-  c.fillStyle = bodyGrad(c, 92, s, rim);
+  c.fillStyle = bodyGrad(c, 92, s, PINSTRIPE);
   c.beginPath(); c.moveTo(-24 * s, -34 * s); c.lineTo(-20 * s, -88 * s); c.quadraticCurveTo(0, -100 * s, 20 * s, -88 * s); c.lineTo(24 * s, -34 * s); c.quadraticCurveTo(0, -28 * s, -24 * s, -34 * s); c.closePath(); c.fill();
   c.strokeStyle = 'rgba(150,160,180,0.16)'; c.lineWidth = 1; for (let i = -3; i <= 3; i++) { c.beginPath(); c.moveTo(i * 6 * s, -88 * s); c.lineTo(i * 6 * s + i * 1.2 * s, -34 * s); c.stroke(); }
-  c.fillStyle = '#cfcdc3'; c.beginPath(); c.moveTo(-5 * s, -88 * s); c.lineTo(5 * s, -88 * s); c.lineTo(3 * s, -60 * s); c.lineTo(-3 * s, -60 * s); c.closePath(); c.fill();
-  c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(-2.5 * s, -86 * s); c.lineTo(2.5 * s, -86 * s); c.lineTo(1.4 * s, -58 * s); c.lineTo(-1.4 * s, -58 * s); c.closePath(); c.fill();
+  c.fillStyle = shade(SHIRT); c.beginPath(); c.moveTo(-5 * s, -88 * s); c.lineTo(5 * s, -88 * s); c.lineTo(3 * s, -60 * s); c.lineTo(-3 * s, -60 * s); c.closePath(); c.fill();
+  c.fillStyle = shade(RED); c.beginPath(); c.moveTo(-2.5 * s, -86 * s); c.lineTo(2.5 * s, -86 * s); c.lineTo(1.4 * s, -58 * s); c.lineTo(-1.4 * s, -58 * s); c.closePath(); c.fill();
   c.fillStyle = '#15161a'; c.fillRect(-5 * s, -100 * s, 10 * s, 10 * s);
   c.fillStyle = '#1a1b20'; c.beginPath(); c.arc(0, -108 * s, 9 * s, 0, TWO_PI); c.fill();
   c.fillStyle = PALETTE.ink; c.beginPath(); c.arc(0, -108 * s, 9 * s, Math.PI * 1.1, Math.PI * 2.0); c.fill();
@@ -2543,15 +3108,28 @@ defineActor('boss', function (e) {                            // mob boss: pinst
   cigSmoke(c, 19 * s, -104 * s, s, t);
   c.save(); c.fillStyle = 'rgba(255,80,30,0.95)'; c.shadowColor = PALETTE.ember; c.shadowBlur = 12; c.beginPath(); c.arc(19 * s, -102.5 * s, 2.4 * s, 0, TWO_PI); c.fill(); c.restore();
   c.restore();
+}, {
+  shadowW: 24, shadowH: 126,
+  shadowSil(e, c) {                                            // suit, head, fedora
+    const s = e.scaleOf(this);
+    c.beginPath(); c.rect(-13 * s, -34 * s, 11 * s, 34 * s); c.rect(3 * s, -34 * s, 11 * s, 34 * s); c.fill();
+    c.beginPath(); c.moveTo(-24 * s, -34 * s); c.lineTo(-20 * s, -88 * s); c.quadraticCurveTo(0, -100 * s, 20 * s, -88 * s); c.lineTo(24 * s, -34 * s); c.closePath(); c.fill();
+    c.beginPath(); c.arc(0, -108 * s, 9 * s, 0, TWO_PI); c.fill();
+    c.beginPath(); c.ellipse(0, -115 * s, 16 * s, 4.5 * s, 0, 0, TWO_PI); c.fill();
+    c.beginPath(); c.rect(-8 * s, -126 * s, 16 * s, 12 * s); c.fill();
+  },
+  emitLight(e) {                                               // the lit cigar tip is a small warm light, in front of him
+    const s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit;
+    e.addLight({ x: X + 19 * s, y: gy - 102.5 * s, col: '255,140,50', r: 60 * s, I: 0.28, ew: 3 * s, eh: 3 * s, front: true });
+  },
 });
 
 defineActor('gunman', function (e) {                          // shooter, arm extended, muzzle flash on 'muzzle'
-  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, rim = rimSign(e, this), tint = e.litTint(X), flash = e.flags.muzzle || 0;
-  e.groundShadow(X, 20 * s, 90 * s);
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, rim = rimSign(e, this), flash = e.flags.muzzle || 0;
   c.save(); c.translate(X, gy); if (this.flip) c.scale(-1, 1);
   c.fillStyle = '#050608'; c.fillRect(-12 * s, -32 * s, 10 * s, 32 * s); c.fillRect(4 * s, -32 * s, 10 * s, 32 * s);
   c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-8 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(11 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.fill();
-  c.fillStyle = bodyGrad(c, 88, s, rim, tint);
+  c.fillStyle = bodyGrad(c, 88, s, SUIT);
   c.beginPath(); c.moveTo(-20 * s, -34 * s); c.lineTo(-16 * s, -86 * s); c.quadraticCurveTo(0, -98 * s, 16 * s, -86 * s); c.lineTo(20 * s, -34 * s); c.quadraticCurveTo(0, -28 * s, -20 * s, -34 * s); c.closePath(); c.fill();
   c.fillStyle = '#1a1b20'; c.beginPath(); c.arc(0, -104 * s, 9 * s, 0, TWO_PI); c.fill();
   c.fillStyle = PALETTE.ink; c.beginPath(); c.arc(0, -104 * s, 9 * s, Math.PI * 1.1, Math.PI * 2.0); c.fill();
@@ -2562,43 +3140,94 @@ defineActor('gunman', function (e) {                          // shooter, arm ex
   c.save(); c.translate(hx, hy); c.rotate(ang); drawPistol(c, 0, 0, s); c.restore();
   if (flash > 0 && aim > 0.82) muzzleFlash(c, hx + Math.cos(ang) * 18 * s, hy + Math.sin(ang) * 18 * s, s, flash);
   c.restore();
+}, {
+  shadowW: 22, shadowH: 121,
+  // the gunshot floods the scene like the original: a warm flash over the cast (front halo) plus real
+  // light on the wet floor and the back wall with a reflection, all through the light system.
+  emitLight(e) {
+    const flash = e.flags.muzzle || 0;
+    if (flash <= 0) return;
+    const s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, dir = this.flip ? -1 : 1;
+    const aim = (this.raiseAt != null) ? (e.lineIdx < this.raiseAt ? 0 : (e.lineIdx === this.raiseAt ? smooth01(e.beat() / 2.4) : 1)) : 1;
+    const sy = -86 * s, hx = lerp(13 * s, 34 * s, aim), hy = lerp(-52 * s, -82 * s, aim), ang = Math.atan2(hy - sy, hx - 6 * s);
+    const mx = X + dir * (hx + Math.cos(ang) * 18 * s), my = gy + hy + Math.sin(ang) * 18 * s;
+    e.addLight({ x: mx, y: my, col: '255,178,90', r: 240 * s, I: flash, ew: 9 * s, eh: 9 * s, front: true });                                   // the flash over the scene
+    e.addLight({ x: mx, y: my, col: '255,150,60', r: 300 * s, I: 0.9 * flash, glow: false, reflW: 22 * s, reflI: 0.55 * flash, reflLen: 0.5 }); // floor + wall + the wet shimmer
+  },
+  shadowSil(e, c) {                                            // suit, head, fedora + the extended gun arm
+    const s = e.scaleOf(this);
+    if (this.flip) c.scale(-1, 1);
+    const aim = (this.raiseAt != null) ? (e.lineIdx < this.raiseAt ? 0 : (e.lineIdx === this.raiseAt ? smooth01(e.beat() / 2.4) : 1)) : 1;
+    const sx = 6 * s, sy = -86 * s, hx = lerp(13 * s, 34 * s, aim), hy = lerp(-52 * s, -82 * s, aim);
+    c.beginPath(); c.rect(-12 * s, -34 * s, 10 * s, 34 * s); c.rect(4 * s, -34 * s, 10 * s, 34 * s); c.fill();
+    c.beginPath(); c.moveTo(-20 * s, -34 * s); c.lineTo(-16 * s, -86 * s); c.quadraticCurveTo(0, -98 * s, 16 * s, -86 * s); c.lineTo(20 * s, -34 * s); c.closePath(); c.fill();
+    c.lineCap = 'round'; c.strokeStyle = '#000'; c.lineWidth = 9 * s; c.beginPath(); c.moveTo(sx, sy); c.lineTo(hx, hy); c.stroke();
+    c.beginPath(); c.arc(0, -104 * s, 9 * s, 0, TWO_PI); c.fill();
+    c.beginPath(); c.rect(-7 * s, -121 * s, 14 * s, 12 * s); c.fill();
+  },
 });
 
 defineActor('womanInRed', function (e) {                      // femme fatale — the colour that bleeds
   const c = e.ctx, s = e.scaleOf(this), X = e.walkX(this), gy = e.gy + (this.dy || 0) * e.unit, t = e.t, walk = Math.sin(t * ANIM.walkSpeed);
   if (this.walk) { const i = Math.min(e.lineIdx, this.walk.length - 1), prev = i > 0 ? this.walk[i - 1] : this.walk[0]; e.walkSound(prev !== this.walk[i] && e.beat() < (this.walkDur || 3.4) - 0.2); }
-  let reflA = 1;
-  if (this.passX != null) { const manX = this.passX * e.W + e.scene.camera.look * (this.par == null ? 0.5 : this.par); reflA = smooth01((Math.abs(X - manX) - 20 * s) / (40 * s)); }
-  e.groundShadow(X, 13 * s, 84 * s);
+  const rim = rimSign(e, this), sw = walk * 2 * s;   // sw: the hem drifts as she moves
   c.save(); c.translate(X, gy);
-  if (reflA > 0.01) { c.globalAlpha = 0.4 * reflA; const grd = c.createLinearGradient(0, 0, 0, 46 * s); grd.addColorStop(0, 'rgba(200,0,20,0.5)'); grd.addColorStop(1, 'rgba(200,0,20,0)'); c.fillStyle = grd; c.fillRect(-14 * s, 0, 28 * s, 48 * s); c.globalAlpha = 1; }
-  c.fillStyle = PALETTE.bone; c.save(); c.translate(walk * 2 * s, 0); c.beginPath(); c.moveTo(-2 * s, -32 * s); c.lineTo(2 * s, -32 * s); c.lineTo(3 * s, -2 * s); c.lineTo(-1 * s, -2 * s); c.closePath(); c.fill(); c.restore();
-  c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(1 * s, -2 * s); c.lineTo(7 * s, 0); c.lineTo(1 * s, 1 * s); c.closePath(); c.fill();
-  const dg = c.createLinearGradient(-12 * s, 0, 12 * s, 0); dg.addColorStop(0, '#8e0009'); dg.addColorStop(0.5, '#e2101a'); dg.addColorStop(1, '#9e000c');
-  c.fillStyle = dg; c.shadowColor = 'rgba(210,0,24,0.5)'; c.shadowBlur = 18 * s;
-  c.beginPath(); c.moveTo(-7 * s, -58 * s); c.quadraticCurveTo(-12 * s, -40 * s, -6 * s, -34 * s); c.quadraticCurveTo(-16 * s, -18 * s, -12 * s + walk * 2 * s, 0); c.quadraticCurveTo(0, 6 * s, 12 * s + walk * 2 * s, 0); c.quadraticCurveTo(16 * s, -18 * s, 6 * s, -34 * s); c.quadraticCurveTo(12 * s, -40 * s, 7 * s, -58 * s); c.closePath(); c.fill();
-  c.beginPath(); c.moveTo(-7 * s, -58 * s); c.quadraticCurveTo(-8 * s, -70 * s, -5 * s, -76 * s); c.lineTo(5 * s, -76 * s); c.quadraticCurveTo(8 * s, -70 * s, 7 * s, -58 * s); c.closePath(); c.fill();
-  c.shadowBlur = 0;
-  c.fillStyle = PALETTE.bone; c.beginPath(); c.moveTo(-5 * s, -76 * s); c.quadraticCurveTo(-12 * s, -72 * s, -10 * s, -50 * s); c.lineTo(-7 * s, -50 * s); c.quadraticCurveTo(-8 * s, -70 * s, -3 * s, -74 * s); c.closePath(); c.fill();
-  c.beginPath(); c.arc(0, -84 * s, 6.5 * s, 0, TWO_PI); c.fill();
+  // a leg through the thigh slit (bone) + a red heel
+  c.fillStyle = shade(BONE); c.save(); c.translate(walk * 2 * s, 0); c.beginPath(); c.moveTo(-2 * s, -36 * s); c.lineTo(3 * s, -36 * s); c.lineTo(4 * s, -2 * s); c.lineTo(0, -2 * s); c.closePath(); c.fill(); c.restore();
+  c.fillStyle = shade(RED); c.beginPath(); c.moveTo(sw, -2 * s); c.lineTo(8 * s + sw, 0); c.lineTo(sw, 1 * s); c.closePath(); c.fill();
+  // slim bone arms with a soft bend, hands resting at the waist
+  c.strokeStyle = shade(BONE); c.lineWidth = 3.2 * s; c.lineCap = 'round'; c.lineJoin = 'round';
+  c.beginPath(); c.moveTo(-7 * s, -70 * s); c.lineTo(-12 * s, -56 * s); c.lineTo(-9 * s, -44 * s); c.stroke();
+  c.beginPath(); c.moveTo(7 * s, -70 * s); c.lineTo(12 * s, -56 * s); c.lineTo(9 * s, -44 * s); c.stroke();
+  // a slim neck (bone) so the head meets the gown
+  c.fillStyle = shade(BONE); c.beginPath(); c.moveTo(-2.5 * s, -80 * s); c.lineTo(2.5 * s, -80 * s); c.lineTo(2 * s, -68 * s); c.lineTo(-2 * s, -68 * s); c.closePath(); c.fill();
+  // the gown: shaded by the lighting system (a red material, lit edge toward the light, not a baked
+  // sheen), sweetheart neckline, cinched waist, curvy hips, a long mermaid skirt. The soft red bleed
+  // is her motif (the colour that bleeds).
+  c.fillStyle = bodyGrad(c, 80, s, [205, 14, 24]);
+  c.beginPath();
+  c.moveTo(-9 * s, -66 * s);                                   // left bust
+  c.quadraticCurveTo(-5 * s, -52 * s, -5 * s, -48 * s);        // into the cinched waist
+  c.quadraticCurveTo(-15 * s, -30 * s, -12 * s + sw, 0);       // hip flares out to the hem
+  c.quadraticCurveTo(0, 6 * s, 12 * s + sw, 0);                // hem
+  c.quadraticCurveTo(15 * s, -30 * s, 5 * s, -48 * s);         // right hip back to the waist
+  c.quadraticCurveTo(5 * s, -52 * s, 9 * s, -66 * s);          // waist up to the right bust
+  c.quadraticCurveTo(7 * s, -74 * s, 3 * s, -72 * s);          // right cup
+  c.quadraticCurveTo(0, -67 * s, -3 * s, -72 * s);             // the sweetheart dip
+  c.quadraticCurveTo(-7 * s, -74 * s, -9 * s, -66 * s);        // left cup
+  c.closePath(); c.fill();
+  c.strokeStyle = '#b8000d'; c.lineWidth = 1.3 * s;            // thin shoulder straps
+  c.beginPath(); c.moveTo(-6 * s, -73 * s); c.lineTo(-3 * s, -82 * s); c.moveTo(6 * s, -73 * s); c.lineTo(3 * s, -82 * s); c.stroke();
+  // head (bone), dark bob, red lips
+  c.fillStyle = shadeForm(c, 0, -84 * s, 6.5 * s, BONE); c.beginPath(); c.arc(0, -84 * s, 6.5 * s, 0, TWO_PI); c.fill();
   c.fillStyle = '#070708'; c.beginPath(); c.arc(0, -86 * s, 8 * s, Math.PI * 0.9, Math.PI * 2.2); c.fill();
   c.beginPath(); c.moveTo(6 * s, -88 * s); c.quadraticCurveTo(12 * s, -78 * s, 7 * s, -66 * s); c.quadraticCurveTo(4 * s, -74 * s, 4 * s, -84 * s); c.closePath(); c.fill();
-  c.fillStyle = PALETTE.redHot; c.beginPath(); c.ellipse(-1 * s, -81 * s, 2.2 * s, 1.1 * s, 0, 0, TWO_PI); c.fill();
+  c.fillStyle = shade(RED); c.beginPath(); c.ellipse(-1 * s, -81 * s, 2.2 * s, 1.1 * s, 0, 0, TWO_PI); c.fill();
   c.restore();
+}, {
+  shadowW: 15, shadowH: 91,
+  shadowSil(e, c) {                                            // the shapely gown + head
+    const s = e.scaleOf(this);
+    c.beginPath();
+    c.moveTo(-9 * s, -66 * s); c.quadraticCurveTo(-5 * s, -52 * s, -5 * s, -48 * s); c.quadraticCurveTo(-15 * s, -30 * s, -12 * s, 0);
+    c.quadraticCurveTo(0, 6 * s, 12 * s, 0); c.quadraticCurveTo(15 * s, -30 * s, 5 * s, -48 * s); c.quadraticCurveTo(5 * s, -52 * s, 9 * s, -66 * s);
+    c.quadraticCurveTo(7 * s, -74 * s, 0, -72 * s); c.quadraticCurveTo(-7 * s, -74 * s, -9 * s, -66 * s); c.closePath(); c.fill();
+    c.beginPath(); c.arc(0, -84 * s, 7 * s, 0, TWO_PI); c.fill();
+  },
 });
 
 defineActor('dealer', function (e) {                          // croupier behind the table (the felt covers his lower half)
   const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, rim = rimSign(e, this);
   c.save(); c.translate(X, gy);
-  c.fillStyle = bodyGrad(c, 70, s, rim);
+  c.fillStyle = bodyGrad(c, 70, s);
   c.beginPath(); c.moveTo(-19 * s, 0); c.lineTo(-17 * s, -52 * s); c.quadraticCurveTo(-22 * s, -64 * s, -12 * s, -68 * s); c.quadraticCurveTo(0, -76 * s, 12 * s, -68 * s); c.quadraticCurveTo(22 * s, -64 * s, 17 * s, -52 * s); c.lineTo(19 * s, 0); c.closePath(); c.fill();
-  c.fillStyle = '#cdcbc1'; c.beginPath(); c.moveTo(-4 * s, -66 * s); c.lineTo(4 * s, -66 * s); c.lineTo(3 * s, -30 * s); c.lineTo(-3 * s, -30 * s); c.closePath(); c.fill();
+  c.fillStyle = shade([205, 203, 193]); c.beginPath(); c.moveTo(-4 * s, -66 * s); c.lineTo(4 * s, -66 * s); c.lineTo(3 * s, -30 * s); c.lineTo(-3 * s, -30 * s); c.closePath(); c.fill();
   c.fillStyle = '#0c0e13'; c.beginPath(); c.moveTo(-12 * s, -68 * s); c.lineTo(-4 * s, -66 * s); c.lineTo(-3 * s, -30 * s); c.lineTo(-13 * s, -36 * s); c.closePath(); c.moveTo(12 * s, -68 * s); c.lineTo(4 * s, -66 * s); c.lineTo(3 * s, -30 * s); c.lineTo(13 * s, -36 * s); c.closePath(); c.fill();
-  c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(-4.5 * s, -67 * s); c.lineTo(0, -64 * s); c.lineTo(-4.5 * s, -61 * s); c.closePath(); c.moveTo(4.5 * s, -67 * s); c.lineTo(0, -64 * s); c.lineTo(4.5 * s, -61 * s); c.closePath(); c.fill();
+  c.fillStyle = shade(RED); c.beginPath(); c.moveTo(-4.5 * s, -67 * s); c.lineTo(0, -64 * s); c.lineTo(-4.5 * s, -61 * s); c.closePath(); c.moveTo(4.5 * s, -67 * s); c.lineTo(0, -64 * s); c.lineTo(4.5 * s, -61 * s); c.closePath(); c.fill();
   c.fillStyle = '#7a0008'; c.fillRect(-1.2 * s, -65.5 * s, 2.4 * s, 3 * s);
   c.strokeStyle = '#101319'; c.lineWidth = 7 * s; c.lineCap = 'round';
   c.beginPath(); c.moveTo(-13 * s, -56 * s); c.lineTo(-22 * s, -30 * s); c.moveTo(13 * s, -56 * s); c.lineTo(22 * s, -30 * s); c.stroke();
-  c.fillStyle = '#bdbbb0'; c.beginPath(); c.arc(-23 * s, -28 * s, 3.5 * s, 0, TWO_PI); c.arc(23 * s, -28 * s, 3.5 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = shade([189, 187, 176]); c.beginPath(); c.arc(-23 * s, -28 * s, 3.5 * s, 0, TWO_PI); c.arc(23 * s, -28 * s, 3.5 * s, 0, TWO_PI); c.fill();
   c.fillStyle = '#1a1b20'; c.beginPath(); c.arc(0, -80 * s, 8 * s, 0, TWO_PI); c.fill();
   c.fillStyle = PALETTE.ink; c.beginPath(); c.arc(0, -82 * s, 8 * s, Math.PI, 0); c.fill();
   c.fillStyle = 'rgba(170,135,45,0.6)'; c.beginPath(); c.ellipse(0, -79 * s, 9.5 * s, 3 * s, 0, 0, Math.PI); c.fill();
@@ -2606,22 +3235,33 @@ defineActor('dealer', function (e) {                          // croupier behind
 }, { castsShadow: false });
 
 defineActor('singer', function (e) {                          // lounge singer at the mic, in a spotlight
-  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, gown = this.red ? '#cf0a16' : '#cdc9bf';
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit;
+  rimSign(e, this);                                            // set the light field for shade() (gown + skin)
+  const gown = shade(this.red ? [207, 10, 22] : [205, 201, 191]);
   c.save(); c.translate(X, gy);
-  const sl = c.createRadialGradient(0, -60 * s, 0, 0, -60 * s, 84 * s); sl.addColorStop(0, 'rgba(255,250,230,0.12)'); sl.addColorStop(1, 'rgba(255,250,230,0)'); c.fillStyle = sl; c.beginPath(); c.arc(0, -60 * s, 84 * s, 0, TWO_PI); c.fill();
-  shadowPool(c, 0, 4 * s, 22 * s, 6 * s);
   c.fillStyle = gown; c.shadowColor = this.red ? 'rgba(210,0,24,0.4)' : 'rgba(0,0,0,0)'; c.shadowBlur = this.red ? 14 * s : 0;
   c.beginPath(); c.moveTo(-6 * s, -66 * s); c.quadraticCurveTo(-10 * s, -30 * s, -16 * s, 0); c.quadraticCurveTo(0, 5 * s, 16 * s, 0); c.quadraticCurveTo(10 * s, -30 * s, 6 * s, -66 * s); c.closePath(); c.fill();
   c.beginPath(); c.moveTo(-6 * s, -66 * s); c.quadraticCurveTo(-7 * s, -78 * s, -4 * s, -84 * s); c.lineTo(4 * s, -84 * s); c.quadraticCurveTo(7 * s, -78 * s, 6 * s, -66 * s); c.closePath(); c.fill(); c.shadowBlur = 0;
   c.strokeStyle = gown; c.lineWidth = 5 * s; c.lineCap = 'round'; c.beginPath(); c.moveTo(4 * s, -80 * s); c.lineTo(16 * s, -92 * s); c.stroke();
-  c.fillStyle = PALETTE.bone; c.beginPath(); c.arc(16 * s, -92 * s, 3.5 * s, 0, TWO_PI); c.fill();
-  c.beginPath(); c.arc(0, -92 * s, 6.5 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = shade(BONE); c.beginPath(); c.arc(16 * s, -92 * s, 3.5 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = shadeForm(c, 0, -92 * s, 6.5 * s, BONE); c.beginPath(); c.arc(0, -92 * s, 6.5 * s, 0, TWO_PI); c.fill();
   c.fillStyle = '#070708'; c.beginPath(); c.arc(0, -94 * s, 8 * s, Math.PI * 0.85, Math.PI * 2.25); c.fill();
-  c.fillStyle = PALETTE.redHot; c.beginPath(); c.ellipse(0, -89 * s, 2.2 * s, 1.1 * s, 0, 0, TWO_PI); c.fill();
+  c.fillStyle = shade(RED); c.beginPath(); c.ellipse(0, -89 * s, 2.2 * s, 1.1 * s, 0, 0, TWO_PI); c.fill();
   c.strokeStyle = PALETTE.ink; c.lineWidth = 2.5 * s; c.beginPath(); c.moveTo(21 * s, -86 * s); c.lineTo(21 * s, 0); c.stroke();
   c.fillStyle = '#1a1d22'; c.beginPath(); c.ellipse(20 * s, -90 * s, 4 * s, 5 * s, 0, 0, TWO_PI); c.fill();
   c.strokeStyle = 'rgba(200,210,225,0.4)'; c.lineWidth = 1; c.beginPath(); c.ellipse(20 * s, -90 * s, 4 * s, 5 * s, 0, 0, TWO_PI); c.stroke();
   c.restore();
+}, {
+  shadowW: 16, shadowH: 90,
+  shadowSil(e, c) {                                            // gown + head, cast by the overhead spotlight
+    const s = e.scaleOf(this);
+    c.beginPath(); c.moveTo(-6 * s, -66 * s); c.quadraticCurveTo(-10 * s, -30 * s, -16 * s, 0); c.quadraticCurveTo(0, 5 * s, 16 * s, 0); c.quadraticCurveTo(10 * s, -30 * s, 6 * s, -66 * s); c.closePath(); c.fill();
+    c.beginPath(); c.arc(0, -86 * s, 8 * s, 0, TWO_PI); c.fill();
+  },
+  emitLight(e) {                                               // the spotlight is a real overhead light (was a hand-drawn cone)
+    const s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit;
+    e.addLight({ x: X, y: gy - 150 * s, col: '255,250,230', r: 110 * s, I: 0.5, ew: 7 * s, eh: 7 * s, shade: true, beam: { dir: 0, len: 150 * s, farW: 46 * s, I: 0.6 } });
+  },
 });
 
 };
@@ -2631,7 +3271,7 @@ __mod["src/library/shared.js"] = function(__exports, __req){
 // helpers so library files import their shading from one place.
 const { TWO_PI } = __req("src/engine/math.js");
 const { PALETTE, ANIM } = __req("src/style/palette.js");
-{ const __m = __req("src/style/materials.js"); __exports.rimSign = __m.rimSign; __exports.bodyGrad = __m.bodyGrad; __exports.shadowPool = __m.shadowPool; }
+{ const __m = __req("src/style/materials.js"); __exports.rimSign = __m.rimSign; __exports.bodyGrad = __m.bodyGrad; __exports.shade = __m.shade; __exports.shadeForm = __m.shadeForm; }
 
 function ember(c, x, y, s, t) { const em = 0.6 + 0.4 * Math.sin(t * ANIM.emberSpeed); c.save(); c.fillStyle = `rgba(255,60,30,${0.7 + 0.3 * em})`; c.shadowColor = PALETTE.ember; c.shadowBlur = 10 * em; c.beginPath(); c.arc(x, y, 1.9 * s, 0, TWO_PI); c.fill(); c.restore(); }
 
@@ -2666,6 +3306,9 @@ function drawPistol(c, x, y, s) {
   c.restore();
 }
 
+// MUZZLE FLASH — the original burst: a soft yellow star with a white-hot centre (f: 1 just fired ->
+// 0 gone). The flash that actually floods the alley and shimmers on the wet floor is real light, the
+// gunman registers it in emitLight, so this is only the spark at the barrel.
 function muzzleFlash(c, x, y, s, f) {
   c.save(); c.translate(x, y); c.globalAlpha = f; c.fillStyle = PALETTE.amber; c.shadowColor = '#ff3000'; c.shadowBlur = 30;
   c.beginPath(); for (let i = 0; i < 10; i++) { const a = i / 10 * TWO_PI, r = (i % 2 ? 6 : 18) * s * (0.6 + f); c.lineTo(Math.cos(a) * r, Math.sin(a) * r); } c.closePath(); c.fill();
@@ -2681,37 +3324,119 @@ __exports.muzzleFlash = muzzleFlash;
 __mod["src/style/materials.js"] = function(__exports, __req){
 // MATERIALS — shared surface shading so every object looks cut from the same cloth.
 // Change a material here and the whole cast restyles. `e` is the frame (for light queries).
-const { TWO_PI } = __req("src/engine/math.js");
+//
+// THE MODEL (one light field, two consumers). Every lit surface is shaded as
+//     colour = albedo x ( ambientFill + directLight(direction) )
+// where:
+//   - ambientFill is a soft, cool, scene-set floor (AMB x the scene ambient hue), so a shadow is a
+//     deep blue-grey and NEVER pure black: the shadow side still reads, the noir way.
+//   - directLight wraps around the form with a half-Lambert term from the light's CONTINUOUS
+//     direction, so it rolls off to a soft terminator (no hard "suddenly black" edge), is tinted by
+//     the light's own colour, and scales with how much light reaches the figure.
+// rimSign() measures the whole light field once per figure (direction, amount, hue, ambient), all
+// time-smoothed so flickering sources settle. bodyGrad() samples it across the body as a gradient
+// (the cloth); shade() applies the flat version to small surfaces (a shirt, bare skin). Front lights
+// (a held cigarette) are local glows, not form light, so they are excluded from the field.
+const { AMBIENT, ENV } = __req("src/style/shadows.js");
 
-// which edge catches the light: toward the weighted CENTRE of nearby lights (not a single
-// dominant pick), with a dead zone + hysteresis so a flickering neon or a flaring cigarette
-// can't snap the lit edge from side to side (that was the "flickering man" artifact).
+const BASE = [58, 64, 73];   // default cloth albedo (the old steel) for objects that name no colour
+let _fill = 0.22;            // ambient floor (shadow-side brightness): set per scene from the env profile (indoor lifts it)
+
+// the per-figure light field, set by rimSign for the paired bodyGrad/shade calls
+let _lit = 0;                // 0..1 how strongly the figure is lit (smoothed)
+let _lhx = 0;                // -1..+1 continuous horizontal light direction (smoothed)
+let _vb = 0;                 // -1..+1 vertical lean of the light (top vs bottom)
+let _amb = [0.67, 0.77, 1];  // scene ambient hue, normalised (cool shadows)
+let _lcol = [1, 1, 1];       // dominant light hue on the lit side, normalised (smoothed)
+
 function rimSign(e, node) {
   const X = e.X(node);
-  let wx = 0, wsum = 0;
-  for (const L of e.lights) { const w = L.I * (1 - Math.abs(X - L.x) / (L.r * 1.1)); if (w > 0) { wx += L.x * w; wsum += w; } }
-  const lx = wsum > 0.05 ? wx / wsum : e.keyLight.x * e.W, margin = 0.06 * e.W;
+  let wx = 0, wy = 0, wr = 0, wg = 0, wb = 0, wsum = 0;
+  // a light reaches objects within REACH x its radius (decoupled from the tight air glow), and the
+  // shadow side falls to _fill x albedo. Both come from the env profile: indoor light reaches and
+  // fills more (it bounces and splashes), outdoor is contained and falls into the dark.
+  const env = ENV[e.scene.indoor ? 'indoor' : 'outdoor'];
+  const REACH = env.reach; _fill = env.fill;
+  for (const L of e.lights) {
+    if (L.front) continue;
+    const w = L.I * (1 - Math.abs(X - L.x) / (L.r * REACH));
+    if (w > 0) { const cc = L.col.split(','); wx += L.x * w; wy += L.y * w; wr += +cc[0] * w; wg += +cc[1] * w; wb += +cc[2] * w; wsum += w; }
+  }
+  let lx = wsum > 0.05 ? wx / wsum : e.keyLight.x * e.W;
+  let ly = wsum > 0.05 ? wy / wsum : e.keyLight.y * e.H;
+  // smooth the light CENTRE + COLOUR + amount on the node, so flickering or competing sources settle
+  // instead of strobing the figure or making the lit edge jump from side to side.
+  const sm = (prev, v) => prev == null ? v : prev + (v - prev) * 0.03;
+  lx = node._lx = sm(node._lx, lx); ly = node._ly = sm(node._ly, ly);
+  const a = Math.min(1, wsum * 0.9); _lit = node._lit = sm(node._lit, a);
+  const cr = node._cr = sm(node._cr, wsum > 0.05 ? wr / wsum : 235);
+  const cg = node._cg = sm(node._cg, wsum > 0.05 ? wg / wsum : 238);
+  const cb = node._cb = sm(node._cb, wsum > 0.05 ? wb / wsum : 245);
+  const cm = Math.max(cr, cg, cb, 1); _lcol = [cr / cm, cg / cm, cb / cm];
+  // continuous direction: how far to the side the light sits (full side near +/-1, frontal near 0),
+  // and the vertical lean (light above the torso vs below it).
+  _lhx = Math.max(-1, Math.min(1, (lx - X) / (e.W * 0.22)));
+  const yc = e.gy + (node.dy || 0) * e.unit - 50 * e.unit;
+  _vb = Math.max(-1, Math.min(1, (yc - ly) / (90 * e.unit)));
+  // the ambient hue (cool, scene-set), normalised so it tints the shadow side without re-darkening it
+  const ac = ((e.scene.data.ambient && e.scene.data.ambient.col) || AMBIENT.col).split(',').map(Number);
+  const am = Math.max(ac[0], ac[1], ac[2], 1); _amb = [ac[0] / am, ac[1] / am, ac[2] / am];
+  // a stable left/right sign (hysteresis) for parts that just need a side, e.g. the fedora highlight
+  const margin = 0.06 * e.W;
   let sign = node._rim || (lx < X ? -1 : 1);
   if (lx < X - margin) sign = -1; else if (lx > X + margin) sign = 1;
   return node._rim = sign;
 }
 
-// horizontal "form" light: a lit edge on the light side, tinted by that light's colour
-function bodyGrad(c, h, s, rim, tint) {
-  rim = rim || 1;
-  const g = c.createLinearGradient(rim * 34 * s, 0, -rim * 34 * s, 0);
-  let lit = '#3a4049';
-  if (tint) { const m = 0.5; lit = `rgb(${Math.round(58 + (tint[0] - 58) * m)},${Math.round(64 + (tint[1] - 64) * m)},${Math.round(73 + (tint[2] - 73) * m)})`; }
-  g.addColorStop(0, lit); g.addColorStop(0.42, '#181b21'); g.addColorStop(1, '#080909');
+// one band of the surface at direct-light level d (0..1): albedo x (ambient fill + direct light).
+const _cl = v => v < 0 ? 0 : v > 255 ? 255 : Math.round(v);
+const band = (A, d) => `rgb(${_cl(A[0] * (_fill * _amb[0] + (1 - _fill) * d * _lcol[0]))},${_cl(A[1] * (_fill * _amb[1] + (1 - _fill) * d * _lcol[1]))},${_cl(A[2] * (_fill * _amb[2] + (1 - _fill) * d * _lcol[2]))})`;
+
+// the light's direction in screen space (horizontal lean _lhx, vertical lean _vb), normalised. The
+// shading ramp points AT the light, so an overhead source reads top-lit, a side source side-lit, a
+// low fire up-lit. This is what makes light DIRECTION visible on the form (not just its amount).
+function lightAxis() {
+  let dx = _lhx, dy = -_vb; const m = Math.hypot(dx, dy);
+  return m < 0.001 ? [0, -1] : [dx / m, dy / m];
+}
+
+const WRAP = 0.8;   // how directional the form light is (a clear lit -> shadow ramp; ambient fills the shadow)
+
+// the cloth: ambient fill + a half-Lambert wrap of direct light along the light direction, sampled
+// as a smooth multi-stop gradient (no hard knee). The shadow side falls to the ambient fill, never black.
+function bodyGrad(c, h, s, albedo) {
+  const A = albedo || BASE, [dx, dy] = lightAxis(), R = 34 * s;
+  const g = c.createLinearGradient(dx * R, dy * R, -dx * R, -dy * R);
+  for (let i = 0; i <= 6; i++) {
+    const t = i / 6, u = 1 - 2 * t, hl = (1 - WRAP) + WRAP * Math.max(0, 0.5 + 0.5 * u);
+    g.addColorStop(t, band(A, _lit * hl * hl));
+  }
   return g;
 }
 
-// a plain soft contact blob (props that do not warrant a full directional shadow)
-function shadowPool(c, x, y, rx, ry) { c.save(); c.globalAlpha = 0.32; c.fillStyle = '#000'; c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, TWO_PI); c.fill(); c.restore(); }
+// a round FORM (a face, a head): a GENTLE directional wrap across a small disc, so a face catches the
+// light direction (a touch brighter on the side toward the light) but stays readable, not half black.
+// Skin is a highlight feature, so it leans bright: a soft wrap, no squared falloff.
+const FACE_WRAP = 0.4;
+function shadeForm(c, cx, cy, r, rgb) {
+  const [dx, dy] = lightAxis();
+  const g = c.createLinearGradient(cx + dx * r, cy + dy * r, cx - dx * r, cy - dy * r);
+  for (let i = 0; i <= 3; i++) {
+    const t = i / 3, u = 1 - 2 * t, hl = (1 - FACE_WRAP) + FACE_WRAP * Math.max(0, 0.5 + 0.5 * u);
+    g.addColorStop(t, band(rgb, _lit * hl));
+  }
+  return g;
+}
+
+// a small FLAT surface (a tie, lips, a cigarette): ambient fill + direct light, no gradient. So a
+// motif red still reacts to the light (deepens in shadow, lifts and warms under a source) instead of
+// staying a fixed pure red, but stays small enough not to need a directional ramp.
+function shade(rgb) { return band(rgb, _lit); }
 
 __exports.rimSign = rimSign;
 __exports.bodyGrad = bodyGrad;
-__exports.shadowPool = shadowPool;
+__exports.shadeForm = shadeForm;
+__exports.shade = shade;
 };
 __mod["src/library/actors/animals.js"] = function(__exports, __req){
 // ANIMALS — an alley cat with a glowing eye, and crows that lift off in slow motion.
@@ -2760,11 +3485,8 @@ defineMover('redCar', function (e) {
   const P = pts => { c.beginPath(); c.moveTo(pts[0][0] * s, pts[0][1] * s); for (let i = 1; i < pts.length; i++) c.lineTo(pts[i][0] * s, pts[i][1] * s); c.closePath(); };
   c.save(); c.translate(X, gy); c.scale(this.flip ? 1 : -1, 1);   // authored front-left; default faces RIGHT (its travel direction)
 
-  // soft contact shadow on the wet floor: a feathered ellipse hugging the ground (no hard slab).
-  // The coloured wet glow comes from the head/tail lamps via the lighting pass, not a red box.
-  c.save(); c.translate(0, 1 * s); c.scale(1, 0.16);
-  const sh = c.createRadialGradient(0, 0, 0, 0, 0, 88 * s); sh.addColorStop(0, 'rgba(0,0,0,0.55)'); sh.addColorStop(0.55, 'rgba(0,0,0,0.3)'); sh.addColorStop(1, 'rgba(0,0,0,0)');
-  c.fillStyle = sh; c.beginPath(); c.arc(0, 0, 88 * s, 0, TWO_PI); c.fill(); c.restore();
+  // the floor shadow is cast by the shadow system now (castsShadow + shadowSil below). The coloured
+  // wet glow comes from the head/tail lamps via the lighting pass, not a red box.
 
   // chrome bumpers (dim steel), front-left + rear-right, behind the body
   for (const [x0, x1] of [[-82, -66], [66, 82]]) { const sg = c.createLinearGradient(0, -16 * s, 0, -7 * s); sg.addColorStop(0, '#454a52'); sg.addColorStop(1, '#1b1f25'); c.fillStyle = sg; c.fillRect(x0 * s, -16 * s, (x1 - x0) * s, 9 * s); }
@@ -2802,7 +3524,14 @@ defineMover('redCar', function (e) {
   }
   c.restore();
 }, {
-  castsShadow: false,
+  shadowW: 82, shadowH: 55,
+  shadowSil(e, c) {                                            // the car body footprint, cast on the wet floor
+    const s = e.scaleOf(this);
+    const body = [[-78, -9], [-78, -21], [-72, -31], [-30, -34], [-26, -34], [-13, -54], [-7, -55], [29, -55], [41, -37], [71, -35], [76, -34], [78, -23], [78, -9]];
+    c.beginPath(); c.moveTo(body[0][0] * s, body[0][1] * s); for (let i = 1; i < body.length; i++) c.lineTo(body[i][0] * s, body[i][1] * s); c.closePath(); c.fill();
+    c.fillRect(-80 * s, -12 * s, 160 * s, 12 * s);
+    for (const wx of [-44, 46]) { c.beginPath(); c.arc(wx * s, -12 * s, 12 * s, 0, TWO_PI); c.fill(); }
+  },
   emitLight(e) {
     const s = e.scaleOf(this), X = e.walkX(this), gy = e.gy + (this.dy || 0) * e.unit, ly = gy - 9 * s, dir = this.flip ? -1 : 1;
     e.addLight({ x: X + dir * 78 * s, y: ly, col: '255,238,196', r: 150 * s, I: 0.5, ew: 10 * s, eh: 7 * s });   // headlight (front)
@@ -2816,39 +3545,55 @@ __mod["src/library/props/casino.js"] = function(__exports, __req){
 const { defineProp } = __req("src/objects/registry.js");
 const { PALETTE } = __req("src/style/palette.js");
 const { TWO_PI } = __req("src/engine/math.js");
-const { shadowPool } = __req("src/library/shared.js");
+const { rimSign, shade } = __req("src/library/shared.js");
 
 defineProp('cardTable', function (e) {
   const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, top = gy - 46 * s, w = 132 * s, h = 42 * s;
-  shadowPool(c, X, gy + 4 * s, w * 0.58, 10 * s);
-  c.fillStyle = '#070708'; c.fillRect(X - w * 0.5, top, w, 48 * s);
-  const felt = c.createRadialGradient(X, top, 4 * s, X, top, w * 0.5); felt.addColorStop(0, '#1c2a22'); felt.addColorStop(1, '#0c130f');
+  rimSign(e, this);                                            // read the light field so the table darkens in shadow, lifts under the bulb
+  const card = shade([232, 230, 220]);
+  c.fillStyle = shade([7, 7, 8]); c.fillRect(X - w * 0.5, top, w, 48 * s);
+  const felt = c.createRadialGradient(X, top, 4 * s, X, top, w * 0.5); felt.addColorStop(0, shade([28, 42, 34])); felt.addColorStop(1, shade([12, 19, 15]));
   c.fillStyle = felt; c.beginPath(); c.ellipse(X, top, w * 0.5, h * 0.5, 0, 0, TWO_PI); c.fill();
   c.strokeStyle = 'rgba(200,210,225,0.18)'; c.lineWidth = 2; c.beginPath(); c.ellipse(X, top, w * 0.5, h * 0.5, 0, 0, TWO_PI); c.stroke();
-  c.fillStyle = '#e8e6dc'; for (let i = 0; i < 4; i++) { c.save(); c.translate(X - 30 * s + i * 14 * s, top - 2 * s); c.rotate(-0.3 + i * 0.18); c.fillRect(-6 * s, -9 * s, 12 * s, 18 * s); c.strokeStyle = '#b22'; c.lineWidth = 1; if (i % 2) { c.fillStyle = '#b22'; c.beginPath(); c.arc(0, 0, 1.6 * s, 0, TWO_PI); c.fill(); c.fillStyle = '#e8e6dc'; } c.restore(); }
-  c.fillStyle = '#e8e6dc'; for (const dx of [-10, 6]) { c.save(); c.translate(X + 16 * s + dx * s, top + 2 * s); c.fillRect(-3 * s, -3 * s, 6 * s, 6 * s); c.fillStyle = '#b00010'; c.beginPath(); c.arc(0, 0, 1 * s, 0, TWO_PI); c.fill(); c.fillStyle = '#e8e6dc'; c.restore(); }
+  c.fillStyle = card; for (let i = 0; i < 4; i++) { c.save(); c.translate(X - 30 * s + i * 14 * s, top - 2 * s); c.rotate(-0.3 + i * 0.18); c.fillRect(-6 * s, -9 * s, 12 * s, 18 * s); c.strokeStyle = '#b22'; c.lineWidth = 1; if (i % 2) { c.fillStyle = '#b22'; c.beginPath(); c.arc(0, 0, 1.6 * s, 0, TWO_PI); c.fill(); c.fillStyle = card; } c.restore(); }
+  c.fillStyle = card; for (const dx of [-10, 6]) { c.save(); c.translate(X + 16 * s + dx * s, top + 2 * s); c.fillRect(-3 * s, -3 * s, 6 * s, 6 * s); c.fillStyle = '#b00010'; c.beginPath(); c.arc(0, 0, 1 * s, 0, TWO_PI); c.fill(); c.fillStyle = card; c.restore(); }
   const hot = this.glow !== false;
-  for (let i = 0; i < 5; i++) { c.fillStyle = (hot && i === 4) ? PALETTE.redHot : (i % 2 ? '#cfcfcf' : '#2a2a2a'); c.beginPath(); c.ellipse(X + 42 * s, top - 2 * s - i * 3 * s, 7 * s, 3 * s, 0, 0, TWO_PI); c.fill(); }
+  for (let i = 0; i < 5; i++) { c.fillStyle = (hot && i === 4) ? PALETTE.redHot : (i % 2 ? shade([207, 207, 207]) : shade([42, 42, 42])); c.beginPath(); c.ellipse(X + 42 * s, top - 2 * s - i * 3 * s, 7 * s, 3 * s, 0, 0, TWO_PI); c.fill(); }
   if (hot) { c.save(); c.shadowColor = PALETTE.redHot; c.shadowBlur = 12; c.fillStyle = PALETTE.redHot; c.beginPath(); c.ellipse(X + 42 * s, top - 14 * s, 7 * s, 3 * s, 0, 0, TWO_PI); c.fill(); c.restore(); }
+}, {
+  castsShadow: true, shadowW: 66, shadowH: 46,
+  shadowSil(e, c) {                                            // the table body + top, cast on the floor
+    const s = e.scaleOf(this), w = 132 * s;
+    c.fillRect(-w * 0.5, -46 * s, w, 48 * s);
+    c.beginPath(); c.ellipse(0, -46 * s, w * 0.5, 21 * s, 0, 0, TWO_PI); c.fill();
+  },
 });
 
 defineProp('slotMachine', function (e) {
   const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, w = 46 * s, h = 86 * s;
+  rimSign(e, this);                                            // light field for shade(): cabinet + reels react, the marquee/buttons stay lit
+  const reel = shade([232, 230, 220]);
   c.save(); c.translate(X, gy);
-  shadowPool(c, 0, 4 * s, w * 0.7, 7 * s);
-  const cab = c.createLinearGradient(-w / 2, 0, w / 2, 0); cab.addColorStop(0, '#0c0e12'); cab.addColorStop(0.5, '#1b1f25'); cab.addColorStop(1, '#0c0e12');
+  const cab = c.createLinearGradient(-w / 2, 0, w / 2, 0); cab.addColorStop(0, shade([12, 14, 18])); cab.addColorStop(0.5, shade([27, 31, 37])); cab.addColorStop(1, shade([12, 14, 18]));
   c.fillStyle = cab; c.fillRect(-w / 2, -h, w, h);
   c.beginPath(); c.moveTo(-w / 2, -h); c.quadraticCurveTo(0, -h - 16 * s, w / 2, -h); c.closePath(); c.fill();
   c.save(); c.shadowColor = PALETTE.redHot; c.shadowBlur = 12; c.fillStyle = PALETTE.redHot; c.fillRect(-w / 2 + 4 * s, -h - 6 * s, w - 8 * s, 5 * s); c.restore();
   c.fillStyle = '#05060a'; c.fillRect(-w / 2 + 6 * s, -h + 14 * s, w - 12 * s, 26 * s);
   const syms = ['$', '7', '$'];
-  for (let i = 0; i < 3; i++) { const rx = -w / 2 + 6 * s + (i + 0.5) * (w - 12 * s) / 3; c.fillStyle = '#e8e6dc'; c.fillRect(rx - 5 * s, -h + 16 * s, 10 * s, 22 * s); c.fillStyle = i === 1 ? PALETTE.redHot : '#1a1a1a'; c.font = `bold ${10 * s}px "Courier New",monospace`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(syms[i], rx, -h + 27 * s); }
+  for (let i = 0; i < 3; i++) { const rx = -w / 2 + 6 * s + (i + 0.5) * (w - 12 * s) / 3; c.fillStyle = reel; c.fillRect(rx - 5 * s, -h + 16 * s, 10 * s, 22 * s); c.fillStyle = i === 1 ? PALETTE.redHot : '#1a1a1a'; c.font = `bold ${10 * s}px "Courier New",monospace`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(syms[i], rx, -h + 27 * s); }
   c.fillStyle = '#05060a'; c.fillRect(-10 * s, -h + 50 * s, 20 * s, 3 * s);
   c.fillStyle = '#0a0c10'; c.fillRect(-w / 2 + 6 * s, -18 * s, w - 12 * s, 14 * s);
   c.save(); c.globalAlpha = 0.85; c.fillStyle = PALETTE.amber; c.shadowColor = PALETTE.amber; c.shadowBlur = 8; c.beginPath(); c.arc(-6 * s, -11 * s, 2 * s, 0, TWO_PI); c.arc(2 * s, -11 * s, 2 * s, 0, TWO_PI); c.fill(); c.restore();
-  c.strokeStyle = '#3a3f47'; c.lineWidth = 3 * s; c.beginPath(); c.moveTo(w / 2, -h + 22 * s); c.lineTo(w / 2 + 10 * s, -h + 10 * s); c.stroke();
+  c.strokeStyle = shade([58, 63, 71]); c.lineWidth = 3 * s; c.beginPath(); c.moveTo(w / 2, -h + 22 * s); c.lineTo(w / 2 + 10 * s, -h + 10 * s); c.stroke();
   c.fillStyle = PALETTE.redHot; c.shadowColor = PALETTE.redHot; c.shadowBlur = 8; c.beginPath(); c.arc(w / 2 + 10 * s, -h + 10 * s, 4 * s, 0, TWO_PI); c.fill(); c.shadowBlur = 0;
   c.restore();
+}, {
+  castsShadow: true, shadowW: 24, shadowH: 92,
+  shadowSil(e, c) {                                            // the cabinet, cast on the floor
+    const s = e.scaleOf(this), w = 46 * s, h = 86 * s;
+    c.fillRect(-w / 2, -h, w, h);
+    c.beginPath(); c.moveTo(-w / 2, -h); c.quadraticCurveTo(0, -h - 16 * s, w / 2, -h); c.closePath(); c.fill();
+  },
 });
 
 defineProp('rouletteWheel', function (e) {
@@ -2936,12 +3681,13 @@ __mod["src/library/props/street.js"] = function(__exports, __req){
 const { defineProp } = __req("src/objects/registry.js");
 const { PALETTE } = __req("src/style/palette.js");
 const { TWO_PI } = __req("src/engine/math.js");
-const { shadowPool } = __req("src/library/shared.js");
+const { rimSign, shade } = __req("src/library/shared.js");
 
 defineProp('barrelFire', function (e) {                       // a drum fire in the alley
   const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, t = e.t;
   c.save(); c.translate(X, gy);
-  const fg = c.createRadialGradient(0, -46 * s, 0, 0, -46 * s, 64 * s); fg.addColorStop(0, 'rgba(255,140,30,0.35)'); fg.addColorStop(1, 'rgba(255,90,20,0)'); c.fillStyle = fg; c.beginPath(); c.arc(0, -46 * s, 64 * s, 0, TWO_PI); c.fill();
+  // the warm glow in the air comes from the lighting system (emitLight + air glow + floor wash),
+  // not a hand-drawn gradient here. This draws only the drum and the flames themselves.
   c.fillStyle = '#15181d'; c.fillRect(-16 * s, -44 * s, 32 * s, 44 * s);
   c.strokeStyle = '#0a0c10'; c.lineWidth = 2; c.beginPath(); c.moveTo(-16 * s, -30 * s); c.lineTo(16 * s, -30 * s); c.moveTo(-16 * s, -14 * s); c.lineTo(16 * s, -14 * s); c.stroke();
   c.fillStyle = '#05060a'; c.beginPath(); c.ellipse(0, -44 * s, 16 * s, 4 * s, 0, 0, TWO_PI); c.fill();
@@ -2979,12 +3725,19 @@ defineProp('trafficLight', function (e) {                     // turns green on 
 
 defineProp('fireHydrant', function (e) {
   const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit;
-  c.save(); c.translate(X, gy); shadowPool(c, 0, 2 * s, 12 * s, 3 * s);
+  c.save(); c.translate(X, gy);
   c.fillStyle = '#16191e'; c.fillRect(-6 * s, -22 * s, 12 * s, 22 * s); c.beginPath(); c.arc(0, -22 * s, 7 * s, Math.PI, 0); c.fill();
   c.fillRect(-9 * s, -16 * s, 3 * s, 5 * s); c.fillRect(6 * s, -16 * s, 3 * s, 5 * s);
   c.fillStyle = '#0a0c10'; c.beginPath(); c.arc(0, -26 * s, 2.5 * s, 0, TWO_PI); c.fill();
   c.strokeStyle = 'rgba(200,210,225,0.3)'; c.lineWidth = 1; c.beginPath(); c.moveTo(-5 * s, -20 * s); c.lineTo(-5 * s, -2 * s); c.stroke();
   c.restore();
+}, {
+  castsShadow: true, shadowW: 9, shadowH: 26,
+  shadowSil(e, c) {
+    const s = e.scaleOf(this);
+    c.fillRect(-6 * s, -22 * s, 12 * s, 22 * s); c.beginPath(); c.arc(0, -22 * s, 7 * s, Math.PI, 0); c.fill();
+    c.fillRect(-9 * s, -16 * s, 3 * s, 5 * s); c.fillRect(6 * s, -16 * s, 3 * s, 5 * s);
+  },
 });
 
 defineProp('payphone', function (e) {
@@ -3005,6 +3758,9 @@ defineProp('streetSign', function (e) {
   c.save(); c.translate(0, -116 * s); c.fillStyle = '#1c2a22'; c.fillRect(-30 * s, -7 * s, 60 * s, 12 * s);
   c.fillStyle = 'rgba(220,230,225,0.85)'; c.font = `bold ${7 * s}px "Courier New",monospace`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(this.label || 'SIN ST', 0, -1 * s); c.restore();
   c.restore();
+}, {
+  castsShadow: true, shadowW: 30, shadowH: 123,
+  shadowSil(e, c) { const s = e.scaleOf(this); c.fillRect(-1.5 * s, -120 * s, 3 * s, 120 * s); c.fillRect(-30 * s, -123 * s, 60 * s, 12 * s); },
 });
 
 defineProp('waterTower', function (e) {
@@ -3015,12 +3771,16 @@ defineProp('waterTower', function (e) {
 
 defineProp('dumpster', function (e) {
   const c = e.ctx, s = e.scaleOf(this), X = e.X(this), g = e.gy, bw = 30 * s, bh = 46 * s;
+  rimSign(e, this);                                            // the steel darkens in an unlit corner, lifts near a light
   c.save();
-  c.fillStyle = '#1c2027'; c.fillRect(X - bw / 2, g - bh, bw, bh);
-  c.fillStyle = '#272c35'; c.fillRect(X - bw / 2 - 3 * s, g - bh - 3 * s, bw + 6 * s, 3.5 * s);
+  c.fillStyle = shade([28, 32, 39]); c.fillRect(X - bw / 2, g - bh, bw, bh);
+  c.fillStyle = shade([39, 44, 53]); c.fillRect(X - bw / 2 - 3 * s, g - bh - 3 * s, bw + 6 * s, 3.5 * s);
   c.strokeStyle = 'rgba(0,0,0,0.55)'; c.lineWidth = 1.5; c.strokeRect(X - bw / 2, g - bh, bw, bh);
   c.beginPath(); for (let i = 1; i < 4; i++) { c.moveTo(X - bw / 2 + i * bw / 4, g - bh); c.lineTo(X - bw / 2 + i * bw / 4, g); } c.stroke();
   c.restore();
+}, {
+  castsShadow: true, shadowW: 18, shadowH: 50,
+  shadowSil(e, c) { const s = e.scaleOf(this), bw = 30 * s, bh = 46 * s; c.fillRect(-bw / 2, -bh, bw, bh); c.fillRect(-bw / 2 - 3 * s, -bh - 3 * s, bw + 6 * s, 3.5 * s); },
 });
 
 defineProp('manhole', function (e) {
@@ -3099,6 +3859,7 @@ __mod["src/library/effects/atmosphere.js"] = function(__exports, __req){
 // ATMOSPHERE — drifting steam, a sweeping rooftop searchlight, and a tabloid that blows in.
 const { defineEffect } = __req("src/objects/registry.js");
 const { smooth01, lerp } = __req("src/engine/math.js");
+const { drawBeam } = __req("src/render/lighting.js");
 
 defineEffect('steam', function (e) {
   const c = e.ctx, X = e.X(this), gy = (this.y != null ? this.y * e.H : e.gy), t = e.t, seed = this.seed || 0;
@@ -3107,13 +3868,12 @@ defineEffect('steam', function (e) {
   c.restore();
 });
 
-// a distant searchlight beam sweeping the sky. It lives in the BACK layer (behind the backdrop),
-// so it never lands on the rooftop floor, and it is just the beam: no glow, no floor reflection.
+// a distant searchlight sweeping the sky. It uses the lighting system's shared beam, but draws it in
+// the BACK layer (behind the backdrop), so the city buildings occlude it and it reads as far off,
+// instead of painting over the scene. It only emits the shaft, no glow, wash or floor light.
 defineEffect('searchlight', function (e) {
-  const c = e.ctx, t = e.t, ang = Math.sin(t * 0.4) * 0.5;
-  c.save(); c.translate((this.x || 0.5) * e.W, e.H); c.rotate(ang); c.globalCompositeOperation = 'lighter';
-  const lg = c.createLinearGradient(0, 0, 0, -e.H); lg.addColorStop(0, 'rgba(190,200,220,0.10)'); lg.addColorStop(1, 'rgba(190,200,220,0)');
-  c.fillStyle = lg; c.beginPath(); c.moveTo(0, 0); c.lineTo(-70, -e.H); c.lineTo(70, -e.H); c.closePath(); c.fill(); c.restore();
+  const b = { dir: Math.PI, len: e.H, farW: 70 * (this.scale || 1), I: this.intensity || 0.34, sweep: 0.5, sweepSpeed: 0.4 };
+  drawBeam(e.ctx, e.t, (this.x || 0.5) * e.W, e.H, 8, '190,200,220', b);
 }, { layer: 'back' });
 
 defineEffect('newspaper', function (e) {                      // blows in from the left, tumbles, settles

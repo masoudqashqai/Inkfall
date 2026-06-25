@@ -10,7 +10,7 @@ import './library/index.js';
 import { STORIES } from '../stories/manifest.js';
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 44 · noir UI + clean audio pause'
+const BUILD = 'v2 build 58 · 1080p-anchored resolution scaling'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 
@@ -46,7 +46,7 @@ import { bindInput } from './engine/input.js';
 bindInput(engine.cv, {
   isReady: () => manager.started,
   onTap: () => { const live = manager.started && !manager.transState; manager.advance(); if (live) markControlsSeen(); },   // retire the hint on a real advance
-  onDrag: dx => manager.drag(dx),
+  onDrag: dx => manager.drag(dx / engine.ls),   // pointer deltas are CSS px; the camera looks in logical units, so a drag feels the same at any resolution
   onHold: () => manager.holdLightning(),
 });
 
