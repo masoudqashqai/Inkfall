@@ -60,7 +60,7 @@ export class Frame {
     if (!t) { node._tint = null; return null; }
     const p = node._tint;
     if (!p) return node._tint = t;
-    const k = 0.1;
+    const k = 0.05;
     return node._tint = [p[0] + (t[0] - p[0]) * k, p[1] + (t[1] - p[1]) * k, p[2] + (t[2] - p[2]) * k];
   }
   litColor(x, gr, gg, gb) { return L.litColor(this, x, gr, gg, gb); }
