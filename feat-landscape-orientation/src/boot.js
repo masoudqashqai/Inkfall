@@ -16,7 +16,13 @@ el('build').textContent = BUILD;
 
 const engine = new Engine(); engine.init();
 const manager = new Manager(engine);
-manager.attachDom({ cap: el('caption'), tag: el('scenetag'), tap: el('tapnote'), nav: el('scenenav') });
+manager.attachDom({ cap: el('caption'), tag: el('scenetag'), tap: el('tapnote'), nav: el('scenenav'), act: el('actbtn') });
+
+// REVIEW ACT toggle: drop the act list open/closed below the HUD
+el('actbtn').addEventListener('click', () => {
+  const open = el('scenenav').classList.toggle('open');
+  el('actbtn').classList.toggle('open', open);
+});
 
 // keep the story in a landscape frame: go fullscreen + ask for landscape on a phone/tablet, hold
 // the start behind a "rotate your screen" prompt while portrait, and letterbox everywhere else.
@@ -70,6 +76,7 @@ function beginPlay() {
   el('tapnote').style.display = 'block';
   el('mute').classList.add('show');
   el('shoot').classList.add('show');
+  el('actsel').classList.add('show');
   Audio2.start();
   viewport.beginStory();   // goes immersive, then starts the story once the screen is landscape
 }
@@ -131,7 +138,8 @@ const openEditor = () => { edText.value = JSON.stringify(manager.story, noCache,
 function goToStartMenu() {
   storymenu.classList.remove('show'); editor.style.display = 'none'; el('poster').classList.remove('show');
   el('caption').style.display = 'none'; el('tapnote').style.display = 'none';
-  el('mute').classList.remove('show'); el('shoot').classList.remove('show'); el('scenenav').classList.remove('show');
+  el('mute').classList.remove('show'); el('shoot').classList.remove('show');
+  el('actsel').classList.remove('show'); el('scenenav').classList.remove('open'); el('actbtn').classList.remove('open');
   Audio2.setStory(manager.story && manager.story.audio);   // stop the playing audio, reset to the unstarted state
   viewport.reset(); manager.reset();                        // drop back to act one, not started, so ENTER replays cleanly
   const intro = el('intro'); intro.style.display = 'flex'; requestAnimationFrame(() => intro.style.opacity = '1');
