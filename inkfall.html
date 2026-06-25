@@ -339,7 +339,7 @@ __mod["src/engine/engine.js"] = function(__exports, __req){
 // device-pixel sizing, and the requestAnimationFrame loop. It keeps the shared Frame's
 // scalars (size, time, contexts) live and hands a tick to the manager each frame.
 const { Frame } = __req("src/engine/frame.js");
-const { ASPECT_MIN, ASPECT_MAX, ASPECT_MAX_TOUCH, isRotatable } = __req("src/engine/viewport.js");
+const { ASPECT_MIN, ASPECT_MAX } = __req("src/engine/viewport.js");
 
 class Engine {
   constructor() {
@@ -370,10 +370,9 @@ class Engine {
   resize() {
     this.DPR = Math.min(window.devicePixelRatio || 1, 2);
     const vw = innerWidth, vh = innerHeight, ar = vw / vh;
-    const maxAr = isRotatable() ? ASPECT_MAX_TOUCH : ASPECT_MAX;  // let modern phones fill, still cap desktop ultrawides
     let w = vw, h = vh;
     if (ar < ASPECT_MIN) h = Math.round(vw / ASPECT_MIN);        // too tall: cap the height
-    else if (ar > maxAr) w = Math.round(vh * maxAr);             // too wide: cap the width
+    else if (ar > ASPECT_MAX) w = Math.round(vh * ASPECT_MAX);   // too wide: cap the width
     this.W = w; this.H = h;
     for (const cv of [this.cv, this.lightCv, this.snapCv]) { cv.width = Math.floor(w * this.DPR); cv.height = Math.floor(h * this.DPR); }
     this.cv.style.width = w + 'px'; this.cv.style.height = h + 'px';
@@ -713,9 +712,11 @@ __mod["src/engine/viewport.js"] = function(__exports, __req){
 //      the prompt returns and the play clock pauses until landscape comes back. As a fallback the
 //      prompt offers "watch anyway", which plays letterboxed.
 const ASPECT_MIN = 16 / 10;       // below this the screen is too tall: bars top and bottom
-const ASPECT_MAX = 2.0;           // desktop cap: bars left and right past this (true ultrawides)
-const ASPECT_MAX_TOUCH = 2.6;     // phones/tablets reach wider: modern handsets run ~18.5:9 to
-                                         // 23:9 in landscape (2.06 to 2.56), so let them fill edge to edge
+const ASPECT_MAX = 2.6;           // above this the screen is too wide: bars left and right. Loose
+                                         // on purpose, normal desktops (a 1080p minus the dock and
+                                         // browser chrome runs ~2.2), modern phones in landscape
+                                         // (up to 23:9, about 2.56) and 21:9 monitors all fill. Only
+                                         // genuinely extreme ultrawides (32:9, about 3.55) pillarbox
 const SKIP_DELAY = 4000;                 // wait before the prompt offers the "watch anyway" fallback
 
 // a device counts as rotatable if it is touch first and exposes the Screen Orientation API
@@ -804,7 +805,6 @@ class Viewport {
 
 __exports.ASPECT_MIN = ASPECT_MIN;
 __exports.ASPECT_MAX = ASPECT_MAX;
-__exports.ASPECT_MAX_TOUCH = ASPECT_MAX_TOUCH;
 __exports.isRotatable = isRotatable;
 __exports.Viewport = Viewport;
 };
