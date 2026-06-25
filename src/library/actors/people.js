@@ -167,31 +167,32 @@ defineActor('gunman', function (e) {                          // shooter, arm ex
 defineActor('womanInRed', function (e) {                      // femme fatale — the colour that bleeds
   const c = e.ctx, s = e.scaleOf(this), X = e.walkX(this), gy = e.gy + (this.dy || 0) * e.unit, t = e.t, walk = Math.sin(t * ANIM.walkSpeed);
   if (this.walk) { const i = Math.min(e.lineIdx, this.walk.length - 1), prev = i > 0 ? this.walk[i - 1] : this.walk[0]; e.walkSound(prev !== this.walk[i] && e.beat() < (this.walkDur || 3.4) - 0.2); }
+  const sw = walk * 2 * s;                                     // the hem drifts as she moves
   c.save(); c.translate(X, gy);
-  // (her wet-floor reflection is no longer hand-drawn here; the shadow system casts her shadow and
-  // the lighting reflections handle the floor.)
-  c.fillStyle = PALETTE.bone; c.save(); c.translate(walk * 2 * s, 0); c.beginPath(); c.moveTo(-2 * s, -32 * s); c.lineTo(2 * s, -32 * s); c.lineTo(3 * s, -2 * s); c.lineTo(-1 * s, -2 * s); c.closePath(); c.fill(); c.restore();
-  c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(1 * s, -2 * s); c.lineTo(7 * s, 0); c.lineTo(1 * s, 1 * s); c.closePath(); c.fill();
-  const dg = c.createLinearGradient(-12 * s, 0, 12 * s, 0); dg.addColorStop(0, '#8e0009'); dg.addColorStop(0.5, '#e2101a'); dg.addColorStop(1, '#9e000c');
-  c.fillStyle = dg; c.shadowColor = 'rgba(210,0,24,0.5)'; c.shadowBlur = 18 * s;
-  c.beginPath(); c.moveTo(-7 * s, -58 * s); c.quadraticCurveTo(-12 * s, -40 * s, -6 * s, -34 * s); c.quadraticCurveTo(-16 * s, -18 * s, -12 * s + walk * 2 * s, 0); c.quadraticCurveTo(0, 6 * s, 12 * s + walk * 2 * s, 0); c.quadraticCurveTo(16 * s, -18 * s, 6 * s, -34 * s); c.quadraticCurveTo(12 * s, -40 * s, 7 * s, -58 * s); c.closePath(); c.fill();
-  c.beginPath(); c.moveTo(-7 * s, -58 * s); c.quadraticCurveTo(-8 * s, -70 * s, -5 * s, -76 * s); c.lineTo(5 * s, -76 * s); c.quadraticCurveTo(8 * s, -70 * s, 7 * s, -58 * s); c.closePath(); c.fill();
+  // her original look (restored from the first build): a floor-length red gown whose hem drifts, and
+  // a side profile that is just a flowing mass of blonde hair, no face. Her shadow is cast by the
+  // system; the wet-floor reflection is the lighting's, not hand-drawn.
+  c.fillStyle = PALETTE.red; c.shadowColor = 'rgba(200,0,20,0.55)'; c.shadowBlur = 16 * s;
+  c.beginPath(); c.moveTo(-5 * s, -54 * s); c.lineTo(5 * s, -54 * s); c.lineTo(12 * s + sw, 0); c.quadraticCurveTo(0, 6 * s, -12 * s + sw, 0); c.closePath(); c.fill();
+  c.beginPath(); c.moveTo(-5 * s, -54 * s); c.quadraticCurveTo(-7 * s, -64 * s, -4 * s, -70 * s); c.lineTo(4 * s, -70 * s); c.quadraticCurveTo(7 * s, -64 * s, 5 * s, -54 * s); c.closePath(); c.fill();
   c.shadowBlur = 0;
-  c.fillStyle = PALETTE.bone; c.beginPath(); c.moveTo(-5 * s, -76 * s); c.quadraticCurveTo(-12 * s, -72 * s, -10 * s, -50 * s); c.lineTo(-7 * s, -50 * s); c.quadraticCurveTo(-8 * s, -70 * s, -3 * s, -74 * s); c.closePath(); c.fill();
-  c.beginPath(); c.arc(0, -84 * s, 6.5 * s, 0, TWO_PI); c.fill();
-  c.fillStyle = '#070708'; c.beginPath(); c.arc(0, -86 * s, 8 * s, Math.PI * 0.9, Math.PI * 2.2); c.fill();
-  c.beginPath(); c.moveTo(6 * s, -88 * s); c.quadraticCurveTo(12 * s, -78 * s, 7 * s, -66 * s); c.quadraticCurveTo(4 * s, -74 * s, 4 * s, -84 * s); c.closePath(); c.fill();
-  c.fillStyle = PALETTE.redHot; c.beginPath(); c.ellipse(-1 * s, -81 * s, 2.2 * s, 1.1 * s, 0, 0, TWO_PI); c.fill();
+  const hy = -78 * s, hw = Math.sin(t * ANIM.swaySpeed) * 1.3 * s;   // blonde hair, fuller toward the bottom, waving in the wind
+  c.fillStyle = PALETTE.amber; c.shadowColor = 'rgba(255,212,0,0.3)'; c.shadowBlur = 6 * s;
+  c.beginPath();
+  c.moveTo(-4 * s, hy - 8 * s);
+  c.quadraticCurveTo(7 * s, hy - 8 * s, 7 * s, hy + 2 * s);
+  c.quadraticCurveTo(10 * s + hw, hy + 20 * s, 7 * s + hw, hy + 36 * s);
+  c.quadraticCurveTo(2 * s, hy + 30 * s, 1 * s, hy + 10 * s);
+  c.quadraticCurveTo(-5 * s, hy + 7 * s, -5.5 * s, hy - 1 * s);
+  c.quadraticCurveTo(-6 * s, hy - 7 * s, -4 * s, hy - 8 * s);
+  c.closePath(); c.fill(); c.shadowBlur = 0;
   c.restore();
 }, {
-  shadowW: 13, shadowH: 90,
-  shadowSil(e, c) {                                            // slim hourglass dress + head
+  shadowW: 13, shadowH: 88,
+  shadowSil(e, c) {                                            // floor-length gown + the fall of hair
     const s = e.scaleOf(this);
-    c.beginPath();
-    c.moveTo(-7 * s, -58 * s); c.quadraticCurveTo(-12 * s, -40 * s, -6 * s, -34 * s); c.quadraticCurveTo(-16 * s, -18 * s, -12 * s, 0);
-    c.quadraticCurveTo(0, 6 * s, 12 * s, 0); c.quadraticCurveTo(16 * s, -18 * s, 6 * s, -34 * s); c.quadraticCurveTo(12 * s, -40 * s, 7 * s, -58 * s); c.closePath(); c.fill();
-    c.beginPath(); c.moveTo(-7 * s, -58 * s); c.quadraticCurveTo(-8 * s, -70 * s, -5 * s, -76 * s); c.lineTo(5 * s, -76 * s); c.quadraticCurveTo(8 * s, -70 * s, 7 * s, -58 * s); c.closePath(); c.fill();
-    c.beginPath(); c.arc(0, -84 * s, 7 * s, 0, TWO_PI); c.fill();
+    c.beginPath(); c.moveTo(-5 * s, -54 * s); c.lineTo(5 * s, -54 * s); c.lineTo(12 * s, 0); c.quadraticCurveTo(0, 6 * s, -12 * s, 0); c.closePath(); c.fill();
+    c.beginPath(); c.moveTo(-5 * s, -54 * s); c.quadraticCurveTo(-7 * s, -86 * s, 0, -86 * s); c.quadraticCurveTo(9 * s, -84 * s, 7 * s, -42 * s); c.lineTo(2 * s, -54 * s); c.closePath(); c.fill();
   },
 });
 
