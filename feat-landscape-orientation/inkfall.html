@@ -74,32 +74,27 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
 #intro { position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column; align-items: center;
   justify-content: center; text-align: center; padding: 28px 22px; overflow-y: auto;
   background: #050505; transition: opacity 0.8s ease; }
-#intro h1 { font-family: "Oswald", sans-serif; color: #fff; font-size: clamp(72px, 23vw, 200px); letter-spacing: 0.04em; font-weight: 700;
+/* the start screen shares the HUD's vmin scale so it stays balanced in a wide frame instead of
+   inflating off viewport width. Sizes and gaps scale with the smaller dimension, which also keeps
+   it fitting on short landscape screens without a separate breakpoint. */
+#intro h1 { font-family: "Oswald", sans-serif; color: #fff; font-size: clamp(54px, 14vmin, 130px); letter-spacing: 0.04em; font-weight: 700;
   line-height: 1.0; transform: skewX(-7deg); }
 #intro h1 .b { color: #e10010; }
-#intro p { font-family: "Oswald", sans-serif; color: #ece6d6; margin-top: 22px; font-size: clamp(22px, 6vw, 30px); letter-spacing: 0.28em; font-weight: 600; }
-#intro .sub { font-family: "Oswald", sans-serif; color: rgba(236,230,214,0.72); margin-top: 18px; font-size: clamp(20px, 5vw, 25px); letter-spacing: 0.02em;
-  font-weight: 400; max-width: 640px; line-height: 1.65; }
-#intro .pick-label { font-family: "Oswald", sans-serif; color: rgba(236,230,214,0.55); margin-top: 44px; font-size: clamp(16px, 4vw, 19px); letter-spacing: 0.38em; font-weight: 600; }
-#storypick { margin-top: 18px; display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
+#intro p { font-family: "Oswald", sans-serif; color: #ece6d6; margin-top: clamp(10px, 2vmin, 18px); font-size: clamp(15px, 3vmin, 22px); letter-spacing: 0.26em; font-weight: 600; }
+#intro .sub { font-family: "Oswald", sans-serif; color: rgba(236,230,214,0.72); margin-top: clamp(8px, 1.6vmin, 14px); font-size: clamp(14px, 2.4vmin, 19px); letter-spacing: 0.02em;
+  font-weight: 400; max-width: 600px; line-height: 1.6; }
+#intro .pick-label { font-family: "Oswald", sans-serif; color: rgba(236,230,214,0.55); margin-top: clamp(18px, 4vmin, 36px); font-size: clamp(13px, 2.2vmin, 16px); letter-spacing: 0.34em; font-weight: 600; }
+#storypick { margin-top: clamp(12px, 2.4vmin, 18px); display: flex; gap: clamp(12px, 2vmin, 18px); flex-wrap: wrap; justify-content: center; }
 .storybtn { font-family: "Oswald", sans-serif; cursor: pointer; background: transparent; color: #f2eee2; border: 1px solid rgba(236,230,214,0.45);
-  font-size: clamp(22px, 5.6vw, 27px); letter-spacing: 0.16em; font-weight: 600; padding: 22px 32px; transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease; }
+  font-size: clamp(16px, 3vmin, 22px); letter-spacing: 0.16em; font-weight: 600; padding: clamp(14px, 2.6vmin, 20px) clamp(20px, 4vmin, 32px); transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease; }
 .storybtn:hover { border-color: #fff; background: rgba(236,230,214,0.06); }
 .storybtn.cur { color: #fff; border-color: #e10010; }
-.storybtn small { display: block; color: rgba(236,230,214,0.6); font-size: clamp(14px, 3.6vw, 17px); letter-spacing: 0.1em; margin-top: 10px; font-weight: 400; }
+.storybtn small { display: block; color: rgba(236,230,214,0.6); font-size: clamp(12px, 2vmin, 15px); letter-spacing: 0.1em; margin-top: clamp(6px, 1.2vmin, 10px); font-weight: 400; }
 .storybtn:hover small { color: rgba(236,230,214,0.88); }
 .storybtn.cur small { color: #ea5a5a; }
-#enter { font-family: "Oswald", sans-serif; margin-top: 40px; padding: 24px 64px; cursor: pointer; background: transparent; color: #fff;
-  border: 1px solid #fff; font-size: clamp(23px, 5.8vw, 28px); letter-spacing: 0.28em; font-weight: 600; transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease; }
+#enter { font-family: "Oswald", sans-serif; margin-top: clamp(20px, 4vmin, 36px); padding: clamp(14px, 2.6vmin, 22px) clamp(36px, 8vmin, 64px); cursor: pointer; background: transparent; color: #fff;
+  border: 1px solid #fff; font-size: clamp(16px, 3vmin, 23px); letter-spacing: 0.26em; font-weight: 600; transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease; }
 #enter:hover, #enter:active { background: #e10010; border-color: #e10010; }
-/* short screens (landscape / small desktop windows): shrink the intro so it still fits */
-@media (max-height: 720px) {
-  #intro h1 { font-size: clamp(48px, 12vh, 110px); }
-  #intro p { font-size: clamp(16px, 3.4vh, 22px); margin-top: 12px; }
-  #intro .sub { font-size: clamp(14px, 2.8vh, 18px); margin-top: 10px; }
-  #intro .pick-label { margin-top: 20px; }
-  #enter { margin-top: 22px; }
-}
 
 /* short viewports (landscape phones, small desktop windows): tuck the caption down and lift the
    scene nav clear of it (the font already scales with height via vmin) */
