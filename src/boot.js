@@ -16,7 +16,7 @@ el('build').textContent = BUILD;
 
 const engine = new Engine(); engine.init();
 const manager = new Manager(engine);
-manager.attachDom({ cap: el('caption'), tag: el('scenetag'), tap: el('tapnote'), nav: el('scenenav'), act: el('actbtn') });
+manager.attachDom({ cap: el('caption'), tag: el('scenetag'), tap: el('tapnote'), nav: el('scenenav'), act: el('actbtn'), actsel: el('actsel') });
 
 // REVIEW ACT toggle: drop the act list open/closed below the HUD
 el('actbtn').addEventListener('click', () => {

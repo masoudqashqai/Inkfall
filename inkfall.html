@@ -107,7 +107,7 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
 /* stage-driven HUD presence: the in-story controls + narration appear only while playing */
 #mute, #shoot, #actsel { display: none; }
 body[data-stage="playing"] #mute, body[data-stage="playing"] #shoot { display: inline-flex; }
-body[data-stage="playing"] #actsel { display: flex; }
+body[data-stage="playing"] #actsel.unlocked { display: flex; }   /* only after THE END has been reached once */
 body[data-stage="playing"] #caption, body[data-stage="playing"] #tapnote { display: block; }
 #poster img { max-width: 88vw; max-height: 70vh; border: 1px solid rgba(216,212,200,0.4); box-shadow: 0 0 40px rgba(0,0,0,0.8); }
 #poster .poster-row { margin-top: 18px; display: flex; gap: 12px; }
@@ -289,7 +289,7 @@ el('build').textContent = BUILD;
 
 const engine = new Engine(); engine.init();
 const manager = new Manager(engine);
-manager.attachDom({ cap: el('caption'), tag: el('scenetag'), tap: el('tapnote'), nav: el('scenenav'), act: el('actbtn') });
+manager.attachDom({ cap: el('caption'), tag: el('scenetag'), tap: el('tapnote'), nav: el('scenenav'), act: el('actbtn'), actsel: el('actsel') });
 
 // REVIEW ACT toggle: drop the act list open/closed below the HUD
 el('actbtn').addEventListener('click', () => {
@@ -1021,8 +1021,8 @@ class Manager {
     this.highlightNav();   // keep the current act marked in the picker, open or not
   }
 
-  // on THE END, drop the act picker open automatically so any act can be replayed
-  revealNav() { this.navShown = true; this.openNav(true); this.highlightNav(); }
+  // on THE END, unlock the act picker (hidden until the story is finished once) and drop it open
+  revealNav() { this.navShown = true; if (this.dom.actsel) this.dom.actsel.classList.add('unlocked'); this.openNav(true); this.highlightNav(); }
   openNav(on) { if (this.dom.nav) this.dom.nav.classList.toggle('open', on); if (this.dom.act) this.dom.act.classList.toggle('open', on); }
   highlightNav() { if (this.dom.nav) this.dom.nav.querySelectorAll('button').forEach(b => b.classList.toggle('cur', +b.dataset.s === this.idx)); }
 
@@ -1071,6 +1071,7 @@ class Manager {
   buildSceneNav() {
     const nav = this.dom.nav; if (!nav) return;
     nav.innerHTML = ''; this.openNav(false); this.navShown = false;
+    if (this.dom.actsel) this.dom.actsel.classList.remove('unlocked');   // re-lock until this story is finished again
     (this.scenes || []).forEach((s, i) => {
       const b = document.createElement('button'); b.dataset.s = i;
       b.innerHTML = (s.data.title || ('SCENE ' + i)).replace(/&nbsp;/g, ' ');

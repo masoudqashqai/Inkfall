@@ -100,8 +100,8 @@ export class Manager {
     this.highlightNav();   // keep the current act marked in the picker, open or not
   }
 
-  // on THE END, drop the act picker open automatically so any act can be replayed
-  revealNav() { this.navShown = true; this.openNav(true); this.highlightNav(); }
+  // on THE END, unlock the act picker (hidden until the story is finished once) and drop it open
+  revealNav() { this.navShown = true; if (this.dom.actsel) this.dom.actsel.classList.add('unlocked'); this.openNav(true); this.highlightNav(); }
   openNav(on) { if (this.dom.nav) this.dom.nav.classList.toggle('open', on); if (this.dom.act) this.dom.act.classList.toggle('open', on); }
   highlightNav() { if (this.dom.nav) this.dom.nav.querySelectorAll('button').forEach(b => b.classList.toggle('cur', +b.dataset.s === this.idx)); }
 
@@ -150,6 +150,7 @@ export class Manager {
   buildSceneNav() {
     const nav = this.dom.nav; if (!nav) return;
     nav.innerHTML = ''; this.openNav(false); this.navShown = false;
+    if (this.dom.actsel) this.dom.actsel.classList.remove('unlocked');   // re-lock until this story is finished again
     (this.scenes || []).forEach((s, i) => {
       const b = document.createElement('button'); b.dataset.s = i;
       b.innerHTML = (s.data.title || ('SCENE ' + i)).replace(/&nbsp;/g, ' ');
