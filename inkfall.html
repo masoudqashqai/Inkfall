@@ -2400,10 +2400,9 @@ defineActor('gunman', function (e) {                          // shooter, arm ex
 defineActor('womanInRed', function (e) {                      // femme fatale — the colour that bleeds
   const c = e.ctx, s = e.scaleOf(this), X = e.walkX(this), gy = e.gy + (this.dy || 0) * e.unit, t = e.t, walk = Math.sin(t * ANIM.walkSpeed);
   if (this.walk) { const i = Math.min(e.lineIdx, this.walk.length - 1), prev = i > 0 ? this.walk[i - 1] : this.walk[0]; e.walkSound(prev !== this.walk[i] && e.beat() < (this.walkDur || 3.4) - 0.2); }
-  let reflA = 1;
-  if (this.passX != null) { const manX = this.passX * e.W + e.scene.camera.look * (this.par == null ? 0.5 : this.par); reflA = smooth01((Math.abs(X - manX) - 20 * s) / (40 * s)); }
   c.save(); c.translate(X, gy);
-  if (reflA > 0.01) { c.globalAlpha = 0.4 * reflA; const grd = c.createLinearGradient(0, 0, 0, 46 * s); grd.addColorStop(0, 'rgba(200,0,20,0.5)'); grd.addColorStop(1, 'rgba(200,0,20,0)'); c.fillStyle = grd; c.fillRect(-14 * s, 0, 28 * s, 48 * s); c.globalAlpha = 1; }
+  // (her wet-floor reflection is no longer hand-drawn here; the shadow system casts her shadow and
+  // the lighting reflections handle the floor.)
   c.fillStyle = PALETTE.bone; c.save(); c.translate(walk * 2 * s, 0); c.beginPath(); c.moveTo(-2 * s, -32 * s); c.lineTo(2 * s, -32 * s); c.lineTo(3 * s, -2 * s); c.lineTo(-1 * s, -2 * s); c.closePath(); c.fill(); c.restore();
   c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(1 * s, -2 * s); c.lineTo(7 * s, 0); c.lineTo(1 * s, 1 * s); c.closePath(); c.fill();
   const dg = c.createLinearGradient(-12 * s, 0, 12 * s, 0); dg.addColorStop(0, '#8e0009'); dg.addColorStop(0.5, '#e2101a'); dg.addColorStop(1, '#9e000c');
