@@ -299,7 +299,8 @@ body[data-stage="menu"] #intro { opacity: 1; pointer-events: auto; }
 #rotate .rotate-skip { display: none; }              /* the buttons use .noir-item, this only gates the fallback */
 #rotate .rotate-skip.show { display: inline-block; }
 /* the primary action is just framed text, no diamond marks, so its weight reads next to the plain STAY IN PORTRAIT */
-#rotate .rotate-fs { border: 1px solid rgba(236,230,214,0.5); border-radius: 2px; padding-left: 30px; padding-right: 30px; }
+#rotate .rotate-fs { border: 1px solid rgba(236,230,214,0.5); border-radius: 2px;
+  padding: clamp(16px, 3.2vmin, 24px) 30px; }
 #rotate .rotate-fs::before, #rotate .rotate-fs::after { content: none; }
 #rotate .rotate-fs:hover, #rotate .rotate-fs:active { border-color: var(--c-cream); }
 /* a little phone that tips from portrait to landscape on a loop */
