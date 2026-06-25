@@ -14,6 +14,7 @@ defineLight('lamp', {
     // apex at the bulb, widening to the wet floor.
     e.addLight({
       x: X + 26 * s, y: e.gy - 150 * s, col: '255,250,225', r: 150 * (this.scale || 1), I: 0.5 * flick, ew: 6 * s, eh: 6 * s,
+      shade: true,                                            // the hood caps the glow: it spills downward only
       beam: { dir: 0, len: 152 * s, farW: 70 * s, I: flick },
     });
   },

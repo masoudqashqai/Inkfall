@@ -168,7 +168,7 @@ __req("src/library/index.js");
 const { STORIES } = __req("stories/manifest.js");
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 42 · stage light, shadow, beams + city lights'
+const BUILD = 'v2 build 43 · depth-correct light layering'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 
@@ -512,6 +512,11 @@ const { WASH } = __req("src/style/shadows.js");
 //   refl        draw the wet-floor reflection (default true)
 //   reflW, reflI, reflLen   optional overrides (used by the moon for a bespoke faint streak)
 //   wash        draw the diffuse floor + wall surface washes (default true; a distant light sets false)
+//   front       the light sits IN FRONT of the cast (a cigarette ember, a held match): its glow is
+//               painted after the cast. Default false, so scene light (neon, lamps, the moon) sits
+//               behind the cast and a foreground figure occludes it, as it should.
+//   shade       the fixture caps the light (a lamp hood): the glow is blocked above the emitter, so
+//               it only spills downward. Default false (a bare bulb, neon, the moon glow all ways).
 //   beam        optional volumetric cone of light in the air (the lamp's downward shaft, the rooftop
 //               searchlight's sweep): { dir (0 = straight down, radians), len, farW or spread,
 //               I (0..1), sweep, sweepSpeed }. The lighting pass paints it on the additive buffer.
@@ -570,17 +575,20 @@ function softColumn(col) {                       // a soft vertical streak: brig
   return _sprites[key] = cv;
 }
 
+// a shaded fixture (a lamp hood) caps the glow above the emitter: clip it to spill downward only.
+function clipShade(c, L, e) { if (!L.shade) return; c.beginPath(); c.rect(-e.W * 2, L.y - L.eh, e.W * 5, e.H * 3); c.clip(); }
+
 // tight near-field glow shaped to the emitter: the light hitting the surface it sits on
 function surfaceGlow(e, L) {
   const rx = Math.max(L.ew * 1.25, 8) + L.r * 0.10, ry = Math.max(L.eh * 1.25, 8) + L.r * 0.10, c = e.light;
-  c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.30 * L.glowI;
+  c.save(); clipShade(c, L, e); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.30 * L.glowI;
   c.drawImage(softRadial(L.col), L.x - rx, L.y - ry, rx * 2, ry * 2); c.restore();
 }
 
 // soft, wide atmospheric bloom — kept gentle (the "glow in the air", dialled down)
 function airGlow(e, L) {
   const R = L.glowR, c = e.light;
-  c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.15 * L.glowI;
+  c.save(); clipShade(c, L, e); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.15 * L.glowI;
   c.drawImage(L.ring ? softRing(L.col) : softRadial(L.col), L.x - R, L.y - R, R * 2, R * 2); c.restore();
 }
 
@@ -635,17 +643,23 @@ function litColor(e, x, gr, gg, gb) {
 // tight surface glow and the wet specular streak). A soft pool on the floor near the light's base,
 // and, where the set has a near wall, a soft pool climbing the wall. These make light placement
 // read in the same floor + wall box the shadows are cast into, so the two systems agree.
+// light spreads as it travels, so the pool a source throws on a surface is wider (and softer) the
+// farther the source is from it. The width grows with that distance and the brightness falls off,
+// instead of matching the emitter size one to one.
 function floorWash(e, L, st) {
-  const c = e.light, rx = L.r * 0.7, ry = (st.H - st.gy) * WASH.floorReach;
+  const c = e.light, h = Math.max(20, st.gy - L.y);          // the source's distance up off the floor
+  const rx = L.r * 0.5 + h * 0.7, ry = (st.H - st.gy) * WASH.floorReach;
   c.save(); c.beginPath(); c.rect(L.x - rx, st.gy, rx * 2, st.H - st.gy); c.clip();
-  c.globalCompositeOperation = 'lighter'; c.globalAlpha = WASH.floorAlpha * L.glowI;
+  c.globalCompositeOperation = 'lighter'; c.globalAlpha = WASH.floorAlpha * L.glowI * (L.r / (L.r + h * 0.7));
   c.drawImage(softRadial(L.col), L.x - rx, st.gy - ry * 0.35, rx * 2, ry * 1.7); c.restore();
 }
 function wallWash(e, L, st) {
-  const c = e.light, w = st.wall, rx = L.r * 0.7, ry = (st.gy - w.top) * WASH.wallReach;
+  const c = e.light, w = st.wall, d = Math.max(20, st.gy - L.y);
+  const rx = L.r * 0.55 + d * 0.5, ry = (st.gy - w.top) * WASH.wallReach;
+  const cy = Math.min(st.gy, Math.max(w.top, L.y));          // the pool centres where the light meets the wall
   c.save(); c.beginPath(); c.rect(L.x - rx, w.top, rx * 2, st.gy - w.top); c.clip();
-  c.globalCompositeOperation = 'lighter'; c.globalAlpha = WASH.wallAlpha * L.glowI;
-  c.drawImage(softRadial(L.col), L.x - rx, st.gy - ry * 1.35, rx * 2, ry * 1.7); c.restore();
+  c.globalCompositeOperation = 'lighter'; c.globalAlpha = WASH.wallAlpha * L.glowI * (L.r / (L.r + d * 0.6));
+  c.drawImage(softRadial(L.col), L.x - rx, cy - ry, rx * 2, ry * 2); c.restore();
 }
 
 // VOLUMETRIC BEAM — a cone of light hanging in the wet air (the lamp's shaft, the searchlight's
@@ -666,18 +680,27 @@ function beam(e, L) {
   c.closePath(); c.fill(); c.restore();
 }
 
-// the lighting pass body: a flat ambient lift so blacks never crush, then per light the beam (if
-// any), the surface + air glow, the diffuse floor + wall washes, and the wet-floor reflection.
-function drawLightLayer(e) {
+// BACK light: everything that belongs behind the cast (so a foreground figure occludes it). A flat
+// ambient lift, then per non-front light its beam, surface + air glow, floor + wall washes, and the
+// wet-floor reflection. The compositor blits this before drawing the cast.
+function drawBackLight(e) {
   const st = stageOf(e), R = e.coverRect(), c = e.light;
   c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = WASH.ambientAlpha * st.ambient.level / 0.16;
   c.fillStyle = `rgb(${st.ambient.col})`; c.fillRect(R.x, R.y, R.w, R.h); c.restore();
   for (const L of e.lights) {
     if (L.beam) beam(e, L);
+    if (L.front) continue;
     if (L.glow) { if (L.surface) surfaceGlow(e, L); airGlow(e, L); }
     if (L.wash) { floorWash(e, L, st); if (st.wall) wallWash(e, L, st); }
     if (L.refl) floorRefl(e, L);
   }
+}
+
+// FRONT light: only the glow of lights that sit in front of the cast (a cigarette ember, a held
+// match). Blitted after the cast so it reads over a figure. No washes or reflection (those are the
+// floor and wall, which are behind the figure).
+function drawFrontLight(e) {
+  for (const L of e.lights) if (L.front && L.glow) { if (L.surface) surfaceGlow(e, L); airGlow(e, L); }
 }
 
 __exports.addLight = addLight;
@@ -685,7 +708,8 @@ __exports.streak = streak;
 __exports.dominantLight = dominantLight;
 __exports.litTint = litTint;
 __exports.litColor = litColor;
-__exports.drawLightLayer = drawLightLayer;
+__exports.drawBackLight = drawBackLight;
+__exports.drawFrontLight = drawFrontLight;
 };
 __mod["src/render/stage.js"] = function(__exports, __req){
 // STAGE — the shared pseudo 3D geometry that BOTH the lighting service and the shadow service
@@ -1085,7 +1109,7 @@ __mod["src/engine/compositor.js"] = function(__exports, __req){
 // the screen-space post + transition. Two buffers keep the light layer separable for the look.
 const { sky } = __req("src/render/passes/sky.js");
 const { shadows } = __req("src/render/passes/shadows.js");
-const { lighting } = __req("src/render/passes/lighting.js");
+const { lightingBack, lightingFront } = __req("src/render/passes/lighting.js");
 const { weather } = __req("src/render/passes/weather.js");
 const { post } = __req("src/render/passes/post.js");
 const { transition } = __req("src/render/passes/transition.js");
@@ -1126,23 +1150,30 @@ class Compositor {
     shadow.restore();
     eng.setDeviceTransform(main); main.globalCompositeOperation = 'source-over'; main.drawImage(eng.shadowCv, 0, 0);
 
-    // WORLD (cast) → main, on top of the shadows
+    // BACK LIGHT BUFFER → camera-applied: environmental light (window bloom, beams, washes,
+    // reflections, ripples, scene halos), composited BEFORE the cast so a foreground figure
+    // occludes the light behind it.
+    eng.setWorldTransform(light);
+    light.clearRect(0, 0, e.W, e.H);
+    light.save(); cam.apply(light); e.ctx = light;
+    lightingBack(e);
+    light.restore();
+    eng.setDeviceTransform(main); main.globalCompositeOperation = 'lighter'; main.drawImage(eng.lightCv, 0, 0);
+    main.globalCompositeOperation = 'source-over';
+
+    // WORLD (cast) → main, on top of the shadows + the back light
     eng.setWorldTransform(main); main.save(); cam.apply(main); e.ctx = main;
     e.scene.drawObjects(e);       // props/actors/movers/effects (depth order) + brass
     main.restore();
 
-    // LIGHT BUFFER → camera-applied
+    // FRONT LIGHT BUFFER → camera-applied: only lights in front of the cast (a cigarette ember),
+    // composited AFTER the cast so the glow reads over the figure.
     eng.setWorldTransform(light);
     light.clearRect(0, 0, e.W, e.H);
     light.save(); cam.apply(light); e.ctx = light;
-    lighting(e);                  // halos + reflections for every light + static neon reflections
-    e.scene.drawLightExtras(e);   // ripples
+    lightingFront(e);
     light.restore();
-
-    // composite the light layer additively onto the world (device pixels, 1:1)
-    eng.setDeviceTransform(main);
-    main.globalCompositeOperation = 'lighter';
-    main.drawImage(eng.lightCv, 0, 0);
+    eng.setDeviceTransform(main); main.globalCompositeOperation = 'lighter'; main.drawImage(eng.lightCv, 0, 0);
     main.globalCompositeOperation = 'source-over';
 
     // WEATHER over the lit scene, camera-applied
@@ -1225,23 +1256,30 @@ function shadows(e) { drawShadowLayer(e); }
 __exports.shadows = shadows;
 };
 __mod["src/render/passes/lighting.js"] = function(__exports, __req){
-// LIGHTING PASS — paints the additive light buffer: every registered light's halo + wet-floor
-// reflection, plus the scene's static neon reflections (the backdrop `reflect` data, which v1
-// declared but never drew). The compositor then composites this buffer onto the scene.
-const { drawLightLayer, streak } = __req("src/render/lighting.js");
+// LIGHTING PASS — paints the additive light buffer in two phases so depth reads correctly:
+//   lightingBack runs before the cast (distant window bloom, static neon reflections, surface
+//   washes, wet-floor reflections, ripples, and the halo of every scene light), so a foreground
+//   figure occludes the light behind it.
+//   lightingFront runs after the cast (only lights flagged `front`, e.g. a cigarette ember), so
+//   that glow reads over the figure.
+const { drawBackLight, drawFrontLight, streak } = __req("src/render/lighting.js");
 const { cssRgb } = __req("src/engine/math.js");
 
-function lighting(e) {
-  // distant window bloom + bokeh + flicker (the backdrop paints it onto the light buffer)
+function lightingBack(e) {
+  // distant window bloom + flicker (the backdrop paints it onto the light buffer)
   const bdo = e.scene.backdrop;
   if (bdo && bdo.glow) bdo.glow(e);
   // static off-screen neon reflections on the wet floor (skyline backdrop `reflect`)
   const bd = e.scene.data.backdrop, refl = bd && bd.reflect;
   if (refl) for (const r of refl) streak(e, r.x * e.W + e.scene.camera.look * 0.5, cssRgb(r.color), 0.42, 16, (e.H - e.gy) * 0.7);
-  drawLightLayer(e);
+  drawBackLight(e);
+  e.scene.drawLightExtras(e);   // ripples (on the wet floor, behind the cast)
 }
 
-__exports.lighting = lighting;
+function lightingFront(e) { drawFrontLight(e); }
+
+__exports.lightingBack = lightingBack;
+__exports.lightingFront = lightingFront;
 };
 __mod["src/render/passes/weather.js"] = function(__exports, __req){
 // WEATHER PASS — rain (coloured by the light each drop falls through, or bloody on a blood-rain
@@ -1826,8 +1864,8 @@ function buildSkyline(e, seed, cfgList, groundY) {
         if (rng() > cfg.win) continue;
         const wx = x + 7 + ci * (w - 14) / cols, wy = top + 10 + r * (h - 16) / rows, hh = hash2(wx, wy);
         // ~6% of windows are failing tubes: their bloom is drawn live (and can drop dark), the rest
-        // bake into a static glow sprite. bk varies the bokeh disc size on the far layers.
-        wins.push({ x: wx, y: wy, warm: rng() > 0.8, flk: hh < 0.06 ? hh * 104 % 6.283 : null, bk: hash2(wy, wx) });
+        // bake into a static glow sprite.
+        wins.push({ x: wx, y: wy, warm: rng() > 0.8, flk: hh < 0.06 ? hh * 104 % 6.283 : null });
       }
       const cap = rng() < 0.25 ? { type: rng() < 0.5 ? 'tank' : 'ant', x: x + w * (0.3 + rng() * 0.4) } : null;
       blds.push({ x, w, top, h, wins, cap }); x += w + 2 + rng() * 16;
@@ -1860,8 +1898,7 @@ function paintSkyline(e, layers, par) {
 
 // --- distant window lights: a soft bloom over the lit window squares, blitted ADDITIVELY on the
 // light buffer (they are atmosphere, not real lights, so they never touch the foreground lighting
-// maths). Far layers get a defocused bokeh disc (depth of field), the nearest stays crisp. ---
-const BOKEH_DEPTH = 0.45;                 // layers at/below this parallax depth are off-focus
+// maths). The backdrop's glow hook runs in the BACK light pass, so the bloom sits behind the cast. ---
 const _soft = {};
 function softGlow(col) {                   // a soft round bloom, peak at the centre
   if (_soft[col]) return _soft[col];
@@ -1871,27 +1908,18 @@ function softGlow(col) {                   // a soft round bloom, peak at the ce
   c.fillStyle = g; c.fillRect(0, 0, 64, 64);
   return _soft[col] = cv;
 }
-function bokeh(col) {                       // a defocused disc: flatter core, soft rim (off-focus light)
-  if (_soft['b' + col]) return _soft['b' + col];
-  const cv = document.createElement('canvas'); cv.width = cv.height = 64;
-  const c = cv.getContext('2d'), g = c.createRadialGradient(32, 32, 0, 32, 32, 32);
-  g.addColorStop(0, `rgba(${col},0.5)`); g.addColorStop(0.62, `rgba(${col},0.5)`); g.addColorStop(0.82, `rgba(${col},0.75)`); g.addColorStop(1, `rgba(${col},0)`);
-  c.fillStyle = g; c.fillRect(0, 0, 64, 64);
-  return _soft['b' + col] = cv;
-}
 const WARM = '255,224,164', COOL = '188,204,236';
 
 // bake the steady bloom for a layer (skips the live-flicker windows). Cached like the layer sprite.
 function glowSprite(e, L) {
   if (L._glow && L._glowW === e.W && L._glowDPR === e.DPR) return L._glow;
-  const DPR = e.DPR || 1, CW = e.W + PAD * 2, far = L.depth <= BOKEH_DEPTH;
+  const DPR = e.DPR || 1, CW = e.W + PAD * 2, r = 4.5;
   const cv = document.createElement('canvas'); cv.width = Math.floor(CW * DPR); cv.height = Math.floor(e.H * DPR);
   const c = cv.getContext('2d'); c.setTransform(DPR, 0, 0, DPR, 0, 0); c.translate(PAD, 0); c.globalCompositeOperation = 'lighter';
+  c.globalAlpha = 0.6;
   for (const b of L.blds) for (const wn of b.wins) {
     if (wn.flk != null) continue;                       // flicker windows are drawn live
-    const col = wn.warm ? WARM : COOL;
-    if (far) { const r = 7 + wn.bk * 6; c.globalAlpha = 0.5; c.drawImage(bokeh(col), wn.x - r, wn.y - r, r * 2, r * 2); }
-    else { const r = 4.5; c.globalAlpha = 0.6; c.drawImage(softGlow(col), wn.x - r, wn.y - r, r * 2, r * 2); }
+    c.drawImage(softGlow(wn.warm ? WARM : COOL), wn.x - r, wn.y - r, r * 2, r * 2);
   }
   L._glow = cv; L._glowW = e.W; L._glowDPR = e.DPR; return cv;
 }
@@ -1905,19 +1933,16 @@ function flickerVal(t, ph) {
 
 // paint the window bloom for a backdrop's layers on the light buffer at the parallax offset.
 function windowGlow(e, layers, par) {
-  const c = e.light, CW = e.W + PAD * 2, t = e.t;
+  const c = e.light, CW = e.W + PAD * 2, t = e.t, r = 4.5;
   c.save(); c.globalCompositeOperation = 'lighter';
-  for (const L of layers) {
-    c.globalAlpha = L.depth <= BOKEH_DEPTH ? 0.6 : 0.85;
-    c.drawImage(glowSprite(e, L), par * L.depth - PAD, 0, CW, e.H);
-  }
+  for (const L of layers) { c.globalAlpha = 0.85; c.drawImage(glowSprite(e, L), par * L.depth - PAD, 0, CW, e.H); }
   for (const L of layers) {                              // live failing-tube windows over the steady bloom
-    const off = par * L.depth, far = L.depth <= BOKEH_DEPTH, r = far ? 8 : 4.5;
+    const off = par * L.depth;
     for (const b of L.blds) for (const wn of b.wins) {
       if (wn.flk == null) continue;
       const v = flickerVal(t, wn.flk); if (v <= 0) continue;
-      c.globalAlpha = v * (far ? 0.55 : 0.85);
-      c.drawImage(far ? bokeh(wn.warm ? WARM : COOL) : softGlow(wn.warm ? WARM : COOL), wn.x + off - r, wn.y - r, r * 2, r * 2);
+      c.globalAlpha = v * 0.85;
+      c.drawImage(softGlow(wn.warm ? WARM : COOL), wn.x + off - r, wn.y - r, r * 2, r * 2);
     }
   }
   c.restore();
@@ -2071,6 +2096,7 @@ defineLight('lamp', {
     // apex at the bulb, widening to the wet floor.
     e.addLight({
       x: X + 26 * s, y: e.gy - 150 * s, col: '255,250,225', r: 150 * (this.scale || 1), I: 0.5 * flick, ew: 6 * s, eh: 6 * s,
+      shade: true,                                            // the hood caps the glow: it spills downward only
       beam: { dir: 0, len: 152 * s, farW: 70 * s, I: flick },
     });
   },
@@ -2213,7 +2239,7 @@ defineActor('trenchMan', function (e) {                       // detective: tren
     const P = trenchPose(e, this);
     if (P.aim > 0.5 && P.litCig) {
       const cwx = P.X + P.sway + P.hx + 9 * P.s, cwy = P.gy + P.hy, I = 0.3 + P.flash * 0.6;
-      e.addLight({ x: cwx, y: cwy, col: '255,150,60', r: 84 * P.s, I: I * 0.7, ew: 4 * P.s, eh: 4 * P.s });
+      e.addLight({ x: cwx, y: cwy, col: '255,150,60', r: 84 * P.s, I: I * 0.7, ew: 4 * P.s, eh: 4 * P.s, front: true });
     }
   },
 });

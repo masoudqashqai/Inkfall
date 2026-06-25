@@ -3,7 +3,7 @@
 // the screen-space post + transition. Two buffers keep the light layer separable for the look.
 import { sky } from '../render/passes/sky.js';
 import { shadows } from '../render/passes/shadows.js';
-import { lighting } from '../render/passes/lighting.js';
+import { lightingBack, lightingFront } from '../render/passes/lighting.js';
 import { weather } from '../render/passes/weather.js';
 import { post } from '../render/passes/post.js';
 import { transition } from '../render/passes/transition.js';
@@ -44,23 +44,30 @@ export class Compositor {
     shadow.restore();
     eng.setDeviceTransform(main); main.globalCompositeOperation = 'source-over'; main.drawImage(eng.shadowCv, 0, 0);
 
-    // WORLD (cast) → main, on top of the shadows
+    // BACK LIGHT BUFFER → camera-applied: environmental light (window bloom, beams, washes,
+    // reflections, ripples, scene halos), composited BEFORE the cast so a foreground figure
+    // occludes the light behind it.
+    eng.setWorldTransform(light);
+    light.clearRect(0, 0, e.W, e.H);
+    light.save(); cam.apply(light); e.ctx = light;
+    lightingBack(e);
+    light.restore();
+    eng.setDeviceTransform(main); main.globalCompositeOperation = 'lighter'; main.drawImage(eng.lightCv, 0, 0);
+    main.globalCompositeOperation = 'source-over';
+
+    // WORLD (cast) → main, on top of the shadows + the back light
     eng.setWorldTransform(main); main.save(); cam.apply(main); e.ctx = main;
     e.scene.drawObjects(e);       // props/actors/movers/effects (depth order) + brass
     main.restore();
 
-    // LIGHT BUFFER → camera-applied
+    // FRONT LIGHT BUFFER → camera-applied: only lights in front of the cast (a cigarette ember),
+    // composited AFTER the cast so the glow reads over the figure.
     eng.setWorldTransform(light);
     light.clearRect(0, 0, e.W, e.H);
     light.save(); cam.apply(light); e.ctx = light;
-    lighting(e);                  // halos + reflections for every light + static neon reflections
-    e.scene.drawLightExtras(e);   // ripples
+    lightingFront(e);
     light.restore();
-
-    // composite the light layer additively onto the world (device pixels, 1:1)
-    eng.setDeviceTransform(main);
-    main.globalCompositeOperation = 'lighter';
-    main.drawImage(eng.lightCv, 0, 0);
+    eng.setDeviceTransform(main); main.globalCompositeOperation = 'lighter'; main.drawImage(eng.lightCv, 0, 0);
     main.globalCompositeOperation = 'source-over';
 
     // WEATHER over the lit scene, camera-applied

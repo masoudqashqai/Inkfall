@@ -51,12 +51,14 @@ _legacy/              archived prior builds (do not edit)
 2. the SHADOW buffer (camera applied): every caster's silhouette projected through the strongest
    lights onto the stage floor and, where the set has one, up the back wall. Composited onto the set
    (darken) UNDER the cast, so a figure stands on its own shadow.
-3. the CAST → main (depth order) + brass, painted over the shadows.
-4. additive light buffer (camera applied): a faint ambient lift, the backdrop's distant window
-   bloom (soft halos, bokeh on the far layers, the odd failing-tube flicker), then per light its
-   volumetric beam (the lamp shaft, the searchlight sweep), halo, floor + wall washes, and the
-   wet-floor reflection + ripples.
-5. composite light buffer onto main with `lighter`.
+3. the BACK light buffer (camera applied, composited with `lighter` BEFORE the cast): a faint
+   ambient lift, the backdrop's distant window bloom (soft halos + the odd failing-tube flicker),
+   then per scene light its volumetric beam (the lamp shaft, the searchlight sweep), halo, floor +
+   wall washes, and the wet-floor reflection + ripples. Being behind the cast, a foreground figure
+   correctly occludes the light and the beams behind it.
+4. the CAST → main (depth order) + brass, painted over the shadows and the back light.
+5. the FRONT light buffer (composited with `lighter` AFTER the cast): only lights flagged `front`
+   (a cigarette ember, a held match), so their glow reads over the figure.
 6. weather (rain, lightning) over the lit scene.
 7. screen-space post (grain, vignette) and transition (ink wipe + act card).
 
@@ -77,10 +79,12 @@ Frame API objects use: `e.ctx` (draw target), `e.W/e.H/e.unit/e.t/e.gy`, `e.X(th
 
 `opts`: `castsShadow`, `depth`, the optional hooks `update(dt, e)`, `emitLight(e)`, `shadowSil(e, c)`,
 and shadow sizing `shadowW`/`shadowH`/`shadowDensity`. To emit light, `emitLight` calls
-`e.addLight({ x, y, col:'r,g,b', r, I, ew, eh, beam?, ... })`; the lighting pass draws the halo,
-washes, reflection and the optional volumetric `beam` (a cone of light in the air), so objects never
-draw their own glow or beam. A backdrop may also paint distant window bloom on the light buffer via
-an optional `glow(e)` hook. Shadows are automatic: a `castsShadow` object is
+`e.addLight({ x, y, col:'r,g,b', r, I, ew, eh, beam?, front?, shade?, ... })`; the lighting pass
+draws the halo, washes, reflection and the optional volumetric `beam` (a cone of light in the air),
+so objects never draw their own glow or beam. `front:true` paints a light in front of the cast (a
+cigarette ember), the default is behind it. `shade:true` caps the glow above the emitter (a hooded
+lamp). A backdrop may also paint distant window bloom on the light buffer via an optional `glow(e)`
+hook. Shadows are automatic: a `castsShadow` object is
 registered as a caster by the scene and projected by the shadow pass. Give it a `shadowSil(e, c)` to
 cast its real shape (draw the solid body in local feet-origin coords, plain fills, into the passed
 ctx `c`); without one it falls back to a billboard from `shadowW`/`shadowH`. Objects never draw their

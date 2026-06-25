@@ -62,7 +62,7 @@ defineActor('trenchMan', function (e) {                       // detective: tren
     const P = trenchPose(e, this);
     if (P.aim > 0.5 && P.litCig) {
       const cwx = P.X + P.sway + P.hx + 9 * P.s, cwy = P.gy + P.hy, I = 0.3 + P.flash * 0.6;
-      e.addLight({ x: cwx, y: cwy, col: '255,150,60', r: 84 * P.s, I: I * 0.7, ew: 4 * P.s, eh: 4 * P.s });
+      e.addLight({ x: cwx, y: cwy, col: '255,150,60', r: 84 * P.s, I: I * 0.7, ew: 4 * P.s, eh: 4 * P.s, front: true });
     }
   },
 });

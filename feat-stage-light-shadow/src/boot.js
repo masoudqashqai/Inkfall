@@ -9,7 +9,7 @@ import './library/index.js';
 import { STORIES } from '../stories/manifest.js';
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 42 · stage light, shadow, beams + city lights'
+const BUILD = 'v2 build 43 · depth-correct light layering'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 

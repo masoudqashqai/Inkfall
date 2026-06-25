@@ -19,6 +19,11 @@ import { WASH } from '../style/shadows.js';
 //   refl        draw the wet-floor reflection (default true)
 //   reflW, reflI, reflLen   optional overrides (used by the moon for a bespoke faint streak)
 //   wash        draw the diffuse floor + wall surface washes (default true; a distant light sets false)
+//   front       the light sits IN FRONT of the cast (a cigarette ember, a held match): its glow is
+//               painted after the cast. Default false, so scene light (neon, lamps, the moon) sits
+//               behind the cast and a foreground figure occludes it, as it should.
+//   shade       the fixture caps the light (a lamp hood): the glow is blocked above the emitter, so
+//               it only spills downward. Default false (a bare bulb, neon, the moon glow all ways).
 //   beam        optional volumetric cone of light in the air (the lamp's downward shaft, the rooftop
 //               searchlight's sweep): { dir (0 = straight down, radians), len, farW or spread,
 //               I (0..1), sweep, sweepSpeed }. The lighting pass paints it on the additive buffer.
@@ -77,17 +82,20 @@ function softColumn(col) {                       // a soft vertical streak: brig
   return _sprites[key] = cv;
 }
 
+// a shaded fixture (a lamp hood) caps the glow above the emitter: clip it to spill downward only.
+function clipShade(c, L, e) { if (!L.shade) return; c.beginPath(); c.rect(-e.W * 2, L.y - L.eh, e.W * 5, e.H * 3); c.clip(); }
+
 // tight near-field glow shaped to the emitter: the light hitting the surface it sits on
 function surfaceGlow(e, L) {
   const rx = Math.max(L.ew * 1.25, 8) + L.r * 0.10, ry = Math.max(L.eh * 1.25, 8) + L.r * 0.10, c = e.light;
-  c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.30 * L.glowI;
+  c.save(); clipShade(c, L, e); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.30 * L.glowI;
   c.drawImage(softRadial(L.col), L.x - rx, L.y - ry, rx * 2, ry * 2); c.restore();
 }
 
 // soft, wide atmospheric bloom — kept gentle (the "glow in the air", dialled down)
 function airGlow(e, L) {
   const R = L.glowR, c = e.light;
-  c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.15 * L.glowI;
+  c.save(); clipShade(c, L, e); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.15 * L.glowI;
   c.drawImage(L.ring ? softRing(L.col) : softRadial(L.col), L.x - R, L.y - R, R * 2, R * 2); c.restore();
 }
 
@@ -142,17 +150,23 @@ export function litColor(e, x, gr, gg, gb) {
 // tight surface glow and the wet specular streak). A soft pool on the floor near the light's base,
 // and, where the set has a near wall, a soft pool climbing the wall. These make light placement
 // read in the same floor + wall box the shadows are cast into, so the two systems agree.
+// light spreads as it travels, so the pool a source throws on a surface is wider (and softer) the
+// farther the source is from it. The width grows with that distance and the brightness falls off,
+// instead of matching the emitter size one to one.
 function floorWash(e, L, st) {
-  const c = e.light, rx = L.r * 0.7, ry = (st.H - st.gy) * WASH.floorReach;
+  const c = e.light, h = Math.max(20, st.gy - L.y);          // the source's distance up off the floor
+  const rx = L.r * 0.5 + h * 0.7, ry = (st.H - st.gy) * WASH.floorReach;
   c.save(); c.beginPath(); c.rect(L.x - rx, st.gy, rx * 2, st.H - st.gy); c.clip();
-  c.globalCompositeOperation = 'lighter'; c.globalAlpha = WASH.floorAlpha * L.glowI;
+  c.globalCompositeOperation = 'lighter'; c.globalAlpha = WASH.floorAlpha * L.glowI * (L.r / (L.r + h * 0.7));
   c.drawImage(softRadial(L.col), L.x - rx, st.gy - ry * 0.35, rx * 2, ry * 1.7); c.restore();
 }
 function wallWash(e, L, st) {
-  const c = e.light, w = st.wall, rx = L.r * 0.7, ry = (st.gy - w.top) * WASH.wallReach;
+  const c = e.light, w = st.wall, d = Math.max(20, st.gy - L.y);
+  const rx = L.r * 0.55 + d * 0.5, ry = (st.gy - w.top) * WASH.wallReach;
+  const cy = Math.min(st.gy, Math.max(w.top, L.y));          // the pool centres where the light meets the wall
   c.save(); c.beginPath(); c.rect(L.x - rx, w.top, rx * 2, st.gy - w.top); c.clip();
-  c.globalCompositeOperation = 'lighter'; c.globalAlpha = WASH.wallAlpha * L.glowI;
-  c.drawImage(softRadial(L.col), L.x - rx, st.gy - ry * 1.35, rx * 2, ry * 1.7); c.restore();
+  c.globalCompositeOperation = 'lighter'; c.globalAlpha = WASH.wallAlpha * L.glowI * (L.r / (L.r + d * 0.6));
+  c.drawImage(softRadial(L.col), L.x - rx, cy - ry, rx * 2, ry * 2); c.restore();
 }
 
 // VOLUMETRIC BEAM — a cone of light hanging in the wet air (the lamp's shaft, the searchlight's
@@ -173,16 +187,25 @@ function beam(e, L) {
   c.closePath(); c.fill(); c.restore();
 }
 
-// the lighting pass body: a flat ambient lift so blacks never crush, then per light the beam (if
-// any), the surface + air glow, the diffuse floor + wall washes, and the wet-floor reflection.
-export function drawLightLayer(e) {
+// BACK light: everything that belongs behind the cast (so a foreground figure occludes it). A flat
+// ambient lift, then per non-front light its beam, surface + air glow, floor + wall washes, and the
+// wet-floor reflection. The compositor blits this before drawing the cast.
+export function drawBackLight(e) {
   const st = stageOf(e), R = e.coverRect(), c = e.light;
   c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = WASH.ambientAlpha * st.ambient.level / 0.16;
   c.fillStyle = `rgb(${st.ambient.col})`; c.fillRect(R.x, R.y, R.w, R.h); c.restore();
   for (const L of e.lights) {
     if (L.beam) beam(e, L);
+    if (L.front) continue;
     if (L.glow) { if (L.surface) surfaceGlow(e, L); airGlow(e, L); }
     if (L.wash) { floorWash(e, L, st); if (st.wall) wallWash(e, L, st); }
     if (L.refl) floorRefl(e, L);
   }
+}
+
+// FRONT light: only the glow of lights that sit in front of the cast (a cigarette ember, a held
+// match). Blitted after the cast so it reads over a figure. No washes or reflection (those are the
+// floor and wall, which are behind the figure).
+export function drawFrontLight(e) {
+  for (const L of e.lights) if (L.front && L.glow) { if (L.surface) surfaceGlow(e, L); airGlow(e, L); }
 }
