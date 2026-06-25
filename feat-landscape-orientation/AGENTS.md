@@ -61,10 +61,14 @@ system.
   too wide one gets bars left and right. Everything downstream reads `e.W/e.H` (the band), so the
   world never knows it is letterboxed. The cap is loose on purpose, so normal desktops and modern
   phones in landscape fill edge to edge and only genuine ultrawides pillarbox.
-- Rotate gate (`viewport.js`): on a touch device held in portrait, starting a story goes fullscreen
-  and asks for landscape (`screen.orientation.lock`), and the "rotate your screen" prompt shows only
-  if that is refused. Reverting to portrait mid story shows the prompt again, and a "watch anyway"
-  fallback plays letterboxed.
+- Landscape prompt (`viewport.js`): on a touch device held in portrait, starting a story never turns
+  the screen on its own. It raises a prompt that offers ROTATE TO LANDSCAPE (fullscreen where
+  possible, then `screen.orientation.lock`) or STAY IN PORTRAIT (plays letterboxed). Turning the
+  phone by hand while the prompt is up clears it and starts at once. Where fullscreen does not exist
+  (iPhone), the prompt drops the rotate button, asks the viewer to turn the phone, and the STAY IN
+  PORTRAIT fallback fades in after a short delay. Already landscape on a device that can fullscreen,
+  it slips straight in with no prompt, and a return to portrait mid story is non-blocking
+  (letterboxed, with the HUD fullscreen button).
 - Pausable play clock (`engine.js`): `engine.pause()` and `engine.resume()` freeze one play clock
   (used by the gate) so animation holds and resumes with no time jump. Audio mirrors this through
   `Audio2.suspend()` and `Audio2.resumeAll()`, so the prompt is a full pause of motion and sound.

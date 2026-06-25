@@ -298,6 +298,10 @@ body[data-stage="menu"] #intro { opacity: 1; pointer-events: auto; }
 #rotate.no-fs .rotate-fs { display: none; }              /* no fullscreen button where it cannot work */
 #rotate .rotate-skip { display: none; }              /* the buttons use .noir-item, this only gates the fallback */
 #rotate .rotate-skip.show { display: inline-block; }
+/* the primary action is just framed text, no diamond marks, so its weight reads next to the plain STAY IN PORTRAIT */
+#rotate .rotate-fs { border: 1px solid rgba(236,230,214,0.5); border-radius: 2px; padding-left: 30px; padding-right: 30px; }
+#rotate .rotate-fs::before, #rotate .rotate-fs::after { content: none; }
+#rotate .rotate-fs:hover, #rotate .rotate-fs:active { border-color: var(--c-cream); }
 /* a little phone that tips from portrait to landscape on a loop */
 .rotate-phone { width: 58px; height: 102px; border: 4px solid var(--c-fg); border-radius: 12px;
   position: relative; transform-origin: 50% 50%; animation: rotatehint 2.6s ease-in-out infinite; }

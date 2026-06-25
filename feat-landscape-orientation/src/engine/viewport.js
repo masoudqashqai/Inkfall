@@ -1,23 +1,26 @@
-// VIEWPORT — keeps the story in a wide, fullscreen, landscape frame, degrading gracefully so it
-// works on every phone and browser:
+// VIEWPORT — keeps the story in a wide landscape frame, degrading gracefully so it works on every
+// phone and browser:
 //   1. Letterbox (always works): the engine sizes the canvas to a target aspect band [ASPECT_MIN,
-//      ASPECT_MAX], so a too-tall screen gets bars top and bottom and a too-wide one gets bars left
+//      ASPECT_MAX], so a too tall screen gets bars top and bottom and a too wide one gets bars left
 //      and right. Pure canvas sizing plus CSS, no browser feature needed, this is the fallback.
-//   2. Immersion gate (touch devices): starting a story tries to enter fullscreen and lock to
-//      landscape (the lock is fullscreen scoped and releases on exit). If the screen is not yet
-//      fullscreen + landscape, a prompt offers a FULLSCREEN button (or a rotate hint where fullscreen
-//      is impossible), and a "watch anyway" fallback plays letterboxed. Once immersion is reached or
-//      skipped, a broken state mid story is non-blocking: it letterboxes and shows a HUD button.
-//   3. Platform reality: where element fullscreen does not exist (iPhone Safari) the target relaxes
-//      to landscape only, and the bundled web app manifest gives true fullscreen from the home
-//      screen. Desktop never auto-prompts, it offers fullscreen from the menu and letterboxes if tall.
+//   2. Landscape prompt (touch devices, portrait): starting a story never forces a turn. Instead a
+//      prompt explains the story reads best in landscape and offers two choices, a ROTATE TO
+//      LANDSCAPE button (fullscreen where possible, then an orientation lock) and a STAY IN PORTRAIT
+//      button that plays letterboxed. Turning the phone by hand while the prompt is up dismisses it
+//      and starts at once, so a sudden rotation never catches the viewer off guard. Already in
+//      landscape on a device that can fullscreen, it slips straight in with no prompt. Once cleared,
+//      a return to portrait mid story is non-blocking: it letterboxes and shows the HUD button.
+//   3. Platform reality: where element fullscreen does not exist (iPhone Safari) the prompt drops the
+//      rotate button and just asks the viewer to turn the phone, with a STAY IN PORTRAIT fallback,
+//      and the bundled web app manifest gives true fullscreen from the home screen. Desktop never
+//      prompts, it offers fullscreen from the HUD and letterboxes if the window is tall.
 export const ASPECT_MIN = 16 / 10;       // below this the screen is too tall: bars top and bottom
 export const ASPECT_MAX = 2.6;           // above this the screen is too wide: bars left and right. Loose
                                          // on purpose, normal desktops (a 1080p minus the dock and
                                          // browser chrome runs ~2.2), modern phones in landscape
                                          // (up to 23:9, about 2.56) and 21:9 monitors all fill. Only
                                          // genuinely extreme ultrawides (32:9, about 3.55) pillarbox
-const SKIP_DELAY = 4000;                 // wait before the prompt offers the "watch anyway" fallback
+const SKIP_DELAY = 4000;                 // no-fs prompt only: wait before the STAY IN PORTRAIT fallback fades in
 
 // immersion helpers. matchMedia is wrapped because a few old engines throw on unknown queries.
 const mq = q => { try { return matchMedia(q).matches; } catch (e) { return false; } };
@@ -50,15 +53,6 @@ function landscape() {
   return innerWidth >= innerHeight;
 }
 
-// the immersion target adapts to the platform: a real fullscreen where we can reach one, otherwise
-// the best we can do (landscape) on engines with no element fullscreen, such as iPhone Safari. A
-// home-screen PWA is already fullscreen, so there only landscape is needed.
-export function isImmersive() {
-  if (isStandalone()) return landscape();
-  if (canFullscreen()) return isFullscreen() && landscape();
-  return landscape();
-}
-
 export class Viewport {
   constructor(engine) {
     this.engine = engine;
@@ -66,8 +60,8 @@ export class Viewport {
     this.overlay = null; this.skipBtn = null; this.fsBtn = null;
     this.experienceStarted = false;   // ENTER pressed, a story is on its way in
     this.storyStarted = false;        // onStart has fired (the play clock is live)
-    this.gatePassed = false;          // immersion reached, or "watch anyway" chosen, at least once
-    this.gateBlocked = false;         // the immersion prompt is up
+    this.gatePassed = false;          // landscape reached (button or by hand), or portrait kept, at least once
+    this.gateBlocked = false;         // the landscape prompt is up
     this.menuPaused = false;          // a menu/modal is open (the pause menu)
     this.onStart = null;              // boot wires this to manager.requestStart
     this.onPause = null;              // boot wires this to Audio2.suspend (full story pause)
@@ -81,8 +75,8 @@ export class Viewport {
     if (window.screen && screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', reeval);
   }
 
-  // overlay = the immersion prompt, skip = its "watch anyway", fsCta = its FULLSCREEN button,
-  // fsBtn = the in-story HUD fullscreen button
+  // overlay = the landscape prompt, skip = its STAY IN PORTRAIT button, fsCta = its ROTATE TO
+  // LANDSCAPE button, fsBtn = the in story HUD fullscreen button
   attach({ overlay, skip, fsCta, fsBtn }) {
     this.overlay = overlay; this.skipBtn = skip; this.fsBtn = fsBtn;
     if (skip) skip.addEventListener('click', () => { this.gatePassed = true; this.evaluate(); });
@@ -110,11 +104,13 @@ export class Viewport {
   toggleFullscreen() { if (isFullscreen()) this.exit(); else this.enter(); }
   fullscreenOn() { return isFullscreen(); }
 
-  // ENTER pressed: on a touch device try to go straight into the immersive view (the tap is the user
-  // gesture fullscreen needs). Where that cannot or will not happen, evaluate() raises the prompt.
+  // ENTER pressed: never force a turn. Already in landscape on a device that can fullscreen, slip
+  // straight into the immersive view (no jarring rotation) and start. Otherwise evaluate() raises the
+  // landscape prompt and the viewer chooses ROTATE TO LANDSCAPE or STAY IN PORTRAIT.
   async beginStory() {
     this.experienceStarted = true;
-    if (this.rotatable) await this.enter(); else this.evaluate();
+    if (this.rotatable && canFullscreen() && landscape()) await this.enter();
+    else this.evaluate();
   }
 
   // back to the start screen: leave fullscreen and reset the gate so it runs again next time
@@ -132,9 +128,11 @@ export class Viewport {
   }
   setMenuPaused(on) { this.menuPaused = on; this.applyPause(); }
 
-  // the gate only blocks on a touch device that has not yet reached immersion (or chosen to skip).
-  // After that, a broken immersion mid story is non-blocking: it letterboxes and shows the HUD button.
-  blocked() { return this.rotatable && !this.gatePassed && !isImmersive(); }
+  // the gate only blocks on a touch device that is still in portrait and has not yet cleared the
+  // prompt (rotated, or chosen to stay). After that, a return to portrait mid story is non-blocking:
+  // it letterboxes and shows the HUD button. Landscape alone clears it, fullscreen is a bonus the
+  // ROTATE button adds, not a requirement, so turning the phone by hand is enough to start.
+  blocked() { return this.rotatable && !this.gatePassed && !landscape(); }
 
   // orientation + fullscreen changes can fire a burst of events, so settle briefly before judging
   scheduleEvaluate() {
@@ -147,7 +145,7 @@ export class Viewport {
   // a lock resolves), so there is no layout-size lag to wait out, the prompt covers the scene at once.
   evaluate() {
     if (!this.experienceStarted) return;
-    if (isImmersive()) this.gatePassed = true;
+    if (landscape()) this.gatePassed = true;   // rotated to landscape, by the button or by hand: gate cleared
     this.gateBlocked = this.blocked();
     if (this.gateBlocked) this.showOverlay();
     else {
@@ -166,17 +164,21 @@ export class Viewport {
     this.fsBtn.title = isFullscreen() ? 'exit fullscreen' : 'fullscreen';
   }
 
-  // the prompt adapts: where fullscreen is possible it leads with the FULLSCREEN button, otherwise it
-  // becomes a rotate-your-phone hint (the .no-fs class swaps the copy and hides the button via CSS)
+  // the prompt adapts: where fullscreen is possible it offers both choices at once, ROTATE TO
+  // LANDSCAPE and STAY IN PORTRAIT, so the viewer decides and nothing turns on its own. Where it is
+  // not (iPhone), the .no-fs class swaps the copy to a rotate hint, drops the rotate button, and the
+  // STAY IN PORTRAIT fallback fades in after a short delay to nudge a turn first.
   showOverlay() {
     if (!this.overlay) return;
-    this.overlay.classList.toggle('no-fs', !canFullscreen());
+    const noFs = !canFullscreen();
+    this.overlay.classList.toggle('no-fs', noFs);
     if (this.overlay.classList.contains('show')) return;
     this.overlay.classList.add('show');
     if (this.skipBtn) {
       this.skipBtn.classList.remove('show');
       clearTimeout(this._skipTimer);
-      this._skipTimer = setTimeout(() => this.skipBtn.classList.add('show'), SKIP_DELAY);
+      if (noFs) this._skipTimer = setTimeout(() => this.skipBtn.classList.add('show'), SKIP_DELAY);
+      else this.skipBtn.classList.add('show');
     }
   }
 
