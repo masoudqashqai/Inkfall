@@ -2,7 +2,7 @@
 // additive light layer to the offscreen buffer, composites them, then weather over the top and
 // the screen-space post + transition. Two buffers keep the light layer separable for the look.
 import { sky } from '../render/passes/sky.js';
-import { shadows } from '../render/passes/shadows.js';
+import { casterRecord, paintCaster, tintBuffer } from '../render/shadows.js';
 import { lightingBack, lightingFront } from '../render/passes/lighting.js';
 import { weather } from '../render/passes/weather.js';
 import { post } from '../render/passes/post.js';
@@ -11,9 +11,21 @@ import { transition } from '../render/passes/transition.js';
 export class Compositor {
   constructor(engine) { this.engine = engine; }
 
+  // paint one caster's shadow to the shadow buffer and composite it onto the main canvas. Called in
+  // depth order during the cast, so each shadow lands on the floor, the wall and the cast behind it.
+  castShadow(e, cr) {
+    const eng = this.engine, main = e.main, shadow = e.shadow, cam = e.scene.camera;
+    eng.setWorldTransform(shadow); shadow.clearRect(0, 0, e.W, e.H);
+    shadow.save(); cam.apply(shadow); e.ctx = shadow;
+    paintCaster(e, cr);
+    shadow.restore();
+    tintBuffer(e);
+    eng.setDeviceTransform(main); main.globalCompositeOperation = 'source-over'; main.drawImage(eng.shadowCv, 0, 0);
+  }
+
   render(e) {
-    const eng = this.engine, main = e.main, light = e.light, shadow = e.shadow, cam = e.scene.camera;
-    e.lights = []; e.casters = [];
+    const eng = this.engine, main = e.main, light = e.light, cam = e.scene.camera;
+    e.lights = [];
 
     // THE END: a black screen with grain + vignette + the title (no scene drawn)
     if (e.flow && e.flow.ended) {
@@ -29,20 +41,10 @@ export class Compositor {
     main.save(); cam.apply(main); e.ctx = main;
     sky(e);                       // sky + moon (moon registers its light)
     e.scene.collectLights(e);     // declared lights + emissive props → e.lights (before anything reads them)
-    e.scene.collectCasters(e);    // visible casters → e.casters (before the shadow pass projects them)
     e.scene.drawBack(e);          // distant elements (e.g. a searchlight beam) behind the backdrop
     e.scene.drawBackdrop(e);
     e.scene.drawFixtures(e);      // the visible lamp/neon/bulb fixtures
     main.restore();
-
-    // SHADOW BUFFER → camera-applied, then composited onto the set UNDER the cast (a figure stands
-    // on its own shadow, and shadows fall on the floor + the back wall, not on the actors above).
-    eng.setWorldTransform(shadow);
-    shadow.clearRect(0, 0, e.W, e.H);
-    shadow.save(); cam.apply(shadow); e.ctx = shadow;
-    shadows(e);
-    shadow.restore();
-    eng.setDeviceTransform(main); main.globalCompositeOperation = 'source-over'; main.drawImage(eng.shadowCv, 0, 0);
 
     // BACK LIGHT BUFFER → camera-applied: environmental light (window bloom, beams, washes,
     // reflections, ripples, scene halos), composited BEFORE the cast so a foreground figure
@@ -55,9 +57,17 @@ export class Compositor {
     eng.setDeviceTransform(main); main.globalCompositeOperation = 'lighter'; main.drawImage(eng.lightCv, 0, 0);
     main.globalCompositeOperation = 'source-over';
 
-    // WORLD (cast) → main, on top of the shadows + the back light
+    // CAST → main, back to front. Each caster's shadow is painted right BEFORE its object, so it
+    // falls on the floor, the back wall AND the cast already drawn behind it (a figure in front
+    // shadows one behind). The object then draws over its own shadow.
+    for (const o of e.scene.midObjects(e)) {
+      if (o.castsShadow) this.castShadow(e, casterRecord(e, o));
+      eng.setWorldTransform(main); main.save(); cam.apply(main); e.ctx = main;
+      o.draw(e);
+      main.restore();
+    }
     eng.setWorldTransform(main); main.save(); cam.apply(main); e.ctx = main;
-    e.scene.drawObjects(e);       // props/actors/movers/effects (depth order) + brass
+    e.scene.drawShells(e);        // ejected brass, over the cast
     main.restore();
 
     // FRONT LIGHT BUFFER → camera-applied: only lights in front of the cast (a cigarette ember),

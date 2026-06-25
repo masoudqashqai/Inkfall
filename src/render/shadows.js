@@ -1,25 +1,28 @@
-// SHADOW SERVICE — the stage-aware companion to the lighting service. It follows the same
-// "describe once, the pass paints" split: an object registers a CASTER with addCaster({...}) (the
-// scene does this for every visible object whose castsShadow is true), then drawShadowLayer paints
-// every caster's shadow onto the offscreen shadow buffer, projected through the strongest lights
-// onto the stage floor and, where the set has one, climbing the back wall. The compositor blits
-// the buffer under the cast. A caster may hand a shadowSil(e, c) that strokes only its solid body
-// shape; without one it falls back to a tapered billboard from its width and height.
+// SHADOW SERVICE — the stage-aware companion to the lighting service. Each object whose castsShadow
+// is true is turned into a CASTER record and its shadow is painted to the offscreen shadow buffer,
+// projected through the strongest lights onto the stage floor and, where the set has one, climbing
+// the back wall. The compositor paints each caster's shadow in depth order, right before the object
+// is drawn, so a shadow lands not only on the floor and wall but on the cast already behind it (a
+// figure in front shadows a figure behind). A caster may hand a shadowSil(e, c) that strokes only
+// its solid body shape; without one it falls back to a tapered billboard from its width and height.
 import { SHADE } from '../style/shadows.js';
 import { stageOf, shadowThrow } from './stage.js';
 
-// register a caster this frame. Fields:
+// build a caster record from a placed object (its feet point, silhouette size, shape and density).
 //   bx, baseY   the ground contact point (feet) in world space
 //   w, h        silhouette half-width and height in world px (the billboard fallback + softness)
-//   sil         optional sil(e, c): draw the solid shape in LOCAL coords (origin at the feet,
+//   sil         optional shadowSil(e, c): draw the solid shape in LOCAL coords (origin at the feet,
 //               up = negative y, widths already scaled), plain fills only
-//   node        the placed instance (passed as `this` to sil)
 //   density     0..1 shadow opacity multiplier (lighter for glass/translucent props; default 1)
-export function addCaster(e, rec) {
-  if (rec.w == null) rec.w = 24;
-  if (rec.h == null) rec.h = 80;
-  if (rec.density == null) rec.density = 1;
-  e.casters.push(rec);
+export function casterRecord(e, o) {
+  const s = e.scaleOf(o);
+  return {
+    node: o, bx: e.walkX(o), baseY: e.gy + (o.dy || 0) * e.unit,
+    w: (o.shadowW != null ? o.shadowW : 26) * s,
+    h: (o.shadowH != null ? o.shadowH : 80) * s,
+    density: o.shadowDensity != null ? o.shadowDensity : 1,
+    sil: o.shadowSil || null,
+  };
 }
 
 // a soft round black sprite for the contact dab (soft edge with no blur filter, as the rest of
@@ -106,12 +109,14 @@ function castOne(e, c, st, cr) {
   }
 }
 
-// the shadow pass body: paint every caster to the buffer in black, then tint the whole buffer to
-// the shadow ink in one pass (source-in keeps the soft alpha, swaps the colour).
-export function drawShadowLayer(e) {
-  if (!e.casters.length) return;
-  const c = e.shadow, st = stageOf(e);
-  for (const cr of e.casters) castOne(e, c, st, cr);
+// paint one caster's shadow (black) onto the shadow buffer. The buffer is cleared and camera-applied
+// by the compositor, which then tints and composites it before drawing the object, so each caster's
+// shadow falls on the floor, the wall and the cast already behind it.
+export function paintCaster(e, cr) { castOne(e, e.shadow, stageOf(e), cr); }
+
+// recolour the buffer to the shadow ink in one pass (source-in keeps the soft alpha, swaps colour).
+export function tintBuffer(e) {
+  const c = e.shadow;
   c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
   c.globalCompositeOperation = 'source-in';
   c.fillStyle = `rgba(${SHADE.color},1)`; c.fillRect(0, 0, c.canvas.width, c.canvas.height);

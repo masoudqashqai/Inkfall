@@ -1,11 +1,11 @@
 // FRAME — the per-frame facade handed to passes and to every object's draw/update/emitLight.
 // It bundles the live timing + sizes, the drawing contexts (main, the additive light buffer, the
-// shadow buffer), and the coordinate, lighting + shadow helpers. Objects read `e.ctx` as their
-// target and call helpers like `e.X(node)`, `e.addLight(...)`, `e.addCaster(...)`.
+// shadow buffer), and the coordinate + lighting helpers. Objects read `e.ctx` as their target and
+// call helpers like `e.X(node)`, `e.addLight(...)`. Shadows are not registered by objects: the
+// compositor turns every castsShadow object into a caster and paints it (see render/shadows.js).
 import { PALETTE } from '../style/palette.js';
 import { lerp, smooth01 } from './math.js';
 import * as L from '../render/lighting.js';
-import * as S from '../render/shadows.js';
 
 export class Frame {
   constructor() {
@@ -14,7 +14,6 @@ export class Frame {
     this.ctx = null;                              // active draw target (set per pass)
     this.scene = null;                            // active Scene
     this.lights = [];                             // light records, rebuilt each frame
-    this.casters = [];                            // shadow caster records, rebuilt each frame
   }
 
   // live, scene-derived values
@@ -55,10 +54,6 @@ export class Frame {
   dominantLight(x) { return L.dominantLight(this, x); }
   litTint(x) { return L.litTint(this, x); }
   litColor(x, gr, gg, gb) { return L.litColor(this, x, gr, gg, gb); }
-
-  // shadow facade (delegates to the shadow service so the same describe-once split applies).
-  // Objects register a caster once with addCaster({...}); the shadow pass projects + paints it.
-  addCaster(rec) { S.addCaster(this, rec); }
 }
 
 Frame.prototype.palette = PALETTE;
