@@ -6,6 +6,12 @@
 <meta name="theme-color" content="#000000" />
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
 <title>INKFALL — a noir story engine</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Inkfall" />
+<link rel="apple-touch-icon" href="assets/icon.svg" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Special+Elite&display=swap" rel="stylesheet">
@@ -95,7 +101,9 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
   display: none; color: #7c7c7c; font-size: var(--fs-note); letter-spacing: 0.06em; }
 #build { position: fixed; left: 8px; bottom: 4px; z-index: var(--z-build); color: #3a3a3a; font-size: 9px;
   letter-spacing: 0.1em; font-family: var(--f-mono); }
-#menubtn, #shoot { font-variant-emoji: text; }   /* keep the HUD glyphs monochrome (noir), never colour emoji */
+#menubtn, #shoot, #fsbtn { font-variant-emoji: text; }   /* keep the HUD glyphs monochrome (noir), never colour emoji */
+#fsbtn { display: none; }                                /* the HUD fullscreen button, shown by the viewport when not immersive */
+#fsbtn.show { display: inline-flex; }
 #topbar { position: fixed; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); z-index: var(--z-hud);
   display: flex; flex-direction: column; align-items: flex-end; gap: var(--hud-gap); }
 .hud-row { display: flex; gap: var(--hud-gap); }
@@ -187,10 +195,17 @@ body[data-stage="menu"] #intro { opacity: 1; pointer-events: auto; }
   #caption { font-size: 18px; width: min(52vw, 600px); }
 }
 
-/* rotate prompt: the .overlay primitive, but opaque and on top of everything */
-#rotate { z-index: var(--z-prompt); background: var(--c-bg); gap: 32px; }
+/* immersion prompt: the .overlay primitive, but opaque and on top of everything */
+#rotate { z-index: var(--z-prompt); background: var(--c-bg); gap: 28px; }
 #rotate .rotate-text { font-family: var(--f-display); color: var(--c-cream); max-width: 420px;
   font-size: var(--fs-sub); letter-spacing: 0.16em; font-weight: 600; line-height: 1.6; }
+#rotate .rt-nofs { display: none; }                      /* copy swaps when fullscreen is impossible */
+#rotate.no-fs .rt-fs { display: none; }
+#rotate.no-fs .rt-nofs { display: block; }
+#rotate.no-fs .rotate-fs { display: none; }              /* no fullscreen button where it cannot work */
+#rotate .rotate-fs { font-family: var(--f-display); cursor: pointer; background: var(--c-red); color: #fff;
+  border: 1px solid var(--c-red); font-size: var(--fs-menu); letter-spacing: 0.18em; font-weight: 600; padding: 15px 34px; }
+#rotate .rotate-fs:hover, #rotate .rotate-fs:active { background: #c2000e; border-color: #c2000e; }
 #rotate .rotate-skip { display: none; font-family: var(--f-display); cursor: pointer;
   background: transparent; color: rgba(236,230,214,0.85); border: 1px solid rgba(236,230,214,0.45);
   font-size: var(--fs-menu); letter-spacing: 0.22em; font-weight: 600; padding: 14px 28px; }
@@ -227,6 +242,7 @@ body[data-stage="menu"] #intro { opacity: 1; pointer-events: auto; }
 <div id="topbar">
   <div class="hud-row">
     <button id="shoot" class="hud-btn hud-sm" title="save a poster of this frame">❏</button>
+    <button id="fsbtn" class="hud-btn hud-sm" title="fullscreen">⛶</button>
     <button id="menubtn" class="hud-btn hud-sm" title="menu">☰</button>
   </div>
   <div id="actsel">
@@ -237,7 +253,9 @@ body[data-stage="menu"] #intro { opacity: 1; pointer-events: auto; }
 
 <div id="rotate" class="overlay">
   <div class="rotate-phone" aria-hidden="true"><span class="rotate-cam"></span></div>
-  <div class="rotate-text">For the best experience, rotate your screen</div>
+  <div class="rotate-text rt-fs">This story plays best in fullscreen, landscape.</div>
+  <div class="rotate-text rt-nofs">Rotate your phone for the best view.</div>
+  <button id="rotate-fs" class="rotate-fs">ENTER FULLSCREEN</button>
   <button id="rotate-skip" class="rotate-skip">WATCH ANYWAY</button>
 </div>
 
@@ -252,6 +270,7 @@ body[data-stage="menu"] #intro { opacity: 1; pointer-events: auto; }
   <div class="sm-panel">
     <div class="sm-head">MENU</div>
     <button id="sm-sound">SOUND: ON</button>
+    <button id="sm-fs">FULLSCREEN</button>
     <button id="sm-back">BACK TO START MENU</button>
     <button id="sm-edit">EDIT STORY</button>
     <button id="sm-cancel">CLOSE</button>
@@ -283,7 +302,7 @@ __req("src/library/index.js");
 const { STORIES } = __req("stories/manifest.js");
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 42 · landscape frame + rotate gate'
+const BUILD = 'v2 build 43 · fullscreen immersion + menu'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 
@@ -300,7 +319,7 @@ el('actbtn').addEventListener('click', () => {
 // keep the story in a landscape frame: go fullscreen + ask for landscape on a phone/tablet, hold
 // the start behind a "rotate your screen" prompt while portrait, and letterbox everywhere else.
 const viewport = new Viewport(engine);
-viewport.attach({ overlay: el('rotate'), skip: el('rotate-skip') });
+viewport.attach({ overlay: el('rotate'), skip: el('rotate-skip'), fsCta: el('rotate-fs'), fsBtn: el('fsbtn') });
 viewport.onStart = () => manager.requestStart();
 viewport.onPause = () => Audio2.suspend();     // full story pause behind the prompt: clock + sound
 viewport.onResume = () => Audio2.resumeAll();
@@ -410,10 +429,14 @@ function goToStartMenu() {
   viewport.reset(); manager.reset();                        // drop back to act one, not started, so ENTER replays cleanly
   setStage('menu');                                          // CSS fades the intro back in and hides the HUD
 }
-const soundBtn = el('sm-sound');
-const syncSound = () => { soundBtn.textContent = Audio2.isOn() ? 'SOUND: ON' : 'SOUND: OFF'; };
-soundBtn.addEventListener('click', () => { Audio2.toggle(); syncSound(); });
-el('menubtn').addEventListener('click', () => { syncSound(); storymenu.classList.add('show'); });
+const soundBtn = el('sm-sound'), fsItem = el('sm-fs');
+const syncMenu = () => {
+  soundBtn.textContent = Audio2.isOn() ? 'SOUND: ON' : 'SOUND: OFF';
+  fsItem.textContent = viewport.fullscreenOn() ? 'EXIT FULLSCREEN' : 'FULLSCREEN';
+};
+soundBtn.addEventListener('click', () => { Audio2.toggle(); syncMenu(); });
+fsItem.addEventListener('click', () => { viewport.toggleFullscreen(); setTimeout(syncMenu, 100); });
+el('menubtn').addEventListener('click', () => { syncMenu(); storymenu.classList.add('show'); });
 el('sm-cancel').addEventListener('click', () => storymenu.classList.remove('show'));
 storymenu.addEventListener('click', e => { if (e.target === storymenu) storymenu.classList.remove('show'); });
 el('sm-back').addEventListener('click', goToStartMenu);
@@ -806,18 +829,19 @@ __exports.groundShadow = groundShadow;
 __exports.drawLightLayer = drawLightLayer;
 };
 __mod["src/engine/viewport.js"] = function(__exports, __req){
-// VIEWPORT — keeps the story in a wide, landscape frame. It is built to degrade gracefully so the
-// experience works on every phone and browser, even where the immersive APIs do not exist:
+// VIEWPORT — keeps the story in a wide, fullscreen, landscape frame, degrading gracefully so it
+// works on every phone and browser:
 //   1. Letterbox (always works): the engine sizes the canvas to a target aspect band [ASPECT_MIN,
 //      ASPECT_MAX], so a too-tall screen gets bars top and bottom and a too-wide one gets bars left
-//      and right. This is pure canvas sizing plus CSS, no browser feature needed.
-//   2. Rotate prompt (always works): on any touch device held in portrait the prompt shows, driven
-//      by resize/orientationchange + a window aspect check, no API required. A "watch anyway"
-//      fallback plays letterboxed.
-//   3. Fullscreen + orientation lock (progressive enhancement): on start we try to go fullscreen and
-//      lock to landscape so the prompt is skipped. Where that is unsupported or refused (notably iOS
-//      Safari), it is caught and the prompt from step 2 takes over. So the worst case is still a
-//      correctly framed, landscape experience.
+//      and right. Pure canvas sizing plus CSS, no browser feature needed, this is the fallback.
+//   2. Immersion gate (touch devices): starting a story tries to enter fullscreen and lock to
+//      landscape (the lock is fullscreen scoped and releases on exit). If the screen is not yet
+//      fullscreen + landscape, a prompt offers a FULLSCREEN button (or a rotate hint where fullscreen
+//      is impossible), and a "watch anyway" fallback plays letterboxed. Once immersion is reached or
+//      skipped, a broken state mid story is non-blocking: it letterboxes and shows a HUD button.
+//   3. Platform reality: where element fullscreen does not exist (iPhone Safari) the target relaxes
+//      to landscape only, and the bundled web app manifest gives true fullscreen from the home
+//      screen. Desktop never auto-prompts, it offers fullscreen from the menu and letterboxes if tall.
 const ASPECT_MIN = 16 / 10;       // below this the screen is too tall: bars top and bottom
 const ASPECT_MAX = 2.6;           // above this the screen is too wide: bars left and right. Loose
                                          // on purpose, normal desktops (a 1080p minus the dock and
@@ -826,21 +850,35 @@ const ASPECT_MAX = 2.6;           // above this the screen is too wide: bars lef
                                          // genuinely extreme ultrawides (32:9, about 3.55) pillarbox
 const SKIP_DELAY = 4000;                 // wait before the prompt offers the "watch anyway" fallback
 
-// a device counts as rotatable if it is touch first (a phone or tablet that can physically turn).
-// The Screen Orientation API is NOT required here, the rotate prompt is the fallback for when the
-// fullscreen + lock signal cannot be honoured (for example iOS Safari).
+// immersion helpers. matchMedia is wrapped because a few old engines throw on unknown queries.
+const mq = q => { try { return matchMedia(q).matches; } catch (e) { return false; } };
+
+// a device counts as rotatable if it is touch first (a phone or tablet that can physically turn)
 function isRotatable() {
-  return matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+  return mq('(pointer: coarse)') || navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+}
+function isStandalone() { return mq('(display-mode: fullscreen)') || mq('(display-mode: standalone)') || navigator.standalone === true; }
+function isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+function canFullscreen() { return !!(document.fullscreenEnabled || document.webkitFullscreenEnabled) && !isStandalone(); }
+function landscape() { return innerWidth >= innerHeight; }
+
+// the immersion target adapts to the platform: a real fullscreen where we can reach one, otherwise
+// the best we can do (landscape) on engines with no element fullscreen, such as iPhone Safari. A
+// home-screen PWA is already fullscreen, so there only landscape is needed.
+function isImmersive() {
+  if (isStandalone()) return landscape();
+  if (canFullscreen()) return isFullscreen() && landscape();
+  return landscape();
 }
 
 class Viewport {
   constructor(engine) {
     this.engine = engine;
     this.rotatable = isRotatable();
-    this.overlay = null; this.skipBtn = null;
+    this.overlay = null; this.skipBtn = null; this.fsBtn = null;
     this.experienceStarted = false;   // ENTER pressed, a story is on its way in
     this.storyStarted = false;        // onStart has fired (the play clock is live)
-    this.skipped = false;             // the user chose "watch anyway", stop nagging
+    this.gatePassed = false;          // immersion reached, or "watch anyway" chosen, at least once
     this.onStart = null;              // boot wires this to manager.requestStart
     this.onPause = null;              // boot wires this to Audio2.suspend (full story pause)
     this.onResume = null;             // boot wires this to Audio2.resumeAll
@@ -848,42 +886,54 @@ class Viewport {
     const reeval = () => this.scheduleEvaluate();
     addEventListener('resize', reeval);
     addEventListener('orientationchange', reeval);
+    addEventListener('fullscreenchange', reeval);
+    addEventListener('webkitfullscreenchange', reeval);
     if (window.screen && screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', reeval);
   }
 
-  attach({ overlay, skip }) {
-    this.overlay = overlay; this.skipBtn = skip;
-    if (skip) skip.addEventListener('click', () => { this.skipped = true; this.evaluate(); });
+  // overlay = the immersion prompt, skip = its "watch anyway", fsCta = its FULLSCREEN button,
+  // fsBtn = the in-story HUD fullscreen button
+  attach({ overlay, skip, fsCta, fsBtn }) {
+    this.overlay = overlay; this.skipBtn = skip; this.fsBtn = fsBtn;
+    if (skip) skip.addEventListener('click', () => { this.gatePassed = true; this.evaluate(); });
+    if (fsCta) fsCta.addEventListener('click', () => this.enter());
+    if (fsBtn) fsBtn.addEventListener('click', () => this.enter());
   }
 
-  // return to the pre-ENTER state so the gate runs again on the next start (used by "back to start menu")
-  reset() {
-    this.experienceStarted = false; this.storyStarted = false; this.skipped = false;
-    this.hideOverlay(); this.engine.resume();
-  }
-
-  // called when ENTER is pressed: go immersive, then decide whether to start now or prompt first
-  async beginStory() {
-    this.experienceStarted = true;
-    await this.requestImmersive();
-    this.evaluate();
-  }
-
-  // phones and tablets only: fullscreen first (orientation lock needs it), then ask for landscape.
-  // Both are best effort and fully guarded, so an unsupported or refused call just leaves the rotate
-  // prompt to handle it. requestFullscreen accepts webkit/ms prefixes for older engines.
-  async requestImmersive() {
-    if (!this.rotatable) return;
+  // enter the immersive view: fullscreen, then lock to landscape. The lock is fullscreen scoped and
+  // releases by itself when fullscreen ends, it is not a persistent global lock. Both are guarded,
+  // so an unsupported call is simply a no-op and the prompt handles the rest.
+  async enter() {
     const root = document.documentElement;
-    const fs = root.requestFullscreen || root.webkitRequestFullscreen || root.msRequestFullscreen;
+    const fs = root.requestFullscreen || root.webkitRequestFullscreen;
     try { if (fs) await fs.call(root); } catch (e) {}
     try { if (window.screen && screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch (e) {}
+    this.evaluate();
+  }
+  exit() {
+    try { const x = document.exitFullscreen || document.webkitExitFullscreen; if (x && isFullscreen()) x.call(document); } catch (e) {}
+  }
+  toggleFullscreen() { if (isFullscreen()) this.exit(); else this.enter(); }
+  fullscreenOn() { return isFullscreen(); }
+
+  // ENTER pressed: on a touch device try to go straight into the immersive view (the tap is the user
+  // gesture fullscreen needs). Where that cannot or will not happen, evaluate() raises the prompt.
+  async beginStory() {
+    this.experienceStarted = true;
+    if (this.rotatable) await this.enter(); else this.evaluate();
   }
 
-  portrait() { return innerWidth / innerHeight < 1; }
-  blocked() { return this.rotatable && !this.skipped && this.portrait(); }
+  // back to the start screen: leave fullscreen and reset the gate so it runs again next time
+  reset() {
+    this.experienceStarted = false; this.storyStarted = false; this.gatePassed = false;
+    this.hideOverlay(); this.engine.resume(); this.exit();
+  }
 
-  // rotation fires a burst of resize events, so settle briefly before judging the orientation
+  // the gate only blocks on a touch device that has not yet reached immersion (or chosen to skip).
+  // After that, a broken immersion mid story is non-blocking: it letterboxes and shows the HUD button.
+  blocked() { return this.rotatable && !this.gatePassed && !isImmersive(); }
+
+  // orientation + fullscreen changes can fire a burst of events, so settle briefly before judging
   scheduleEvaluate() {
     if (!this.experienceStarted) return;
     clearTimeout(this._settleTimer);
@@ -892,6 +942,7 @@ class Viewport {
 
   evaluate() {
     if (!this.experienceStarted) return;
+    if (isImmersive()) this.gatePassed = true;
     if (this.blocked()) {
       this.showOverlay();
       this.engine.pause();                       // freeze the clock (animations) under the prompt
@@ -902,10 +953,24 @@ class Viewport {
       if (this.onResume) this.onResume();
       if (!this.storyStarted) { this.storyStarted = true; if (this.onStart) this.onStart(); }
     }
+    this.updateFsBtn();
   }
 
+  // HUD fullscreen button: shown once playing on a touch device that can fullscreen but is not in it
+  // (so a viewer who left fullscreen, or who chose to watch anyway, can re-enter). Hidden while the
+  // prompt is up, since the prompt already offers it.
+  updateFsBtn() {
+    if (!this.fsBtn) return;
+    const show = this.storyStarted && this.rotatable && canFullscreen() && !isFullscreen() && !this.blocked();
+    this.fsBtn.classList.toggle('show', show);
+  }
+
+  // the prompt adapts: where fullscreen is possible it leads with the FULLSCREEN button, otherwise it
+  // becomes a rotate-your-phone hint (the .no-fs class swaps the copy and hides the button via CSS)
   showOverlay() {
-    if (!this.overlay || this.overlay.classList.contains('show')) return;
+    if (!this.overlay) return;
+    this.overlay.classList.toggle('no-fs', !canFullscreen());
+    if (this.overlay.classList.contains('show')) return;
     this.overlay.classList.add('show');
     if (this.skipBtn) {
       this.skipBtn.classList.remove('show');
@@ -924,6 +989,7 @@ class Viewport {
 __exports.ASPECT_MIN = ASPECT_MIN;
 __exports.ASPECT_MAX = ASPECT_MAX;
 __exports.isRotatable = isRotatable;
+__exports.isImmersive = isImmersive;
 __exports.Viewport = Viewport;
 };
 __mod["src/scene/manager.js"] = function(__exports, __req){
