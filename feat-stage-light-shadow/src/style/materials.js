@@ -28,9 +28,13 @@ let _lcol = [1, 1, 1];       // dominant light hue on the lit side, normalised (
 export function rimSign(e, node) {
   const X = e.X(node);
   let wx = 0, wy = 0, wr = 0, wg = 0, wb = 0, wsum = 0;
+  // a light reaches objects within REACH x its radius. This is decoupled from the (tight) air glow,
+  // so a major source (a street lamp, a room bulb, the moon) lights the cast well beyond its bloom,
+  // falling off gradually. Bigger sources gain the most absolute reach, so the big ones carry.
+  const REACH = 1.8;
   for (const L of e.lights) {
     if (L.front) continue;
-    const w = L.I * (1 - Math.abs(X - L.x) / (L.r * 1.1));
+    const w = L.I * (1 - Math.abs(X - L.x) / (L.r * REACH));
     if (w > 0) { const cc = L.col.split(','); wx += L.x * w; wy += L.y * w; wr += +cc[0] * w; wg += +cc[1] * w; wb += +cc[2] * w; wsum += w; }
   }
   let lx = wsum > 0.05 ? wx / wsum : e.keyLight.x * e.W;
