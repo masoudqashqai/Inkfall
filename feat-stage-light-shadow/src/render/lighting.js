@@ -92,10 +92,11 @@ function surfaceGlow(e, L) {
   c.drawImage(softRadial(L.col), L.x - rx, L.y - ry, rx * 2, ry * 2); c.restore();
 }
 
-// soft, wide atmospheric bloom — kept gentle (the "glow in the air", dialled down)
+// soft atmospheric bloom — the "glow in the air". Kept fairly tight so it concentrates around the
+// source instead of washing across the whole frame (a ring light, the moon, keeps its wider radius).
 function airGlow(e, L) {
-  const R = L.glowR, c = e.light;
-  c.save(); clipShade(c, L, e); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.15 * L.glowI;
+  const R = L.glowR * (L.ring ? 1 : 0.72), c = e.light;
+  c.save(); clipShade(c, L, e); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.17 * L.glowI;
   c.drawImage(L.ring ? softRing(L.col) : softRadial(L.col), L.x - R, L.y - R, R * 2, R * 2); c.restore();
 }
 
@@ -123,24 +124,26 @@ function floorRefl(e, L) {
   streak(e, L.x, L.col, I, w, len);
 }
 
-// the strongest light reaching a point (rim side, form tint, shadow direction)
+// the strongest light reaching a point (rim side, form tint, shadow direction). `front` lights (a
+// cigarette ember) are local foreground glows, not scene form-light, so they are skipped here.
 export function dominantLight(e, wx) {
   let best = null, bw = 0.12;
-  for (const L of e.lights) { const w = L.I * (1 - Math.abs(wx - L.x) / (L.r * 1.1)); if (w > bw) { bw = w; best = L; } }
+  for (const L of e.lights) { if (L.front) continue; const w = L.I * (1 - Math.abs(wx - L.x) / (L.r * 1.1)); if (w > bw) { bw = w; best = L; } }
   return best;
 }
 // the ambient light colour at a point, as a smooth weighted BLEND of nearby lights (not a single
 // dominant pick) so a figure between two flickering lights gets a gentle tint, not a hard flip.
+// `front` lights are excluded so a held cigarette does not retint the whole figure.
 export function litTint(e, wx) {
   let r = 0, g = 0, b = 0, wsum = 0;
-  for (const L of e.lights) { const w = L.I * (1 - Math.abs(wx - L.x) / (L.r * 1.1)); if (w > 0) { const cc = L.col.split(','); r += cc[0] * w; g += cc[1] * w; b += cc[2] * w; wsum += w; } }
+  for (const L of e.lights) { if (L.front) continue; const w = L.I * (1 - Math.abs(wx - L.x) / (L.r * 1.1)); if (w > 0) { const cc = L.col.split(','); r += cc[0] * w; g += cc[1] * w; b += cc[2] * w; wsum += w; } }
   return wsum < 0.12 ? null : [r / wsum, g / wsum, b / wsum];
 }
 
 // blended colour of every light reaching x (red + green → amber), else the fallback grey
 export function litColor(e, x, gr, gg, gb) {
   let r = 0, g = 0, b = 0, wsum = 0;
-  for (const L of e.lights) { const w = L.I * (1 - Math.abs(x - L.x) / (L.r * 0.6)); if (w > 0) { const cc = L.col.split(','); r += cc[0] * w; g += cc[1] * w; b += cc[2] * w; wsum += w; } }
+  for (const L of e.lights) { if (L.front) continue; const w = L.I * (1 - Math.abs(x - L.x) / (L.r * 0.6)); if (w > 0) { const cc = L.col.split(','); r += cc[0] * w; g += cc[1] * w; b += cc[2] * w; wsum += w; } }
   if (wsum < 0.18) return [gr, gg, gb];
   const m = Math.min(1, wsum * 0.9 + 0.2);
   return [Math.round(lerp(gr, r / wsum, m)), Math.round(lerp(gg, g / wsum, m)), Math.round(lerp(gb, b / wsum, m))];
@@ -166,7 +169,9 @@ function wallWash(e, L, st) {
   const cy = Math.min(st.gy, Math.max(w.top, L.y));          // the pool centres where the light meets the wall
   c.save(); c.beginPath(); c.rect(L.x - rx, w.top, rx * 2, st.gy - w.top); c.clip();
   c.globalCompositeOperation = 'lighter'; c.globalAlpha = WASH.wallAlpha * L.glowI * (L.r / (L.r + d * 0.6));
-  c.drawImage(softRadial(L.col), L.x - rx, cy - ry, rx * 2, ry * 2); c.restore();
+  // light runs DOWN the wall more than up it (it falls toward the floor), so the pool is weighted
+  // below the source: drawn taller and shifted down rather than a symmetric disc.
+  c.drawImage(softRadial(L.col), L.x - rx, cy - ry * 0.72, rx * 2, ry * 2.3); c.restore();
 }
 
 // VOLUMETRIC BEAM — a cone of light hanging in the wet air (the lamp's shaft, the searchlight's

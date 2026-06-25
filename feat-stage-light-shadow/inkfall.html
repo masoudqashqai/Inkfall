@@ -168,7 +168,7 @@ __req("src/library/index.js");
 const { STORIES } = __req("stories/manifest.js");
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 44 · every asset on the light + shadow system'
+const BUILD = 'v2 build 45 · truer light occlusion + form shading'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 
@@ -585,10 +585,11 @@ function surfaceGlow(e, L) {
   c.drawImage(softRadial(L.col), L.x - rx, L.y - ry, rx * 2, ry * 2); c.restore();
 }
 
-// soft, wide atmospheric bloom — kept gentle (the "glow in the air", dialled down)
+// soft atmospheric bloom — the "glow in the air". Kept fairly tight so it concentrates around the
+// source instead of washing across the whole frame (a ring light, the moon, keeps its wider radius).
 function airGlow(e, L) {
-  const R = L.glowR, c = e.light;
-  c.save(); clipShade(c, L, e); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.15 * L.glowI;
+  const R = L.glowR * (L.ring ? 1 : 0.72), c = e.light;
+  c.save(); clipShade(c, L, e); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.17 * L.glowI;
   c.drawImage(L.ring ? softRing(L.col) : softRadial(L.col), L.x - R, L.y - R, R * 2, R * 2); c.restore();
 }
 
@@ -616,24 +617,26 @@ function floorRefl(e, L) {
   streak(e, L.x, L.col, I, w, len);
 }
 
-// the strongest light reaching a point (rim side, form tint, shadow direction)
+// the strongest light reaching a point (rim side, form tint, shadow direction). `front` lights (a
+// cigarette ember) are local foreground glows, not scene form-light, so they are skipped here.
 function dominantLight(e, wx) {
   let best = null, bw = 0.12;
-  for (const L of e.lights) { const w = L.I * (1 - Math.abs(wx - L.x) / (L.r * 1.1)); if (w > bw) { bw = w; best = L; } }
+  for (const L of e.lights) { if (L.front) continue; const w = L.I * (1 - Math.abs(wx - L.x) / (L.r * 1.1)); if (w > bw) { bw = w; best = L; } }
   return best;
 }
 // the ambient light colour at a point, as a smooth weighted BLEND of nearby lights (not a single
 // dominant pick) so a figure between two flickering lights gets a gentle tint, not a hard flip.
+// `front` lights are excluded so a held cigarette does not retint the whole figure.
 function litTint(e, wx) {
   let r = 0, g = 0, b = 0, wsum = 0;
-  for (const L of e.lights) { const w = L.I * (1 - Math.abs(wx - L.x) / (L.r * 1.1)); if (w > 0) { const cc = L.col.split(','); r += cc[0] * w; g += cc[1] * w; b += cc[2] * w; wsum += w; } }
+  for (const L of e.lights) { if (L.front) continue; const w = L.I * (1 - Math.abs(wx - L.x) / (L.r * 1.1)); if (w > 0) { const cc = L.col.split(','); r += cc[0] * w; g += cc[1] * w; b += cc[2] * w; wsum += w; } }
   return wsum < 0.12 ? null : [r / wsum, g / wsum, b / wsum];
 }
 
 // blended colour of every light reaching x (red + green → amber), else the fallback grey
 function litColor(e, x, gr, gg, gb) {
   let r = 0, g = 0, b = 0, wsum = 0;
-  for (const L of e.lights) { const w = L.I * (1 - Math.abs(x - L.x) / (L.r * 0.6)); if (w > 0) { const cc = L.col.split(','); r += cc[0] * w; g += cc[1] * w; b += cc[2] * w; wsum += w; } }
+  for (const L of e.lights) { if (L.front) continue; const w = L.I * (1 - Math.abs(x - L.x) / (L.r * 0.6)); if (w > 0) { const cc = L.col.split(','); r += cc[0] * w; g += cc[1] * w; b += cc[2] * w; wsum += w; } }
   if (wsum < 0.18) return [gr, gg, gb];
   const m = Math.min(1, wsum * 0.9 + 0.2);
   return [Math.round(lerp(gr, r / wsum, m)), Math.round(lerp(gg, g / wsum, m)), Math.round(lerp(gb, b / wsum, m))];
@@ -659,7 +662,9 @@ function wallWash(e, L, st) {
   const cy = Math.min(st.gy, Math.max(w.top, L.y));          // the pool centres where the light meets the wall
   c.save(); c.beginPath(); c.rect(L.x - rx, w.top, rx * 2, st.gy - w.top); c.clip();
   c.globalCompositeOperation = 'lighter'; c.globalAlpha = WASH.wallAlpha * L.glowI * (L.r / (L.r + d * 0.6));
-  c.drawImage(softRadial(L.col), L.x - rx, cy - ry, rx * 2, ry * 2); c.restore();
+  // light runs DOWN the wall more than up it (it falls toward the floor), so the pool is weighted
+  // below the source: drawn taller and shifted down rather than a symmetric disc.
+  c.drawImage(softRadial(L.col), L.x - rx, cy - ry * 0.72, rx * 2, ry * 2.3); c.restore();
 }
 
 // VOLUMETRIC BEAM — a cone of light hanging in the wet air (the lamp's shaft, the searchlight's
@@ -1226,6 +1231,11 @@ function sky(e) {
 
   if (scene.indoor) return;   // no sky/moon indoors (the room wall would occlude it anyway)
   const m = scene.moon || { x: 0.78, y: 0.18 }, mx = m.x * e.W + scene.camera.look * 0.1, my = m.y * e.H, mr = 34;
+  // a moon behind a wall lights nothing: skip the disc, the halo AND the floor reflection together,
+  // so the reflection can never leak onto the floor while the disc is occluded. The backdrop knows
+  // its own geometry (the alley walls), the scene can also force it with hideMoon.
+  const bd = scene.backdrop;
+  if (scene.hideMoon || (bd && bd.occludesMoon && bd.occludesMoon(e, mx, my))) return;
 
   // the moon disc: a soft radially-shaded body with a few faint craters
   const md = c.createRadialGradient(mx - mr * 0.32, my - mr * 0.32, mr * 0.15, mx, my, mr);
@@ -2003,12 +2013,20 @@ __mod["src/library/backdrops/alley.js"] = function(__exports, __req){
 // ALLEY — two brick walls converging on a far slice of skyline, with a fire escape.
 const { defineBackdrop } = __req("src/objects/registry.js");
 const { PALETTE } = __req("src/style/palette.js");
+const { lerp } = __req("src/engine/math.js");
 const { buildSkyline, paintSkyline, wetFloor, brickWall, fireEscape, balcony } = __req("src/library/backdrops/skyline-core.js");
 
 // no window glow here: the brick walls cover most of the skyline, so an additive bloom would leak
 // onto the brick. The far slice is tiny anyway.
 defineBackdrop('alley', data => ({
   wallTop: 0,            // brick walls rise the full height, so a figure's shadow can climb them
+  // the brick walls hide the moon unless it sits in the central sky gap between them, so a moon to
+  // the side lights nothing (no leaking floor reflection). Same gap the draw carves out.
+  occludesMoon(e, mx, my) {
+    const vx = e.W * 0.5 + e.scene.camera.look * 0.3, vy = e.H * 0.4, t = Math.min(1, Math.max(0, my) / vy);
+    const left = lerp(e.W * 0.4, vx - e.W * 0.1, t), right = lerp(e.W * 0.6, vx + e.W * 0.1, t);
+    return mx < left || mx > right;
+  },
   build(e) { return buildSkyline(e, data.backdrop.seed || 77123, [{ depth: 0.4, top: e.H * 0.3, shade: PALETTE.farInk, minW: 50, maxW: 110, minH: 0.3, maxH: 0.55, win: 0.18 }], e.H * 0.62); },
   draw(e) {
     const c = e.ctx, g = e.gy, look = e.scene.camera.look, vx = e.W * 0.5 + look * 0.3, vy = e.H * 0.4;
@@ -2097,12 +2115,12 @@ defineLight('lamp', {
     const t = e.t, X = e.X(this), s = e.unit * (this.scale || 1);
     const flick = this.flicker ? (Math.sin(t * 30 + (this.seed || 0)) > -0.9 ? 1 : 0.4) * (0.85 + 0.15 * Math.sin(t * 7)) : 1;
     this._flick = flick; this._X = X; this._s = s;
-    // the lamp's downward shaft is now a lighting-system beam (was a hand-drawn cone in draw),
-    // apex at the bulb, widening to the wet floor.
+    // a hooded street lamp reads as a soft downward pool, not a hard shaft: the shaded glow (capped
+    // above the hood) plus the floor wash carry it. No volumetric beam here (that is for the distant
+    // searchlight, where a shaft in open sky belongs).
     e.addLight({
       x: X + 26 * s, y: e.gy - 150 * s, col: '255,250,225', r: 150 * (this.scale || 1), I: 0.5 * flick, ew: 6 * s, eh: 6 * s,
       shade: true,                                            // the hood caps the glow: it spills downward only
-      beam: { dir: 0, len: 152 * s, farW: 70 * s, I: flick },
     });
   },
   draw(e) {
@@ -2477,23 +2495,35 @@ __mod["src/style/materials.js"] = function(__exports, __req){
 // MATERIALS — shared surface shading so every object looks cut from the same cloth.
 // Change a material here and the whole cast restyles. `e` is the frame (for light queries).
 
-// which edge catches the light: toward the weighted CENTRE of nearby lights (not a single
-// dominant pick), with a dead zone + hysteresis so a flickering neon or a flaring cigarette
-// can't snap the lit edge from side to side (that was the "flickering man" artifact).
+// the form light is computed from EVERY scene light, weighted by power and nearness, considering
+// BOTH axes: the horizontal side that catches the light (with a dead zone + hysteresis so a
+// flickering neon can't snap the lit edge side to side, the old "flickering man" artifact) and the
+// vertical lean (a light overhead lights the top, a barrel fire at the feet lights from below).
+// `front` lights (a held cigarette) are local glows, not form light, so they are excluded here and
+// stay a small local highlight instead of relighting the whole figure.
+let _vb = 0;   // vertical light bias (-1 below .. +1 above), set by rimSign for the paired bodyGrad call
+
 function rimSign(e, node) {
   const X = e.X(node);
-  let wx = 0, wsum = 0;
-  for (const L of e.lights) { const w = L.I * (1 - Math.abs(X - L.x) / (L.r * 1.1)); if (w > 0) { wx += L.x * w; wsum += w; } }
-  const lx = wsum > 0.05 ? wx / wsum : e.keyLight.x * e.W, margin = 0.06 * e.W;
+  let wx = 0, wy = 0, wsum = 0;
+  for (const L of e.lights) { if (L.front) continue; const w = L.I * (1 - Math.abs(X - L.x) / (L.r * 1.1)); if (w > 0) { wx += L.x * w; wy += L.y * w; wsum += w; } }
+  const lx = wsum > 0.05 ? wx / wsum : e.keyLight.x * e.W;
+  const ly = wsum > 0.05 ? wy / wsum : e.keyLight.y * e.H;
+  const margin = 0.06 * e.W;
   let sign = node._rim || (lx < X ? -1 : 1);
   if (lx < X - margin) sign = -1; else if (lx > X + margin) sign = 1;
+  const yc = e.gy + (node.dy || 0) * e.unit - 50 * e.unit;       // roughly the torso height
+  _vb = Math.max(-1, Math.min(1, (yc - ly) / (90 * e.unit)));    // + when the light sits above the torso
   return node._rim = sign;
 }
 
-// horizontal "form" light: a lit edge on the light side, tinted by that light's colour
+// "form" light: a lit edge toward the light, tinted by its colour. The gradient axis tilts with the
+// light's vertical lean (_vb from rimSign), so a figure under a high lamp is lit from above, not
+// flatly from the side.
 function bodyGrad(c, h, s, rim, tint) {
   rim = rim || 1;
-  const g = c.createLinearGradient(rim * 34 * s, 0, -rim * 34 * s, 0);
+  const gx = rim * 34 * s, gvy = -_vb * 20 * s;                  // tilt the lit edge toward the light's height
+  const g = c.createLinearGradient(gx, gvy, -gx, -gvy);
   let lit = '#3a4049';
   if (tint) { const m = 0.5; lit = `rgb(${Math.round(58 + (tint[0] - 58) * m)},${Math.round(64 + (tint[1] - 64) * m)},${Math.round(73 + (tint[2] - 73) * m)})`; }
   g.addColorStop(0, lit); g.addColorStop(0.42, '#181b21'); g.addColorStop(1, '#080909');
