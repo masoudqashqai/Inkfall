@@ -29,7 +29,9 @@ export const Audio2 = (() => {
     }, 30);
   }
 
-  function resume(a) { if (!a || !on || !started) return; if (a._start && a.currentTime < a._start) { try { a.currentTime = a._start; } catch (e) {} } a.play().catch(() => {}); }
+  // the single choke point for starting a persistent sound. It refuses while suspended (gate/menu),
+  // so nothing, including a sound toggle, can bring audio back until resumeAll lifts the suspend.
+  function resume(a) { if (!a || !on || !started || suspended) return; if (a._start && a.currentTime < a._start) { try { a.currentTime = a._start; } catch (e) {} } a.play().catch(() => {}); }
 
   function setStory(c) {
     [music, rain, amb].forEach(stop); music = rain = amb = null;
@@ -93,6 +95,9 @@ export const Audio2 = (() => {
   }
   function toggle() {
     on = !on;
+    // while suspended (the gate or pause menu is up) only record the choice, do not start playback.
+    // resumeAll will apply it, respecting `on`, when the story resumes.
+    if (suspended) { if (!on) for (const k in loops) stop(loops[k]); return on; }
     [music, rain, amb].forEach(a => { if (a) { a.volume = on ? a._v : 0; if (on) resume(a); else stop(a); } });
     if (!on) for (const k in loops) stop(loops[k]);
     return on;

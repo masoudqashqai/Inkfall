@@ -61,65 +61,174 @@
   --hud-w2: calc(var(--hud-cell) * 2 + var(--hud-gap));              /* medium: 2 cells, icon + text */
   --hud-w3: calc(var(--hud-cell) * 3 + var(--hud-gap) * 2);         /* large:  3 cells, text (or icon + text) */
 }
-/* one noir button skin, shared by the HUD, the act list, the poster row and the story menu */
-.hud-btn, #scenenav button, #poster a, #poster button, #storymenu button {
+/* HUD chips: compact bordered controls (the icon buttons + the REVIEW ACT toggle), red on interact */
+.hud-btn {
   cursor: pointer; font-family: var(--f-mono); color: var(--c-fg-2);
   background: var(--c-panel); border: 1px solid var(--c-line);
-  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease; }
-.hud-btn:hover, .hud-btn:active, #scenenav button:hover,
-#poster a:hover, #poster button:hover, #storymenu button:hover, #storymenu button:active {
-  color: #fff; border-color: var(--c-line-hi); }
+  transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease; }
+.hud-btn:hover, .hud-btn:active { color: #fff; border-color: var(--c-red); }
 /* HUD button sizing: every control is one cell tall, the size class sets the width */
 .hud-btn { height: var(--hud-cell); line-height: 1; display: inline-flex; align-items: center;
   justify-content: center; gap: 0.5em; letter-spacing: 0.14em; font-size: var(--fs-hud); }
 .hud-sm { width: var(--hud-w1); padding: 0; font-size: var(--fs-icon); }
 .hud-md { width: var(--hud-w2); }
 .hud-lg { width: var(--hud-w3); }
+/* HUD icons drawn in CSS (currentColor), so they centre exactly and render the same everywhere */
+.hud-btn .ic { display: block; pointer-events: none; }
+.ic-menu, .ic-menu::before, .ic-menu::after { width: 16px; height: 2px; background: currentColor; }
+.ic-menu { position: relative; }
+.ic-menu::before, .ic-menu::after { content: ''; position: absolute; left: 0; }
+.ic-menu::before { top: -5px; }
+.ic-menu::after { top: 5px; }
+.ic-poster { width: 17px; height: 14px; border: 2px solid currentColor; border-radius: 1px; }
+.ic-fs { width: 18px; height: 16px; position: relative; }
+.ic-fs::before, .ic-fs::after { content: ''; position: absolute; width: 8px; height: 8px; }
+.ic-fs::before { top: 0; left: 0; border-top: 2px solid currentColor; border-left: 2px solid currentColor; }
+.ic-fs::after { right: 0; bottom: 0; border-bottom: 2px solid currentColor; border-right: 2px solid currentColor; }
 /* shared modal overlay: a centered card on a dark wash (poster, story menu, rotate prompt) */
 .overlay { position: fixed; inset: 0; z-index: var(--z-overlay); display: none;
   flex-direction: column; align-items: center; justify-content: center; padding: 24px;
   background: var(--c-scrim); }
 .overlay.show { display: flex; }
+
+/* ===================== NOIR DESIGN LANGUAGE =====================
+   A framed title card, a hairline-ruled heading, a typewriter note, a diamond separator, and
+   typographic actions that take red diamond marks. Reused by every panel, menu and on-screen list. */
+.noir-panel { display: flex; flex-direction: column; align-items: stretch; gap: clamp(2px, 0.6vmin, 6px);
+  background: rgba(3,3,4,0.55); border: 1px solid rgba(220,216,200,0.42);
+  outline: 1px solid rgba(220,216,200,0.16); outline-offset: 5px;   /* the double rule of a film card */
+  box-shadow: 0 24px 80px rgba(0,0,0,0.75);
+  padding: clamp(26px, 5vmin, 42px) clamp(22px, 5vmin, 40px); }
+.noir-title { color: var(--c-cream); font-family: var(--f-display); font-weight: 700; text-align: center;
+  letter-spacing: 0.4em; font-size: clamp(20px, 4.4vmin, 28px); text-transform: uppercase; position: relative;
+  padding-bottom: clamp(12px, 2.2vmin, 18px); margin-bottom: clamp(10px, 2vmin, 16px); }
+.noir-title::after { content: ''; position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
+  width: 46px; height: 2px; background: var(--c-red); }
+.noir-note { color: rgba(236,230,214,0.6); font-family: var(--f-type); font-size: var(--fs-menu);
+  letter-spacing: 0.03em; line-height: 1.6; text-align: center; margin: 2px 0 clamp(8px, 1.6vmin, 14px); }
+.noir-sep { height: 0; border-top: 1px solid rgba(220,216,200,0.16); position: relative; margin: clamp(8px, 1.6vmin, 14px) 0; }
+.noir-sep::after { content: '\25C6'; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  color: rgba(220,216,200,0.45); font-size: 8px; background: var(--c-bg); padding: 0 7px; }
+/* typographic action: borderless, tracked caps, red diamond marks flanking it on hover/active */
+.noir-item, #poster a, #poster button {
+  background: transparent; border: 0; cursor: pointer; color: rgba(236,230,214,0.82); text-decoration: none;
+  font-family: var(--f-display); font-weight: 500; text-transform: uppercase; text-align: center;
+  letter-spacing: 0.26em; font-size: clamp(14px, 2.9vmin, 18px); padding: clamp(9px, 1.9vmin, 13px) 22px;
+  position: relative; transition: color 0.18s ease, letter-spacing 0.18s ease; }
+.noir-item:hover, .noir-item:active, #poster a:hover, #poster button:hover, #poster button:active {
+  color: #fff; letter-spacing: 0.3em; }
+.noir-item::before, .noir-item::after, #poster a::before, #poster a::after, #poster button::before, #poster button::after {
+  content: '\25C6'; position: absolute; top: 50%; transform: translateY(-50%); color: var(--c-red); font-size: 0.46em;
+  opacity: 0; transition: opacity 0.18s ease; }
+.noir-item::before, #poster a::before, #poster button::before { left: 8%; }
+.noir-item::after, #poster a::after, #poster button::after { right: 8%; }
+.noir-item:hover::before, .noir-item:hover::after, .noir-item:active::before, .noir-item:active::after,
+#poster a:hover::before, #poster a:hover::after, #poster button:hover::before, #poster button:hover::after { opacity: 1; }
+.noir-item.is-primary { color: #fff; font-weight: 700; }                       /* the marked default action */
+.noir-item.is-primary::before, .noir-item.is-primary::after { opacity: 1; }
+.noir-item.is-danger { color: rgba(225,86,90,0.9); }
+.noir-item.is-danger:hover, .noir-item.is-danger:active { color: var(--c-red); }
+/* ================================================================ */
+
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
 html, body { height: 100%; overflow: hidden; background: #000; font-family: "Courier New", monospace; }
 #c { position: fixed; left: 0; top: 0; display: block; touch-action: none; }
 /* the canvas is sized + centered by the engine to a landscape band, so the body's black shows
    through as letterbox bars (top/bottom on a tall screen, left/right on a wide one) */
-#scenetag { position: fixed; top: max(12px, env(safe-area-inset-top)); left: 14px; z-index: var(--z-caption);
+#scenetag { position: fixed; top: max(6px, env(safe-area-inset-top)); left: max(8px, env(safe-area-inset-left)); z-index: var(--z-caption);
   font-family: var(--f-type);
   color: var(--c-fg); font-size: var(--fs-label); letter-spacing: 0.25em; font-weight: 400; text-shadow: 2px 2px 0 #000;
   opacity: 0; transition: opacity 0.5s ease; }
 #scenetag b { color: var(--c-red-deep); }
 #caption { position: fixed; left: 50%; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 10px); transform: translateX(-50%);
-  z-index: var(--z-caption); width: min(90vw, 600px); background: var(--c-paper); color: var(--c-ink);
+  z-index: var(--z-caption); width: fit-content; max-width: min(90vw, 600px); background: var(--c-paper); color: var(--c-ink);
   border: 2px solid #000; box-shadow: 4px 4px 0 rgba(0,0,0,0.5);
   padding: clamp(9px, 1.7vmin, 13px) clamp(12px, 2.2vmin, 18px);
-  font-family: var(--f-type); display: none; opacity: 0;
-  font-size: var(--fs-caption); line-height: 1.4; letter-spacing: 0.005em; transition: opacity 0.35s ease; }
+  font-family: var(--f-type); display: none; opacity: 0; text-align: center;
+  font-size: var(--fs-caption); line-height: 1.4; letter-spacing: 0.005em; }
 #caption b { color: var(--c-red-deep); font-weight: 700; }
+/* narration lines render in with a torn, inky leading edge that settles clean once the print
+   finishes, then wipe out the same way. The direction varies per line (set by data-anim from the
+   manager, deterministic so a replay always matches): left to right, right to left, or centre out.
+   Independent of the scene wipe. */
+#caption.cap-in { opacity: 1; animation: capInLR 1.15s cubic-bezier(0.25, 0.6, 0.3, 1) forwards; }
+#caption.cap-out { opacity: 1; animation: capOutLR 0.46s ease-in forwards; }
+#caption[data-anim="rl"].cap-in { animation-name: capInRL; }
+#caption[data-anim="rl"].cap-out { animation-name: capOutRL; }
+#caption[data-anim="co"].cap-in { animation-name: capInCO; }
+#caption[data-anim="co"].cap-out { animation-name: capOutCO; }
+/* left to right: a torn right edge sweeps across, then settles clean */
+@keyframes capInLR {
+  0%   { clip-path: polygon(0 0, 3% 0, 0 12.5%, 2% 25%, 0 37.5%, 3% 50%, 0 62.5%, 2% 75%, 0 87.5%, 3% 100%, 0 100%); }
+  72%  { clip-path: polygon(0 0, 100% 0, 97% 12.5%, 100% 25%, 96% 37.5%, 100% 50%, 98% 62.5%, 100% 75%, 96% 87.5%, 100% 100%, 0 100%); }
+  100% { clip-path: polygon(0 0, 100% 0, 100% 12.5%, 100% 25%, 100% 37.5%, 100% 50%, 100% 62.5%, 100% 75%, 100% 87.5%, 100% 100%, 0 100%); }
+}
+@keyframes capOutLR {
+  0%   { clip-path: polygon(3% 0, 100% 0, 100% 100%, 3% 100%, 0 87.5%, 2% 75%, 0 62.5%, 3% 50%, 0 37.5%, 2% 25%, 0 12.5%); }
+  72%  { clip-path: polygon(97% 0, 100% 0, 100% 100%, 97% 100%, 100% 87.5%, 98% 75%, 100% 62.5%, 97% 50%, 100% 37.5%, 98% 25%, 100% 12.5%); }
+  100% { clip-path: polygon(100% 0, 100% 0, 100% 100%, 100% 100%, 100% 87.5%, 100% 75%, 100% 62.5%, 100% 50%, 100% 37.5%, 100% 25%, 100% 12.5%); }
+}
+/* right to left: a torn left edge sweeps across */
+@keyframes capInRL {
+  0%   { clip-path: polygon(100% 0, 97% 0, 100% 12.5%, 98% 25%, 100% 37.5%, 97% 50%, 100% 62.5%, 98% 75%, 100% 87.5%, 97% 100%, 100% 100%); }
+  72%  { clip-path: polygon(100% 0, 3% 0, 0 12.5%, 4% 25%, 0 37.5%, 3% 50%, 0 62.5%, 4% 75%, 0 87.5%, 3% 100%, 100% 100%); }
+  100% { clip-path: polygon(100% 0, 0 0, 0 12.5%, 0 25%, 0 37.5%, 0 50%, 0 62.5%, 0 75%, 0 87.5%, 0 100%, 100% 100%); }
+}
+@keyframes capOutRL {
+  0%   { clip-path: polygon(0 0, 100% 0, 97% 12.5%, 100% 25%, 96% 37.5%, 100% 50%, 98% 62.5%, 100% 75%, 96% 87.5%, 100% 100%, 0 100%); }
+  100% { clip-path: polygon(0 0, 3% 0, 0 12.5%, 2% 25%, 0 37.5%, 3% 50%, 0 62.5%, 2% 75%, 0 87.5%, 3% 100%, 0 100%); }
+}
+/* centre out: torn edges open from the middle to both sides */
+@keyframes capInCO {
+  0%   { clip-path: polygon(49% 0, 51% 0, 51% 25%, 52% 50%, 51% 75%, 51% 100%, 49% 100%, 49% 75%, 48% 50%, 49% 25%); }
+  72%  { clip-path: polygon(1% 0, 99% 0, 100% 25%, 98% 50%, 100% 75%, 99% 100%, 1% 100%, 0 75%, 2% 50%, 0 25%); }
+  100% { clip-path: polygon(0 0, 100% 0, 100% 25%, 100% 50%, 100% 75%, 100% 100%, 0 100%, 0 75%, 0 50%, 0 25%); }
+}
+@keyframes capOutCO {
+  0%   { clip-path: polygon(0 0, 100% 0, 100% 25%, 100% 50%, 100% 75%, 100% 100%, 0 100%, 0 75%, 0 50%, 0 25%); }
+  72%  { clip-path: polygon(48% 0, 52% 0, 53% 25%, 51% 50%, 53% 75%, 52% 100%, 48% 100%, 47% 75%, 49% 50%, 47% 25%); }
+  100% { clip-path: polygon(50% 0, 50% 0, 50% 25%, 50% 50%, 50% 75%, 50% 100%, 50% 100%, 50% 75%, 50% 50%, 50% 25%); }
+}
 #tapnote { position: fixed; left: 50%; bottom: 6px; transform: translateX(-50%); z-index: var(--z-caption); white-space: nowrap;
   display: none; color: #7c7c7c; font-size: var(--fs-note); letter-spacing: 0.06em; }
 #build { position: fixed; left: 8px; bottom: 4px; z-index: var(--z-build); color: #3a3a3a; font-size: 9px;
   letter-spacing: 0.1em; font-family: var(--f-mono); }
-#menubtn, #shoot, #fsbtn { font-variant-emoji: text; }   /* keep the HUD glyphs monochrome (noir), never colour emoji */
 #fsbtn { display: none; }                                /* the HUD fullscreen button, shown by the viewport when not immersive */
 #fsbtn.show { display: inline-flex; }
-#topbar { position: fixed; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); z-index: var(--z-hud);
+#topbar { position: fixed; top: max(6px, env(safe-area-inset-top)); right: max(6px, env(safe-area-inset-right)); z-index: var(--z-hud);
   display: flex; flex-direction: column; align-items: flex-end; gap: var(--hud-gap); }
 .hud-row { display: flex; gap: var(--hud-gap); }
-/* act selector: a REVIEW ACT toggle that drops the act list open right below the HUD buttons */
-#actsel { flex-direction: column; align-items: stretch; gap: var(--hud-gap); width: max-content; }
+/* act selector: a REVIEW ACT toggle at the top left that drops the act list open beneath it */
+#actsel { position: fixed; top: max(6px, env(safe-area-inset-top)); left: max(6px, env(safe-area-inset-left));
+  z-index: var(--z-hud); flex-direction: column; align-items: stretch; gap: var(--hud-gap); width: max-content; }
 #actbtn { min-width: var(--hud-w3); }
 #actbtn::after { content: "\25BE"; font-size: 0.82em; transition: transform 0.3s ease; }   /* caret flips when open */
 #actbtn.open::after { transform: rotate(180deg); }
+/* REVIEW ACT reveals with a noir neon flicker: it slides in from the left, a red glow settling out */
+body[data-stage="playing"] #actsel.unlocked #actbtn { animation: actReveal 0.9s ease-out; }
+@keyframes actReveal {
+  0%   { opacity: 0; transform: translateX(-16px); border-color: var(--c-red); box-shadow: 0 0 16px rgba(225,0,16,0.55); }
+  22%  { opacity: 0.9; }
+  34%  { opacity: 0.12; }                 /* the stutter of a tube catching */
+  50%  { opacity: 1; }
+  62%  { opacity: 0.4; }
+  100% { opacity: 1; transform: translateX(0); border-color: var(--c-line); box-shadow: 0 0 0 rgba(225,0,16,0); }
+}
 /* stage-driven HUD presence: the in-story controls + narration appear only while playing */
 #shoot, #actsel { display: none; }
 body[data-stage="playing"] #shoot { display: inline-flex; }
 body[data-stage="playing"] #actsel.unlocked { display: flex; }   /* only after THE END has been reached once */
 body[data-stage="playing"] #caption, body[data-stage="playing"] #tapnote { display: block; }
+/* clean scene mode (toggled from Story Engine): leave only the menu button + the build mark */
+body.clean #caption, body.clean #tapnote, body.clean #scenetag,
+body.clean #shoot, body.clean #fsbtn { display: none; }
+body.clean #actsel.unlocked { display: none; }   /* match the .unlocked show rule's specificity so clean wins */
+/* the controls hint shows only until the viewer has seen it once (then it lives in the menu) */
+body.controls-seen #tapnote { display: none; }
+/* once REVIEW ACT is present (top left), drop the top-left act-name text so they do not clash */
+body.acts-unlocked #scenetag { display: none; }
 #poster img { max-width: 88vw; max-height: 70vh; border: 1px solid rgba(216,212,200,0.4); box-shadow: 0 0 40px rgba(0,0,0,0.8); }
-#poster .poster-row { margin-top: 18px; display: flex; gap: 12px; }
-#poster a, #poster button { padding: 13px 28px; text-align: center; font-size: var(--fs-menu); letter-spacing: 0.16em; text-decoration: none; }
+#poster .poster-row { margin-top: 18px; display: flex; gap: clamp(12px, 3vmin, 28px); }   /* SAVE / BACK use .noir-item */
 /* the act list drops open below the toggle: a clipped column that grows downward, each button
    easing down in turn for a noir, rope ladder feel. Every button shares one width (the widest
    title, floored at the 3 cell size) and stays one cell tall on a single line. */
@@ -140,24 +249,32 @@ body[data-stage="playing"] #caption, body[data-stage="playing"] #tapnote { displ
 #scenenav.open button:nth-child(6) { transition-delay: 0.29s; }
 #scenenav.open button:nth-child(7) { transition-delay: 0.34s; }
 #scenenav.open button:nth-child(8) { transition-delay: 0.39s; }
-#scenenav button.cur { color: #fff; border-color: var(--c-red); box-shadow: 0 0 12px rgba(225,0,16,0.45); }
-/* story menu: same treatment as the poster overlay (the .overlay primitive + shared button skin) */
-#storymenu .sm-panel { display: flex; flex-direction: column; gap: 12px; width: min(86vw, 340px); }
-#storymenu .sm-head { color: var(--c-red); letter-spacing: 0.3em; font-weight: 700; text-align: center;
-  font-family: var(--f-display); font-size: var(--fs-head); margin-bottom: 6px; }
-#storymenu button { padding: 13px 28px; text-align: center; font-size: var(--fs-menu); letter-spacing: 0.16em; }
+#scenenav button.cur { color: #fff; }                                   /* current act: marked with the diamonds */
+#scenenav button.cur::before, #scenenav button.cur::after { opacity: 1; }
+/* PAUSE MENU — a vignette behind the noir panel. Several views (main, story engine, controls, exit
+   confirm) share one panel slot; data-view on #storymenu picks which shows. */
+#storymenu { background: radial-gradient(ellipse at center, rgba(4,4,5,0.88), rgba(0,0,0,0.97)); }
+#storymenu .noir-panel { width: min(88vw, 400px); }
+#storymenu .sm-view { display: none; }
+#storymenu[data-view="main"] .v-main,
+#storymenu[data-view="engine"] .v-engine,
+#storymenu[data-view="controls"] .v-controls,
+#storymenu[data-view="confirm"] .v-confirm { display: flex; }
+/* controls review: a small key/role list in the noir voice */
+.sm-keys { display: flex; flex-direction: column; gap: clamp(8px, 1.8vmin, 14px); margin: clamp(4px,1vmin,10px) 0 clamp(10px,2vmin,16px); }
+.sm-key { display: flex; align-items: baseline; justify-content: center; gap: 14px; }
+.sm-key b { color: var(--c-red); font-family: var(--f-display); font-weight: 700; letter-spacing: 0.2em;
+  font-size: var(--fs-menu); min-width: 64px; text-align: right; }
+.sm-key span { color: rgba(236,230,214,0.82); font-family: var(--f-type); letter-spacing: 0.04em; font-size: var(--fs-menu); text-align: left; }
+/* the story editor: full screen for the JSON, but its heading and actions use the noir language */
 #editor { position: fixed; inset: 0; z-index: var(--z-overlay); display: none; flex-direction: column; gap: 10px;
   background: rgba(6,7,10,0.97); padding: max(16px, env(safe-area-inset-top)) 16px 16px; }
-#editor .ed-head { color: var(--c-red); letter-spacing: 0.3em; font-weight: 700; font-size: var(--fs-head); }
+#editor .ed-head { padding-bottom: clamp(8px, 1.6vmin, 12px); margin-bottom: 2px; }   /* .noir-title sets the rest */
 #editor .ed-help { color: #8a8a8a; font-size: clamp(11px, 2vmin, 13px); line-height: 1.8; }
-#ed-text { flex: 1; width: 100%; resize: none; background: #0e1014; color: #d6e0c8; border: 1px solid #2a2e36;
+#ed-text { flex: 1; width: 100%; resize: none; background: #0e1014; color: #d6e0c8; border: 1px solid var(--c-line);
   font-family: var(--f-mono); font-size: clamp(13px, 2.4vmin, 15px); line-height: 1.5; padding: 12px; }
-#ed-err { color: #ff6a6a; font-size: clamp(12px, 2.2vmin, 14px); min-height: 16px; }
-.ed-btns { display: flex; gap: 12px; flex-wrap: wrap; }
-.ed-btns button { flex: 1; min-width: 100px; padding: 16px; cursor: pointer; font-family: var(--f-mono); font-weight: 700;
-  letter-spacing: 0.18em; font-size: var(--fs-menu); background: transparent; color: #fff; border: 1px solid #fff; }
-#ed-play { background: var(--c-red); border-color: var(--c-red); }
-.ed-btns button:active { opacity: 0.7; }
+#ed-err { color: #ff6a6a; font-size: clamp(12px, 2.2vmin, 14px); min-height: 16px; text-align: center; }
+.ed-btns { display: flex; gap: clamp(10px, 3vmin, 28px); flex-wrap: wrap; justify-content: center; }
 /* the start screen is always present but fades in/out by stage (no display swap, so the fade shows) */
 #intro { position: fixed; inset: 0; z-index: var(--z-intro); display: flex; flex-direction: column; align-items: center;
   justify-content: center; text-align: center; padding: 28px 22px; overflow-y: auto;
@@ -184,6 +301,16 @@ body[data-stage="menu"] #intro { opacity: 1; pointer-events: auto; }
 #enter { font-family: var(--f-display); margin-top: clamp(20px, 4vmin, 36px); padding: clamp(14px, 2.6vmin, 22px) clamp(36px, 8vmin, 64px); cursor: pointer; background: transparent; color: #fff;
   border: 1px solid #fff; font-size: var(--fs-sub); letter-spacing: 0.26em; font-weight: 600; transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease; }
 #enter:hover, #enter:active { background: var(--c-red); border-color: var(--c-red); }
+/* while the stories load, the picker label, picker and ENTER are replaced by a noir spinner */
+#intro.loading .pick-label, #intro.loading #storypick, #intro.loading #enter { display: none; }
+#introloading { display: none; flex-direction: column; align-items: center; gap: clamp(10px, 2vmin, 16px); margin-top: clamp(22px, 5vmin, 44px); }
+#intro.loading #introloading { display: flex; }
+#introloading .spin { width: clamp(28px, 5vmin, 40px); height: clamp(28px, 5vmin, 40px); border-radius: 50%;
+  border: 2px solid rgba(236,230,214,0.18); border-top-color: var(--c-red); animation: introspin 0.85s linear infinite; }
+#introloading .loadlabel { font-family: var(--f-display); color: rgba(236,230,214,0.55); font-size: var(--fs-label);
+  letter-spacing: 0.34em; font-weight: 600; animation: loadpulse 1.5s ease-in-out infinite; }
+@keyframes introspin { to { transform: rotate(360deg); } }
+@keyframes loadpulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.9; } }
 
 /* short viewports (landscape phones, small desktop windows): tuck the caption down a touch
    (the font already scales with height via vmin) */
@@ -192,7 +319,7 @@ body[data-stage="menu"] #intro { opacity: 1; pointer-events: auto; }
 }
 /* wide desktops: a touch larger so it reads from a distance, still within the standard scale */
 @media (min-width: 1100px) {
-  #caption { font-size: 18px; width: min(52vw, 600px); }
+  #caption { font-size: 18px; max-width: min(52vw, 600px); }
 }
 
 /* immersion prompt: the .overlay primitive, but opaque and on top of everything */
@@ -203,14 +330,8 @@ body[data-stage="menu"] #intro { opacity: 1; pointer-events: auto; }
 #rotate.no-fs .rt-fs { display: none; }
 #rotate.no-fs .rt-nofs { display: block; }
 #rotate.no-fs .rotate-fs { display: none; }              /* no fullscreen button where it cannot work */
-#rotate .rotate-fs { font-family: var(--f-display); cursor: pointer; background: var(--c-red); color: #fff;
-  border: 1px solid var(--c-red); font-size: var(--fs-menu); letter-spacing: 0.18em; font-weight: 600; padding: 15px 34px; }
-#rotate .rotate-fs:hover, #rotate .rotate-fs:active { background: #c2000e; border-color: #c2000e; }
-#rotate .rotate-skip { display: none; font-family: var(--f-display); cursor: pointer;
-  background: transparent; color: rgba(236,230,214,0.85); border: 1px solid rgba(236,230,214,0.45);
-  font-size: var(--fs-menu); letter-spacing: 0.22em; font-weight: 600; padding: 14px 28px; }
+#rotate .rotate-skip { display: none; }              /* the buttons use .noir-item, this only gates the fallback */
 #rotate .rotate-skip.show { display: inline-block; }
-#rotate .rotate-skip:hover, #rotate .rotate-skip:active { color: #fff; border-color: #fff; }
 /* a little phone that tips from portrait to landscape on a loop */
 .rotate-phone { width: 58px; height: 102px; border: 4px solid var(--c-fg); border-radius: 12px;
   position: relative; transform-origin: 50% 50%; animation: rotatehint 2.6s ease-in-out infinite; }
@@ -229,10 +350,11 @@ body[data-stage="menu"] #intro { opacity: 1; pointer-events: auto; }
 <div id="scenetag"></div>
 <div id="caption"></div>
 <div id="tapnote">TAP — NEXT&nbsp; ·&nbsp; DRAG — LOOK&nbsp; ·&nbsp; HOLD — LIGHTNING</div>
-<div id="intro">
+<div id="intro" class="loading">
   <h1>INK<span class="b">FALL</span></h1>
   <p id="introsub">A NOIR STORY ENGINE</p>
   <div class="sub" id="introblurb">Feed it a story. Get back a rain-soaked, black-and-white world where the only colour is the colour that bleeds.</div>
+  <div id="introloading"><span class="spin" aria-hidden="true"></span><span class="loadlabel">LOADING</span></div>
   <div class="pick-label">CHOOSE YOUR TALE</div>
   <div id="storypick"></div>
   <button id="enter">ENTER THE CITY</button>
@@ -241,22 +363,22 @@ body[data-stage="menu"] #intro { opacity: 1; pointer-events: auto; }
 <div id="build"></div>
 <div id="topbar">
   <div class="hud-row">
-    <button id="shoot" class="hud-btn hud-sm" title="save a poster of this frame">❏</button>
-    <button id="fsbtn" class="hud-btn hud-sm" title="fullscreen">⛶</button>
-    <button id="menubtn" class="hud-btn hud-sm" title="menu">☰</button>
+    <button id="shoot" class="hud-btn hud-sm" title="save a poster of this frame"><i class="ic ic-poster"></i></button>
+    <button id="fsbtn" class="hud-btn hud-sm" title="fullscreen"><i class="ic ic-fs"></i></button>
+    <button id="menubtn" class="hud-btn hud-sm" title="menu"><i class="ic ic-menu"></i></button>
   </div>
-  <div id="actsel">
-    <button id="actbtn" class="hud-btn">REVIEW ACT</button>
-    <div id="scenenav"></div>
-  </div>
+</div>
+<div id="actsel">
+  <button id="actbtn" class="hud-btn">REVIEW ACT</button>
+  <div id="scenenav"></div>
 </div>
 
 <div id="rotate" class="overlay">
   <div class="rotate-phone" aria-hidden="true"><span class="rotate-cam"></span></div>
   <div class="rotate-text rt-fs">This story plays best in fullscreen, landscape.</div>
   <div class="rotate-text rt-nofs">Rotate your phone for the best view.</div>
-  <button id="rotate-fs" class="rotate-fs">ENTER FULLSCREEN</button>
-  <button id="rotate-skip" class="rotate-skip">WATCH ANYWAY</button>
+  <button id="rotate-fs" class="rotate-fs noir-item is-primary">ENTER FULLSCREEN</button>
+  <button id="rotate-skip" class="rotate-skip noir-item">WATCH ANYWAY</button>
 </div>
 
 <div id="poster" class="overlay">
@@ -266,22 +388,47 @@ body[data-stage="menu"] #intro { opacity: 1; pointer-events: auto; }
     <button id="posterclose">BACK TO THE RAIN</button>
   </div>
 </div>
-<div id="storymenu" class="overlay">
-  <div class="sm-panel">
-    <div class="sm-head">MENU</div>
-    <button id="sm-sound">SOUND: ON</button>
-    <button id="sm-fs">FULLSCREEN</button>
-    <button id="sm-back">BACK TO START MENU</button>
-    <button id="sm-edit">EDIT STORY</button>
-    <button id="sm-cancel">CLOSE</button>
+<div id="storymenu" class="overlay" data-view="main">
+  <div class="noir-panel sm-view v-main">
+    <div class="noir-title">PAUSED</div>
+    <button id="sm-resume" class="noir-item is-primary">RESUME</button>
+    <button id="sm-sound" class="noir-item">SOUND: ON</button>
+    <button id="sm-fs" class="noir-item">FULLSCREEN</button>
+    <button id="sm-engine" class="noir-item">STORY ENGINE</button>
+    <button id="sm-controls" class="noir-item">CONTROLS</button>
+    <div class="noir-sep"></div>
+    <button id="sm-back" class="noir-item is-danger">EXIT TO START</button>
+  </div>
+  <div class="noir-panel sm-view v-engine">
+    <div class="noir-title">STORY ENGINE</div>
+    <button id="sm-edit" class="noir-item">EDIT STORY</button>
+    <button id="sm-hud" class="noir-item">HIDE HUD</button>
+    <div class="noir-sep"></div>
+    <button id="sm-engine-back" class="noir-item is-primary">BACK</button>
+  </div>
+  <div class="noir-panel sm-view v-controls">
+    <div class="noir-title">CONTROLS</div>
+    <div class="sm-keys">
+      <div class="sm-key"><b>TAP</b><span>advance the story</span></div>
+      <div class="sm-key"><b>DRAG</b><span>look around the scene</span></div>
+      <div class="sm-key"><b>HOLD</b><span>call down lightning</span></div>
+    </div>
+    <div class="noir-sep"></div>
+    <button id="sm-controls-back" class="noir-item is-primary">BACK</button>
+  </div>
+  <div class="noir-panel sm-view v-confirm">
+    <div class="noir-title">LEAVE THE STORY?</div>
+    <div class="noir-note">This returns you to the start screen.</div>
+    <button id="sm-confirm-yes" class="noir-item is-danger">EXIT TO START</button>
+    <button id="sm-confirm-no" class="noir-item is-primary">STAY</button>
   </div>
 </div>
 <div id="editor">
-  <div class="ed-head">STORY EDITOR — JSON</div>
+  <div class="ed-head noir-title">STORY EDITOR</div>
   <textarea id="ed-text" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
   <div id="ed-err"></div>
   <div class="ed-help">backdrops: skyline · alley · rooftop · room &nbsp;|&nbsp; lights: lamp · neon · bulb · glow &nbsp;|&nbsp; people: trenchMan · thug · boss · gunman · dealer · womanInRed · singer &nbsp;|&nbsp; animals: cat · crow &nbsp;|&nbsp; movers: redCar &nbsp;|&nbsp; weapons: knife · pistol · tommyGun &nbsp;|&nbsp; casino: cardTable · slotMachine · rouletteWheel · drink · cash &nbsp;|&nbsp; street: trafficLight · barrelFire · fireHydrant · payphone · streetSign · waterTower · dumpster · manhole &nbsp;|&nbsp; effects: steam · searchlight · newspaper · bloodSplat · bodyOnGround · chalkOutline · bloodDrain &nbsp;|&nbsp; line fx: muzzle · blood · lightning · hammer · lighter &nbsp;|&nbsp; reveal/hide with onFlag / hideOnFlag</div>
-  <div class="ed-btns"><button id="ed-play">▶ PLAY</button><button id="ed-reset">DEFAULT</button><button id="ed-close">CLOSE</button></div>
+  <div class="ed-btns"><button id="ed-play" class="noir-item is-primary">PLAY</button><button id="ed-reset" class="noir-item">DEFAULT</button><button id="ed-close" class="noir-item">CLOSE</button></div>
 </div>
 
 <script>
@@ -302,13 +449,14 @@ __req("src/library/index.js");
 const { STORIES } = __req("stories/manifest.js");
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 43 · fullscreen immersion + menu'
+const BUILD = 'v2 build 44 · noir UI + clean audio pause'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 
 const engine = new Engine(); engine.init();
 const manager = new Manager(engine);
 manager.attachDom({ cap: el('caption'), tag: el('scenetag'), tap: el('tapnote'), nav: el('scenenav'), act: el('actbtn'), actsel: el('actsel') });
+manager.onBegin = () => Audio2.start();   // audio starts as the opening title card lifts, not before
 
 // REVIEW ACT toggle: drop the act list open/closed below the HUD
 el('actbtn').addEventListener('click', () => {
@@ -324,17 +472,34 @@ viewport.onStart = () => manager.requestStart();
 viewport.onPause = () => Audio2.suspend();     // full story pause behind the prompt: clock + sound
 viewport.onResume = () => Audio2.resumeAll();
 
+// the TAP/DRAG/HOLD hint is shown once ever, then retired to the menu's CONTROLS panel
+if (localStorage.getItem('inkfall_controls_seen')) document.body.classList.add('controls-seen');
+const markControlsSeen = () => {
+  if (document.body.classList.contains('controls-seen')) return;
+  document.body.classList.add('controls-seen');
+  try { localStorage.setItem('inkfall_controls_seen', '1'); } catch (e) {}
+};
+
 // input → manager
 const { bindInput } = __req("src/engine/input.js");
 bindInput(engine.cv, {
   isReady: () => manager.started,
-  onTap: () => manager.advance(),
+  onTap: () => { const live = manager.started && !manager.transState; manager.advance(); if (live) markControlsSeen(); },   // retire the hint on a real advance
   onDrag: dx => manager.drag(dx),
   onHold: () => manager.holdLightning(),
 });
 
 const cache = {};
-const loadStory = i => (cache[i] ||= STORIES[i].load());
+// load + cache a story, but never cache a failure or an empty module, so a transient error (a fetch
+// that fails while the dev server is still warming up) can be retried instead of sticking forever
+function loadStory(i) {
+  if (cache[i]) return cache[i];
+  const p = STORIES[i].load()
+    .then(s => { if (!s) throw new Error('empty story ' + i); return s; })
+    .catch(err => { delete cache[i]; throw err; });
+  cache[i] = p;
+  return p;
+}
 let defaultStory = null;
 
 function applyIntroText(s) {
@@ -348,7 +513,7 @@ function buildStoryPicker() {
   STORIES.forEach((s, i) => {
     const b = document.createElement('button'); b.className = 'storybtn'; b.dataset.i = i;
     b.innerHTML = `${s.name}<small>${s.tagline}</small>`;
-    b.addEventListener('click', () => selectStory(i));
+    b.addEventListener('click', () => selectStory(i).catch(() => {}));   // a transient load error is retryable by clicking again
     pick.appendChild(b);
   });
 }
@@ -367,7 +532,6 @@ const setStage = s => { document.body.dataset.stage = s; };
 
 function beginPlay() {
   setStage('playing');     // CSS reveals the HUD + narration and fades the intro out
-  Audio2.start();
   viewport.beginStory();   // goes immersive, then starts the story once the screen is landscape
 }
 el('enter').addEventListener('click', beginPlay);
@@ -413,8 +577,8 @@ function makePoster() {
   el('posterclose').textContent = 'BACK TO ' + ((manager.current && manager.current.title || 'THE RAIN').replace(/&nbsp;/g, ' ')).toUpperCase();
   el('poster').classList.add('show');
 }
-el('shoot').addEventListener('click', () => { if (manager.started) makePoster(); });
-el('posterclose').addEventListener('click', () => el('poster').classList.remove('show'));
+el('shoot').addEventListener('click', () => { if (manager.started) { makePoster(); refreshPause(); } });
+el('posterclose').addEventListener('click', () => { el('poster').classList.remove('show'); refreshPause(); });
 
 // ---- story editor (pure-data JSON) ----
 const editor = el('editor'), edText = el('ed-text'), edErr = el('ed-err');
@@ -423,26 +587,41 @@ const noCache = (k, v) => (k && k[0] === '_') ? undefined : v;
 const storymenu = el('storymenu');
 const openEditor = () => { edText.value = JSON.stringify(manager.story, noCache, 2); edErr.textContent = ''; editor.style.display = 'flex'; };
 function goToStartMenu() {
-  storymenu.classList.remove('show'); editor.style.display = 'none'; el('poster').classList.remove('show');
+  storymenu.classList.remove('show'); storymenu.dataset.view = 'main'; document.body.classList.remove('clean');
+  editor.style.display = 'none'; el('poster').classList.remove('show');
   el('scenenav').classList.remove('open'); el('actbtn').classList.remove('open');
   Audio2.setStory(manager.story && manager.story.audio);   // stop the playing audio, reset to the unstarted state
   viewport.reset(); manager.reset();                        // drop back to act one, not started, so ENTER replays cleanly
   setStage('menu');                                          // CSS fades the intro back in and hides the HUD
 }
-const soundBtn = el('sm-sound'), fsItem = el('sm-fs');
+const soundBtn = el('sm-sound'), fsItem = el('sm-fs'), hudItem = el('sm-hud');
+const setView = v => { storymenu.dataset.view = v; };
 const syncMenu = () => {
   soundBtn.textContent = Audio2.isOn() ? 'SOUND: ON' : 'SOUND: OFF';
   fsItem.textContent = viewport.fullscreenOn() ? 'EXIT FULLSCREEN' : 'FULLSCREEN';
+  hudItem.textContent = document.body.classList.contains('clean') ? 'SHOW HUD' : 'HIDE HUD';
 };
+// a true pause menu: while the menu, poster or editor is open, the play clock + audio are paused
+const refreshPause = () => viewport.setMenuPaused(
+  storymenu.classList.contains('show') || el('poster').classList.contains('show') || editor.style.display === 'flex');
+const openMenu = () => { setView('main'); syncMenu(); storymenu.classList.add('show'); refreshPause(); };
+const closeMenu = () => { storymenu.classList.remove('show'); setView('main'); refreshPause(); };
 soundBtn.addEventListener('click', () => { Audio2.toggle(); syncMenu(); });
 fsItem.addEventListener('click', () => { viewport.toggleFullscreen(); setTimeout(syncMenu, 100); });
-el('menubtn').addEventListener('click', () => { syncMenu(); storymenu.classList.add('show'); });
-el('sm-cancel').addEventListener('click', () => storymenu.classList.remove('show'));
-storymenu.addEventListener('click', e => { if (e.target === storymenu) storymenu.classList.remove('show'); });
-el('sm-back').addEventListener('click', goToStartMenu);
-el('sm-edit').addEventListener('click', () => { storymenu.classList.remove('show'); openEditor(); });
-el('ed-close').addEventListener('click', () => editor.style.display = 'none');
-el('ed-reset').addEventListener('click', () => { edText.value = JSON.stringify(defaultStory, noCache, 2); edErr.textContent = 'Default story loaded into the editor — press PLAY to run it.'; });
+hudItem.addEventListener('click', () => { document.body.classList.toggle('clean'); syncMenu(); });   // clean scene mode
+el('menubtn').addEventListener('click', openMenu);
+el('sm-resume').addEventListener('click', closeMenu);
+storymenu.addEventListener('click', e => { if (e.target === storymenu) closeMenu(); });
+el('sm-engine').addEventListener('click', () => setView('engine'));
+el('sm-controls').addEventListener('click', () => setView('controls'));
+el('sm-engine-back').addEventListener('click', () => setView('main'));
+el('sm-controls-back').addEventListener('click', () => setView('main'));
+el('sm-back').addEventListener('click', () => setView('confirm'));     // exiting is destructive: confirm first
+el('sm-confirm-no').addEventListener('click', () => setView('main'));
+el('sm-confirm-yes').addEventListener('click', goToStartMenu);
+el('sm-edit').addEventListener('click', () => { storymenu.classList.remove('show'); openEditor(); refreshPause(); });
+el('ed-close').addEventListener('click', () => { editor.style.display = 'none'; refreshPause(); });
+el('ed-reset').addEventListener('click', () => { edText.value = JSON.stringify(defaultStory, noCache, 2); edErr.textContent = 'Default story loaded into the editor, press PLAY to run it.'; });
 el('ed-play').addEventListener('click', () => {
   let s; try { s = JSON.parse(edText.value); } catch (err) { edErr.textContent = 'JSON error: ' + err.message; return; }
   if (!s || !Array.isArray(s.scenes) || !s.scenes.length) { edErr.textContent = 'A story needs a non-empty "scenes" array.'; return; }
@@ -450,13 +629,19 @@ el('ed-play').addEventListener('click', () => {
   try { localStorage.setItem('inkfall_story', JSON.stringify(s, noCache)); } catch (e) {}
   editor.style.display = 'none';
   if (!manager.started) beginPlay();
+  refreshPause();
 });
 
 // ---- bootstrap ----
 (async () => {
   buildStoryPicker();
-  defaultStory = await loadStory(0);
-  await selectStory(0);
+  let ready = false;
+  for (let attempt = 0; attempt < 12 && !ready; attempt++) {   // the dev server may still be warming up: retry the first load
+    try { defaultStory = await loadStory(0); await selectStory(0); ready = true; }
+    catch (e) { await new Promise(r => setTimeout(r, 350)); }
+  }
+  if (!ready) { const l = el('introloading'); if (l) l.querySelector('.loadlabel').textContent = 'COULD NOT LOAD, REFRESH'; return; }
+  el('intro').classList.remove('loading');   // stories ready: swap the spinner for the picker + ENTER
   engine.run(e => manager.tick(e));
 })();
 
@@ -638,7 +823,9 @@ const ANIM = {
   swaySpeed: 1.1, walkSpeed: 2.2, emberSpeed: 6, flickerSpeed: 9,
   rainAlpha: 0.35, grainAlpha: 0.015, grainAlphaEnd: 0.15, vignette: 0.7, parallaxLerp: 0.08,
   boltGap: [5, 13],
-  transIn: 2.0, transOut: 1.6, cardHold: 1.7,   // scene-transition speed: higher in/out = faster wipe; cardHold = act-card dwell (s)
+  transIn: 2.0, transOut: 1.6, cardHold: 2.0,   // scene-transition speed: higher in/out = faster wipe; cardHold = act-card dwell (s)
+  openCardHold: 2.8,                             // the first act card (right after the story title) lingers a touch longer
+  titleHold: 3.4,                                // opening story-title card dwell (s), spans the fullscreen toast
 };
 
 __exports.PALETTE = PALETTE;
@@ -859,7 +1046,13 @@ function isRotatable() {
 }
 function isStandalone() { return mq('(display-mode: fullscreen)') || mq('(display-mode: standalone)') || navigator.standalone === true; }
 function isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
-function canFullscreen() { return !!(document.fullscreenEnabled || document.webkitFullscreenEnabled) && !isStandalone(); }
+// can we actually put an element into fullscreen? Test for a request method on the root, not
+// document.fullscreenEnabled: iPhone Safari reports that flag for video but cannot fullscreen a
+// canvas, which would trap the gate forever. No request method means relax the target to landscape.
+function canFullscreen() {
+  const root = document.documentElement;
+  return !!(root.requestFullscreen || root.webkitRequestFullscreen) && !isStandalone();
+}
 function landscape() { return innerWidth >= innerHeight; }
 
 // the immersion target adapts to the platform: a real fullscreen where we can reach one, otherwise
@@ -879,6 +1072,8 @@ class Viewport {
     this.experienceStarted = false;   // ENTER pressed, a story is on its way in
     this.storyStarted = false;        // onStart has fired (the play clock is live)
     this.gatePassed = false;          // immersion reached, or "watch anyway" chosen, at least once
+    this.gateBlocked = false;         // the immersion prompt is up
+    this.menuPaused = false;          // a menu/modal is open (the pause menu)
     this.onStart = null;              // boot wires this to manager.requestStart
     this.onPause = null;              // boot wires this to Audio2.suspend (full story pause)
     this.onResume = null;             // boot wires this to Audio2.resumeAll
@@ -906,7 +1101,10 @@ class Viewport {
   async enter() {
     const root = document.documentElement;
     const fs = root.requestFullscreen || root.webkitRequestFullscreen;
-    try { if (fs) await fs.call(root); } catch (e) {}
+    // skip requestFullscreen when already fullscreen or running as an installed PWA, it would be
+    // redundant and re-trigger Chrome's "swipe to exit" toast. (An installed PWA is fullscreen with
+    // no Fullscreen API call, so it never shows that toast at all.)
+    try { if (fs && !isFullscreen() && !isStandalone()) await fs.call(root); } catch (e) {}
     try { if (window.screen && screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch (e) {}
     this.evaluate();
   }
@@ -926,8 +1124,17 @@ class Viewport {
   // back to the start screen: leave fullscreen and reset the gate so it runs again next time
   reset() {
     this.experienceStarted = false; this.storyStarted = false; this.gatePassed = false;
+    this.gateBlocked = false; this.menuPaused = false;
     this.hideOverlay(); this.engine.resume(); this.exit();
   }
+
+  // the play clock + audio pause while the immersion prompt is up OR a menu/modal is open. One
+  // coordinator so the gate and the pause menu never fight over the engine. All calls are idempotent.
+  applyPause() {
+    if (this.gateBlocked || this.menuPaused) { this.engine.pause(); if (this.onPause) this.onPause(); }
+    else { this.engine.resume(); if (this.onResume) this.onResume(); }
+  }
+  setMenuPaused(on) { this.menuPaused = on; this.applyPause(); }
 
   // the gate only blocks on a touch device that has not yet reached immersion (or chosen to skip).
   // After that, a broken immersion mid story is non-blocking: it letterboxes and shows the HUD button.
@@ -943,16 +1150,13 @@ class Viewport {
   evaluate() {
     if (!this.experienceStarted) return;
     if (isImmersive()) this.gatePassed = true;
-    if (this.blocked()) {
-      this.showOverlay();
-      this.engine.pause();                       // freeze the clock (animations) under the prompt
-      if (this.onPause) this.onPause();           // and hold all audio
-    } else {
+    this.gateBlocked = this.blocked();
+    if (this.gateBlocked) this.showOverlay();
+    else {
       this.hideOverlay();
-      this.engine.resume();
-      if (this.onResume) this.onResume();
       if (!this.storyStarted) { this.storyStarted = true; if (this.onStart) this.onStart(); }
     }
+    this.applyPause();
     this.updateFsBtn();
   }
 
@@ -1004,6 +1208,8 @@ const { Audio2 } = __req("src/assets/audio.js");
 const { lerp, smooth01 } = __req("src/engine/math.js");
 const { ANIM } = __req("src/style/palette.js");
 
+const CAP_VARIANTS = ['lr', 'rl', 'co'];   // narration render directions, chosen deterministically per line
+
 class Manager {
   constructor(engine) {
     this.engine = engine;
@@ -1054,9 +1260,14 @@ class Manager {
   }
 
   doStart(e) {
-    this.started = true; this.seen = []; this.navShown = false; this.opening = true;
+    this.started = true; this.seen = []; this.navShown = false; this.opening = false;
     this.finishing = false; this.ended = false;
-    this.transAlpha = 1; this.enterScene(0, e); this.transState = 'card'; this.cardT = 0;
+    this.transAlpha = 1;
+    // open on the story-name card (act-card style) before any audio or scene runs. titleHold spans
+    // the browser's fullscreen toast, so the story proper begins once that has gone.
+    this.titleText = ((this.story && (this.story.subtitle || this.story.title)) || '').replace(/&nbsp;/g, ' ');
+    if (this.titleText) { this.transState = 'title'; this.cardT = 0; }
+    else { this.opening = true; this.cardDur = ANIM.openCardHold; this.enterScene(0, e); this.transState = 'card'; this.cardT = 0; }
   }
 
   // establishing shot: open wide and push in to the framed view. The zoom goes below 1 (a true
@@ -1071,16 +1282,24 @@ class Manager {
   }
 
   runFlow(e) {
+    if (this.transState === 'title') {                 // opening story-title card, then the story proper begins
+      this.cardT += e.dt;
+      if (this.cardT >= ANIM.titleHold) {
+        if (this.onBegin) this.onBegin();              // start audio only now, as the first act opens
+        this.opening = true; this.cardDur = ANIM.openCardHold; this.enterScene(0, e); this.transState = 'card'; this.cardT = 0;
+      }
+      return;
+    }
     if (this.transState === 'in') {
       this.transAlpha += e.dt * ANIM.transIn;
       if (this.transAlpha >= 1) {
         this.transAlpha = 1;
         if (this.finishing) { this.finishing = false; this.ended = true; this.transState = null; this.transAlpha = 0; this.revealNav(); Audio2.whoosh(); }  // last act done: cut to the black THE END screen + scene picker
-        else { this.enterScene(this.pending, e); this.transState = 'card'; this.cardT = 0; }
+        else { this.enterScene(this.pending, e); this.cardDur = ANIM.cardHold; this.transState = 'card'; this.cardT = 0; }
       }
     } else if (this.transState === 'card') {
       this.cardT += e.dt;
-      if (this.cardT >= ANIM.cardHold) { this.current.sceneStart = e.t; this.showLine(e); this.showTag(); this.transState = 'out'; }
+      if (this.cardT >= (this.cardDur || ANIM.cardHold)) { this.current.sceneStart = e.t; this.showLine(e); this.showTag(); this.transState = 'out'; }
     } else if (this.transState === 'out') {
       this.transAlpha -= e.dt * ANIM.transOut;
       if (this.transAlpha <= 0) { this.transAlpha = 0; this.transState = null; }
@@ -1096,7 +1315,7 @@ class Manager {
   }
 
   // on THE END, unlock the act picker (hidden until the story is finished once) and drop it open
-  revealNav() { this.navShown = true; if (this.dom.actsel) this.dom.actsel.classList.add('unlocked'); this.openNav(true); this.highlightNav(); }
+  revealNav() { this.navShown = true; if (this.dom.actsel) this.dom.actsel.classList.add('unlocked'); document.body.classList.add('acts-unlocked'); this.openNav(true); this.highlightNav(); }
   openNav(on) { if (this.dom.nav) this.dom.nav.classList.toggle('open', on); if (this.dom.act) this.dom.act.classList.toggle('open', on); }
   highlightNav() { if (this.dom.nav) this.dom.nav.querySelectorAll('button').forEach(b => b.classList.toggle('cur', +b.dataset.s === this.idx)); }
 
@@ -1124,7 +1343,16 @@ class Manager {
   showLine(e) {
     const s = this.current, line = s.data.script[s.lineIdx]; s.lineStart = e.t;
     const cap = this.dom.cap;
-    if (cap) { cap.style.opacity = '0'; setTimeout(() => { cap.innerHTML = line.text; cap.style.opacity = '1'; }, 170); }
+    if (cap) {
+      const wasShown = cap.classList.contains('cap-in');   // animate the old line out first, but not on the first line
+      cap.classList.remove('cap-in'); if (wasShown) cap.classList.add('cap-out');
+      // pick the render direction deterministically from act + line, so a replay always matches
+      const variant = CAP_VARIANTS[(this.idx * 31 + s.lineIdx) % CAP_VARIANTS.length];
+      setTimeout(() => {
+        cap.innerHTML = line.text; cap.style.opacity = ''; cap.dataset.anim = variant;
+        cap.classList.remove('cap-out'); void cap.offsetWidth; cap.classList.add('cap-in');
+      }, wasShown ? 440 : 0);
+    }
     for (const fx of (line.fx || [])) {
       if (fx === 'muzzle') { s.flags.muzzle = 1.0; s.fireGun(e); this.camera.shake(6); }
       else if (fx === 'blood') { s.flags.blood = true; s.flags._bloodT = e.t; }
@@ -1137,17 +1365,17 @@ class Manager {
   showTag() { const t = this.dom.tag; if (!t) return; t.innerHTML = this.current.title; t.style.opacity = '0.85'; clearTimeout(this._tag); this._tag = setTimeout(() => t.style.opacity = '0', 2600); }
 
   applyOverlayVisibility() {
-    const covering = this.transState === 'in' || this.transState === 'card';
-    if (this.dom.cap && (covering || this.ended)) this.dom.cap.style.opacity = '0';   // no caption over THE END
+    const covering = this.transState === 'in' || this.transState === 'card' || this.transState === 'title';
+    if (this.dom.cap && (covering || this.ended)) { this.dom.cap.classList.remove('cap-in', 'cap-out'); this.dom.cap.style.opacity = '0'; }   // no caption over a wipe or THE END
     if (this.dom.tap) this.dom.tap.style.opacity = (covering || this.ended) ? '0' : (this.started ? '1' : '0');
   }
 
   buildSceneNav() {
     const nav = this.dom.nav; if (!nav) return;
     nav.innerHTML = ''; this.openNav(false); this.navShown = false;
-    if (this.dom.actsel) this.dom.actsel.classList.remove('unlocked');   // re-lock until this story is finished again
+    if (this.dom.actsel) this.dom.actsel.classList.remove('unlocked'); document.body.classList.remove('acts-unlocked');   // re-lock until this story is finished again
     (this.scenes || []).forEach((s, i) => {
-      const b = document.createElement('button'); b.dataset.s = i;
+      const b = document.createElement('button'); b.className = 'noir-item'; b.dataset.s = i;
       b.innerHTML = (s.data.title || ('SCENE ' + i)).replace(/&nbsp;/g, ' ');
       b.addEventListener('click', () => { this.jumpTo(i); this.openNav(false); });   // pick an act, then collapse the drawer
       nav.appendChild(b);
@@ -1407,7 +1635,7 @@ const { ANIM } = __req("src/style/palette.js");
 
 function transition(e) {
   const f = e.flow;
-  if (f.transState === 'card') { panelWipe(e, 1); drawCard(e); }
+  if (f.transState === 'card' || f.transState === 'title') { panelWipe(e, 1); drawCard(e); }
   else if (f.transAlpha > 0) panelWipe(e, f.transAlpha);
   if (f.finishing || f.ended) drawEnd(e);   // rises over the closing wipe and stays through the reveal
 }
@@ -1441,12 +1669,17 @@ function panelWipe(e, p) {
   c.restore();
 }
 
+// the act-name title card, reused for the opening story-title card ('title' state). The opening one
+// shows the story name from f.titleText and dwells longer (titleHold).
 function drawCard(e) {
-  const c = e.ctx, f = e.flow, title = (e.scene.data.title || '').replace(/&nbsp;/g, ' '), hold = ANIM.cardHold;
+  const c = e.ctx, f = e.flow, isTitle = f.transState === 'title', hold = isTitle ? ANIM.titleHold : (f.cardDur || ANIM.cardHold);
+  const title = isTitle ? (f.titleText || '') : (e.scene.data.title || '').replace(/&nbsp;/g, ' ');
   let a = 1; if (f.cardT < 0.3) a = f.cardT / 0.3; else if (f.cardT > hold - 0.3) a = Math.max(0, (hold - f.cardT) / 0.3);
   c.save(); c.globalAlpha = a; c.fillStyle = '#f3f0e6'; c.textAlign = 'center'; c.textBaseline = 'middle';
-  c.font = `600 ${Math.round(Math.min(e.W, e.H) * 0.07)}px "Oswald",sans-serif`;
   if ('letterSpacing' in c) c.letterSpacing = '0.32em';
+  let fs = Math.round(Math.min(e.W, e.H) * (isTitle ? 0.06 : 0.07));   // story names run longer than act names
+  c.font = `600 ${fs}px "Oswald",sans-serif`;
+  while (fs > 12 && c.measureText(title).width > e.W * 0.84) { fs -= 2; c.font = `600 ${fs}px "Oswald",sans-serif`; }
   c.fillText(title, e.W / 2, e.H / 2);
   if ('letterSpacing' in c) c.letterSpacing = '0px';
   c.restore();
@@ -1732,7 +1965,9 @@ const Audio2 = (() => {
     }, 30);
   }
 
-  function resume(a) { if (!a || !on || !started) return; if (a._start && a.currentTime < a._start) { try { a.currentTime = a._start; } catch (e) {} } a.play().catch(() => {}); }
+  // the single choke point for starting a persistent sound. It refuses while suspended (gate/menu),
+  // so nothing, including a sound toggle, can bring audio back until resumeAll lifts the suspend.
+  function resume(a) { if (!a || !on || !started || suspended) return; if (a._start && a.currentTime < a._start) { try { a.currentTime = a._start; } catch (e) {} } a.play().catch(() => {}); }
 
   function setStory(c) {
     [music, rain, amb].forEach(stop); music = rain = amb = null;
@@ -1796,6 +2031,9 @@ const Audio2 = (() => {
   }
   function toggle() {
     on = !on;
+    // while suspended (the gate or pause menu is up) only record the choice, do not start playback.
+    // resumeAll will apply it, respecting `on`, when the story resumes.
+    if (suspended) { if (!on) for (const k in loops) stop(loops[k]); return on; }
     [music, rain, amb].forEach(a => { if (a) { a.volume = on ? a._v : 0; if (on) resume(a); else stop(a); } });
     if (!on) for (const k in loops) stop(loops[k]);
     return on;

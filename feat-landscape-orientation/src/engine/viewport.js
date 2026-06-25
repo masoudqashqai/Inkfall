@@ -28,7 +28,13 @@ export function isRotatable() {
 }
 function isStandalone() { return mq('(display-mode: fullscreen)') || mq('(display-mode: standalone)') || navigator.standalone === true; }
 function isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
-function canFullscreen() { return !!(document.fullscreenEnabled || document.webkitFullscreenEnabled) && !isStandalone(); }
+// can we actually put an element into fullscreen? Test for a request method on the root, not
+// document.fullscreenEnabled: iPhone Safari reports that flag for video but cannot fullscreen a
+// canvas, which would trap the gate forever. No request method means relax the target to landscape.
+function canFullscreen() {
+  const root = document.documentElement;
+  return !!(root.requestFullscreen || root.webkitRequestFullscreen) && !isStandalone();
+}
 function landscape() { return innerWidth >= innerHeight; }
 
 // the immersion target adapts to the platform: a real fullscreen where we can reach one, otherwise
@@ -48,6 +54,8 @@ export class Viewport {
     this.experienceStarted = false;   // ENTER pressed, a story is on its way in
     this.storyStarted = false;        // onStart has fired (the play clock is live)
     this.gatePassed = false;          // immersion reached, or "watch anyway" chosen, at least once
+    this.gateBlocked = false;         // the immersion prompt is up
+    this.menuPaused = false;          // a menu/modal is open (the pause menu)
     this.onStart = null;              // boot wires this to manager.requestStart
     this.onPause = null;              // boot wires this to Audio2.suspend (full story pause)
     this.onResume = null;             // boot wires this to Audio2.resumeAll
@@ -75,7 +83,10 @@ export class Viewport {
   async enter() {
     const root = document.documentElement;
     const fs = root.requestFullscreen || root.webkitRequestFullscreen;
-    try { if (fs) await fs.call(root); } catch (e) {}
+    // skip requestFullscreen when already fullscreen or running as an installed PWA, it would be
+    // redundant and re-trigger Chrome's "swipe to exit" toast. (An installed PWA is fullscreen with
+    // no Fullscreen API call, so it never shows that toast at all.)
+    try { if (fs && !isFullscreen() && !isStandalone()) await fs.call(root); } catch (e) {}
     try { if (window.screen && screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch (e) {}
     this.evaluate();
   }
@@ -95,8 +106,17 @@ export class Viewport {
   // back to the start screen: leave fullscreen and reset the gate so it runs again next time
   reset() {
     this.experienceStarted = false; this.storyStarted = false; this.gatePassed = false;
+    this.gateBlocked = false; this.menuPaused = false;
     this.hideOverlay(); this.engine.resume(); this.exit();
   }
+
+  // the play clock + audio pause while the immersion prompt is up OR a menu/modal is open. One
+  // coordinator so the gate and the pause menu never fight over the engine. All calls are idempotent.
+  applyPause() {
+    if (this.gateBlocked || this.menuPaused) { this.engine.pause(); if (this.onPause) this.onPause(); }
+    else { this.engine.resume(); if (this.onResume) this.onResume(); }
+  }
+  setMenuPaused(on) { this.menuPaused = on; this.applyPause(); }
 
   // the gate only blocks on a touch device that has not yet reached immersion (or chosen to skip).
   // After that, a broken immersion mid story is non-blocking: it letterboxes and shows the HUD button.
@@ -112,16 +132,13 @@ export class Viewport {
   evaluate() {
     if (!this.experienceStarted) return;
     if (isImmersive()) this.gatePassed = true;
-    if (this.blocked()) {
-      this.showOverlay();
-      this.engine.pause();                       // freeze the clock (animations) under the prompt
-      if (this.onPause) this.onPause();           // and hold all audio
-    } else {
+    this.gateBlocked = this.blocked();
+    if (this.gateBlocked) this.showOverlay();
+    else {
       this.hideOverlay();
-      this.engine.resume();
-      if (this.onResume) this.onResume();
       if (!this.storyStarted) { this.storyStarted = true; if (this.onStart) this.onStart(); }
     }
+    this.applyPause();
     this.updateFsBtn();
   }
 
