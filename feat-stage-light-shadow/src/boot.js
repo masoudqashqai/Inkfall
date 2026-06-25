@@ -9,7 +9,7 @@ import './library/index.js';
 import { STORIES } from '../stories/manifest.js';
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 50 · fire muzzle + lighter flame on the light system'
+const BUILD = 'v2 build 51 · legacy muzzle flash on the light system'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 

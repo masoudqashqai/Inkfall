@@ -168,7 +168,7 @@ __req("src/library/index.js");
 const { STORIES } = __req("stories/manifest.js");
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 50 · fire muzzle + lighter flame on the light system'
+const BUILD = 'v2 build 51 · legacy muzzle flash on the light system'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 
@@ -2239,7 +2239,7 @@ __mod["src/library/actors/people.js"] = function(__exports, __req){
 const { defineActor } = __req("src/objects/registry.js");
 const { PALETTE, ANIM } = __req("src/style/palette.js");
 const { TWO_PI, lerp, smooth01 } = __req("src/engine/math.js");
-const { rimSign, bodyGrad, ember, cigSmoke, drawFedora, drawPistol, muzzleFire } = __req("src/library/shared.js");
+const { rimSign, bodyGrad, ember, cigSmoke, drawFedora, drawPistol, muzzleFlash } = __req("src/library/shared.js");
 
 // cloth albedos (the cast's own material colours, noir-desaturated). bodyGrad shades from these, so
 // a dark suit stays dark under a bright light and the detective's pale trench lifts more.
@@ -2391,19 +2391,21 @@ defineActor('gunman', function (e) {                          // shooter, arm ex
   const sx = 6 * s, sy = -86 * s, hx = lerp(13 * s, 34 * s, aim), hy = lerp(-52 * s, -82 * s, aim), ang = Math.atan2(hy - sy, hx - sx);
   c.strokeStyle = PALETTE.ink; c.lineWidth = 8 * s; c.lineCap = 'round'; c.beginPath(); c.moveTo(sx, sy); c.lineTo(hx, hy); c.stroke();
   c.save(); c.translate(hx, hy); c.rotate(ang); drawPistol(c, 0, 0, s); c.restore();
-  if (flash > 0 && aim > 0.82) muzzleFire(c, hx + Math.cos(ang) * 18 * s, hy + Math.sin(ang) * 18 * s, s, flash, ang);
+  if (flash > 0 && aim > 0.82) muzzleFlash(c, hx + Math.cos(ang) * 18 * s, hy + Math.sin(ang) * 18 * s, s, flash);
   c.restore();
 }, {
   shadowW: 22, shadowH: 121,
-  // the gunshot lights the scene: a brief, bright warm flash at the muzzle through the light system
-  // (front, so it reads over the cast), fading with the same flash that drives the fire burst.
+  // the gunshot floods the scene like the original: a warm flash over the cast (front halo) plus real
+  // light on the wet floor and the back wall with a reflection, all through the light system.
   emitLight(e) {
     const flash = e.flags.muzzle || 0;
     if (flash <= 0) return;
     const s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, dir = this.flip ? -1 : 1;
     const aim = (this.raiseAt != null) ? (e.lineIdx < this.raiseAt ? 0 : (e.lineIdx === this.raiseAt ? smooth01(e.beat() / 2.4) : 1)) : 1;
-    const sx = 6 * s, sy = -86 * s, hx = lerp(13 * s, 34 * s, aim), hy = lerp(-52 * s, -82 * s, aim), ang = Math.atan2(hy - sy, hx - sx);
-    e.addLight({ x: X + dir * (hx + Math.cos(ang) * 18 * s), y: gy + hy + Math.sin(ang) * 18 * s, col: '255,200,130', r: 220 * s, I: flash, ew: 9 * s, eh: 9 * s, front: true });
+    const sy = -86 * s, hx = lerp(13 * s, 34 * s, aim), hy = lerp(-52 * s, -82 * s, aim), ang = Math.atan2(hy - sy, hx - 6 * s);
+    const mx = X + dir * (hx + Math.cos(ang) * 18 * s), my = gy + hy + Math.sin(ang) * 18 * s;
+    e.addLight({ x: mx, y: my, col: '255,178,90', r: 240 * s, I: flash, ew: 9 * s, eh: 9 * s, front: true });                                   // the flash over the scene
+    e.addLight({ x: mx, y: my, col: '255,150,60', r: 300 * s, I: 0.9 * flash, glow: false, reflW: 22 * s, reflI: 0.55 * flash, reflLen: 0.5 }); // floor + wall + the wet shimmer
   },
   shadowSil(e, c) {                                            // suit, head, fedora + the extended gun arm
     const s = e.scaleOf(this);
@@ -2556,35 +2558,20 @@ function drawPistol(c, x, y, s) {
   c.restore();
 }
 
-// MUZZLE FIRE — a gunshot as a burst of fire, not a drawn star: a white-hot core, a flame plume
-// blown forward along the barrel, and sparks thrown out that fly and fade as the flash dies (f: 1
-// just fired -> 0 gone). The actual scene light comes from the gunman's emitLight, this is the body.
-const _rnd = i => { const x = Math.sin(i * 12.9898) * 43758.5453; return x - Math.floor(x); };
-
-function muzzleFire(c, x, y, s, f, ang) {
-  if (f <= 0) return;
-  const age = 1 - f;
-  c.save(); c.translate(x, y); c.globalCompositeOperation = 'lighter';
-  for (let i = 0; i < 14; i++) {                               // sparks, forward-biased, flying out + fading
-    const a = ang + (_rnd(i) - 0.5) * 1.7, sp = 0.4 + _rnd(i + 21);
-    const d = age * sp * 52 * s, px = Math.cos(a) * d, py = Math.sin(a) * d, al = f * (0.9 - 0.6 * _rnd(i + 7));
-    c.globalAlpha = al < 0 ? 0 : al; c.fillStyle = i % 3 ? '#ffb030' : '#ffe070';
-    c.beginPath(); c.arc(px, py, (1 + 1.4 * f) * s, 0, TWO_PI); c.fill();
-  }
-  c.save(); c.rotate(ang);                                     // flame plume down the barrel
-  const len = (14 + 26 * f) * s, w = (6 + 5 * f) * s, g = c.createLinearGradient(0, 0, len, 0);
-  g.addColorStop(0, `rgba(255,245,205,${0.85 * f})`); g.addColorStop(0.45, `rgba(255,150,45,${0.65 * f})`); g.addColorStop(1, 'rgba(255,70,20,0)');
-  c.fillStyle = g; c.beginPath(); c.moveTo(0, -w); c.quadraticCurveTo(len * 0.55, -w * 0.5, len, 0); c.quadraticCurveTo(len * 0.55, w * 0.5, 0, w); c.closePath(); c.fill();
-  c.restore();
-  c.globalAlpha = f; c.fillStyle = '#fff'; c.beginPath(); c.arc(0, 0, (2.5 + 4 * f) * s, 0, TWO_PI); c.fill();
-  c.restore();
+// MUZZLE FLASH — the original burst: a soft yellow star with a white-hot centre (f: 1 just fired ->
+// 0 gone). The flash that actually floods the alley and shimmers on the wet floor is real light, the
+// gunman registers it in emitLight, so this is only the spark at the barrel.
+function muzzleFlash(c, x, y, s, f) {
+  c.save(); c.translate(x, y); c.globalAlpha = f; c.fillStyle = PALETTE.amber; c.shadowColor = '#ff3000'; c.shadowBlur = 30;
+  c.beginPath(); for (let i = 0; i < 10; i++) { const a = i / 10 * TWO_PI, r = (i % 2 ? 6 : 18) * s * (0.6 + f); c.lineTo(Math.cos(a) * r, Math.sin(a) * r); } c.closePath(); c.fill();
+  c.fillStyle = '#fff'; c.beginPath(); c.arc(0, 0, 5 * s * f, 0, TWO_PI); c.fill(); c.restore();
 }
 
 __exports.ember = ember;
 __exports.cigSmoke = cigSmoke;
 __exports.drawFedora = drawFedora;
 __exports.drawPistol = drawPistol;
-__exports.muzzleFire = muzzleFire;
+__exports.muzzleFlash = muzzleFlash;
 };
 __mod["src/style/materials.js"] = function(__exports, __req){
 // MATERIALS — shared surface shading so every object looks cut from the same cloth.
