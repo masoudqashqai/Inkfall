@@ -45,6 +45,22 @@ export class Scene {
     for (const L of this.lightNodes) if (L.emitLight) L.emitLight(e);
     for (const o of this.objects) if (this.visible(o) && o.emitLight) o.emitLight(e);
   }
+  // every visible caster registers a shadow once (mirrors collectLights, so all casters and lights
+  // are known before either pass paints). The base point uses walkX, so a walking actor's shadow
+  // tracks the walk; the silhouette pose is recomputed inside the object's shadowSil.
+  collectCasters(e) {
+    for (const o of this.objects) {
+      if (!o.castsShadow || !this.visible(o)) continue;
+      const s = e.scaleOf(o);
+      e.addCaster({
+        node: o, bx: e.walkX(o), baseY: e.gy + (o.dy || 0) * e.unit,
+        w: (o.shadowW != null ? o.shadowW : 26) * s,
+        h: (o.shadowH != null ? o.shadowH : 80) * s,
+        density: o.shadowDensity != null ? o.shadowDensity : 1,
+        sil: o.shadowSil || null,
+      });
+    }
+  }
   drawBackdrop(e) { if (this.backdrop && this.backdrop.draw) this.backdrop.draw(e); }
   drawFixtures(e) { for (const L of this.lightNodes) if (L.draw) L.draw(e); }
   // visible objects of a layer, back-to-front by depth

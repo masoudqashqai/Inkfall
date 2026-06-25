@@ -2,6 +2,7 @@
 // additive light layer to the offscreen buffer, composites them, then weather over the top and
 // the screen-space post + transition. Two buffers keep the light layer separable for the look.
 import { sky } from '../render/passes/sky.js';
+import { shadows } from '../render/passes/shadows.js';
 import { lighting } from '../render/passes/lighting.js';
 import { weather } from '../render/passes/weather.js';
 import { post } from '../render/passes/post.js';
@@ -11,8 +12,8 @@ export class Compositor {
   constructor(engine) { this.engine = engine; }
 
   render(e) {
-    const eng = this.engine, main = e.main, light = e.light, cam = e.scene.camera;
-    e.lights = [];
+    const eng = this.engine, main = e.main, light = e.light, shadow = e.shadow, cam = e.scene.camera;
+    e.lights = []; e.casters = [];
 
     // THE END: a black screen with grain + vignette + the title (no scene drawn)
     if (e.flow && e.flow.ended) {
@@ -22,15 +23,29 @@ export class Compositor {
       return;
     }
 
-    // WORLD → main, camera-applied (the establishing zoom stays >= 1, so the world always overfills)
+    // WORLD (set) → main, camera-applied (the establishing zoom stays >= 1, so the world overfills)
     eng.setWorldTransform(main);
     main.fillStyle = '#000'; main.fillRect(0, 0, e.W, e.H);
     main.save(); cam.apply(main); e.ctx = main;
     sky(e);                       // sky + moon (moon registers its light)
-    e.scene.collectLights(e);     // declared lights + emissive props → e.lights (before objects)
+    e.scene.collectLights(e);     // declared lights + emissive props → e.lights (before anything reads them)
+    e.scene.collectCasters(e);    // visible casters → e.casters (before the shadow pass projects them)
     e.scene.drawBack(e);          // distant elements (e.g. a searchlight beam) behind the backdrop
     e.scene.drawBackdrop(e);
     e.scene.drawFixtures(e);      // the visible lamp/neon/bulb fixtures
+    main.restore();
+
+    // SHADOW BUFFER → camera-applied, then composited onto the set UNDER the cast (a figure stands
+    // on its own shadow, and shadows fall on the floor + the back wall, not on the actors above).
+    eng.setWorldTransform(shadow);
+    shadow.clearRect(0, 0, e.W, e.H);
+    shadow.save(); cam.apply(shadow); e.ctx = shadow;
+    shadows(e);
+    shadow.restore();
+    eng.setDeviceTransform(main); main.globalCompositeOperation = 'source-over'; main.drawImage(eng.shadowCv, 0, 0);
+
+    // WORLD (cast) → main, on top of the shadows
+    eng.setWorldTransform(main); main.save(); cam.apply(main); e.ctx = main;
     e.scene.drawObjects(e);       // props/actors/movers/effects (depth order) + brass
     main.restore();
 

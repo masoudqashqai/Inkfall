@@ -3,7 +3,10 @@ import { defineBackdrop } from '../../objects/registry.js';
 import { PALETTE } from '../../style/palette.js';
 import { buildSkyline, paintSkyline, wetFloor, brickWall, fireEscape, balcony } from './skyline-core.js';
 
+// no window glow here: the brick walls cover most of the skyline, so an additive bloom would leak
+// onto the brick. The far slice is tiny anyway.
 defineBackdrop('alley', data => ({
+  wallTop: 0,            // brick walls rise the full height, so a figure's shadow can climb them
   build(e) { return buildSkyline(e, data.backdrop.seed || 77123, [{ depth: 0.4, top: e.H * 0.3, shade: PALETTE.farInk, minW: 50, maxW: 110, minH: 0.3, maxH: 0.55, win: 0.18 }], e.H * 0.62); },
   draw(e) {
     const c = e.ctx, g = e.gy, look = e.scene.camera.look, vx = e.W * 0.5 + look * 0.3, vy = e.H * 0.4;

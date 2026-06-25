@@ -7,6 +7,7 @@ export class Engine {
   constructor() {
     this.cv = null; this.ctx = null; this.DPR = 1; this.W = 0; this.H = 0; this.unit = 1;
     this.lightCv = null; this.lightCtx = null;
+    this.shadowCv = null; this.shadowCtx = null;   // the offscreen shadow buffer (projected onto the stage, blitted under the cast)
     this.snapCv = null; this.snapCtx = null;   // a frozen copy of the last frame, for the beat crossfade
     this.frame = new Frame();
     this.drops = []; this.grain = null;     // rain particles + film-grain tile (persist across scenes)
@@ -18,6 +19,8 @@ export class Engine {
     this.ctx = this.cv.getContext('2d', { alpha: false });   // NOT desynchronized: the low-latency surface tears/flickers badly on real phones (fine on desktop + emulation, so it hid)
     this.lightCv = document.createElement('canvas');
     this.lightCtx = this.lightCv.getContext('2d');
+    this.shadowCv = document.createElement('canvas');
+    this.shadowCtx = this.shadowCv.getContext('2d');
     this.snapCv = document.createElement('canvas');
     this.snapCtx = this.snapCv.getContext('2d');
     addEventListener('resize', () => this.resize());
@@ -28,7 +31,7 @@ export class Engine {
   resize() {
     this.DPR = Math.min(window.devicePixelRatio || 1, 2);
     this.W = innerWidth; this.H = innerHeight;
-    for (const cv of [this.cv, this.lightCv, this.snapCv]) { cv.width = Math.floor(this.W * this.DPR); cv.height = Math.floor(this.H * this.DPR); }
+    for (const cv of [this.cv, this.lightCv, this.shadowCv, this.snapCv]) { cv.width = Math.floor(this.W * this.DPR); cv.height = Math.floor(this.H * this.DPR); }
     this.cv.style.width = this.W + 'px'; this.cv.style.height = this.H + 'px';
     this.initRain();
     if (!this.grain) this.buildGrain();
@@ -52,7 +55,7 @@ export class Engine {
     const f = this.frame;
     f.W = this.W; f.H = this.H; f.unit = Math.min(this.W, this.H) / 360;
     f.t = now / 1000; f.dt = Math.min((now - this.last) / 1000, 0.05);
-    f.main = this.ctx; f.light = this.lightCtx; f.ctx = this.ctx;
+    f.main = this.ctx; f.light = this.lightCtx; f.shadow = this.shadowCtx; f.ctx = this.ctx;
     f.drops = this.drops; f.grain = this.grain; f.DPR = this.DPR;
     this.last = now;
     return f;

@@ -1,18 +1,20 @@
 // FRAME — the per-frame facade handed to passes and to every object's draw/update/emitLight.
-// It bundles the live timing + sizes, the three drawing contexts (world buffer, additive
-// light buffer, main), and the coordinate + lighting helpers. Objects read `e.ctx` as their
-// target and call helpers like `e.X(node)`, `e.groundShadow(...)`, `e.pushLight(...)`.
+// It bundles the live timing + sizes, the drawing contexts (main, the additive light buffer, the
+// shadow buffer), and the coordinate, lighting + shadow helpers. Objects read `e.ctx` as their
+// target and call helpers like `e.X(node)`, `e.addLight(...)`, `e.addCaster(...)`.
 import { PALETTE } from '../style/palette.js';
 import { lerp, smooth01 } from './math.js';
 import * as L from '../render/lighting.js';
+import * as S from '../render/shadows.js';
 
 export class Frame {
   constructor() {
     this.W = this.H = 0; this.unit = 1; this.t = 0; this.dt = 0;
-    this.world = this.light = this.main = null;  // the three 2d contexts
+    this.world = this.light = this.shadow = this.main = null;  // the four 2d contexts (world, light buffer, shadow buffer, main)
     this.ctx = null;                              // active draw target (set per pass)
     this.scene = null;                            // active Scene
     this.lights = [];                             // light records, rebuilt each frame
+    this.casters = [];                            // shadow caster records, rebuilt each frame
   }
 
   // live, scene-derived values
@@ -53,7 +55,10 @@ export class Frame {
   dominantLight(x) { return L.dominantLight(this, x); }
   litTint(x) { return L.litTint(this, x); }
   litColor(x, gr, gg, gb) { return L.litColor(this, x, gr, gg, gb); }
-  groundShadow(x, halfW, objH) { L.groundShadow(this, x, halfW, objH); }
+
+  // shadow facade (delegates to the shadow service so the same describe-once split applies).
+  // Objects register a caster once with addCaster({...}); the shadow pass projects + paints it.
+  addCaster(rec) { S.addCaster(this, rec); }
 }
 
 Frame.prototype.palette = PALETTE;

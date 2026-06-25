@@ -4,6 +4,11 @@
 import { PALETTE } from '../../style/palette.js';
 import { rand32 } from '../../engine/math.js';
 
+// a stable 0..1 pseudo-random from a position, used for per-window flicker phase + bokeh size so a
+// window's behaviour is deterministic WITHOUT consuming the layout rng (which would shift the seed
+// and move every building). Keeps existing skylines identical.
+function hash2(x, y) { const h = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453; return h - Math.floor(h); }
+
 export function buildSkyline(e, seed, cfgList, groundY) {
   const rng = rand32(seed), layers = [];
   for (const cfg of cfgList) {
@@ -11,7 +16,13 @@ export function buildSkyline(e, seed, cfgList, groundY) {
     while (x < e.W + 220) {
       const w = cfg.minW + rng() * (cfg.maxW - cfg.minW), h = (cfg.minH + rng() * (cfg.maxH - cfg.minH)) * (groundY - cfg.top), top = groundY - h, wins = [];
       const cols = Math.max(2, w / 16 | 0), rows = Math.max(3, h / 20 | 0);
-      for (let r = 0; r < rows; r++) for (let ci = 0; ci < cols; ci++) { if (rng() > cfg.win) continue; wins.push({ x: x + 7 + ci * (w - 14) / cols, y: top + 10 + r * (h - 16) / rows, warm: rng() > 0.8 }); }
+      for (let r = 0; r < rows; r++) for (let ci = 0; ci < cols; ci++) {
+        if (rng() > cfg.win) continue;
+        const wx = x + 7 + ci * (w - 14) / cols, wy = top + 10 + r * (h - 16) / rows, hh = hash2(wx, wy);
+        // ~6% of windows are failing tubes: their bloom is drawn live (and can drop dark), the rest
+        // bake into a static glow sprite. bk varies the bokeh disc size on the far layers.
+        wins.push({ x: wx, y: wy, warm: rng() > 0.8, flk: hh < 0.06 ? hh * 104 % 6.283 : null, bk: hash2(wy, wx) });
+      }
       const cap = rng() < 0.25 ? { type: rng() < 0.5 ? 'tank' : 'ant', x: x + w * (0.3 + rng() * 0.4) } : null;
       blds.push({ x, w, top, h, wins, cap }); x += w + 2 + rng() * 16;
     }
@@ -39,6 +50,71 @@ function layerSprite(e, L) {
 export function paintSkyline(e, layers, par) {
   const c = e.ctx, CW = e.W + PAD * 2;
   for (const L of layers) c.drawImage(layerSprite(e, L), par * L.depth - PAD, 0, CW, e.H);
+}
+
+// --- distant window lights: a soft bloom over the lit window squares, blitted ADDITIVELY on the
+// light buffer (they are atmosphere, not real lights, so they never touch the foreground lighting
+// maths). Far layers get a defocused bokeh disc (depth of field), the nearest stays crisp. ---
+const BOKEH_DEPTH = 0.45;                 // layers at/below this parallax depth are off-focus
+const _soft = {};
+function softGlow(col) {                   // a soft round bloom, peak at the centre
+  if (_soft[col]) return _soft[col];
+  const cv = document.createElement('canvas'); cv.width = cv.height = 64;
+  const c = cv.getContext('2d'), g = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, `rgba(${col},1)`); g.addColorStop(0.5, `rgba(${col},0.45)`); g.addColorStop(1, `rgba(${col},0)`);
+  c.fillStyle = g; c.fillRect(0, 0, 64, 64);
+  return _soft[col] = cv;
+}
+function bokeh(col) {                       // a defocused disc: flatter core, soft rim (off-focus light)
+  if (_soft['b' + col]) return _soft['b' + col];
+  const cv = document.createElement('canvas'); cv.width = cv.height = 64;
+  const c = cv.getContext('2d'), g = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, `rgba(${col},0.5)`); g.addColorStop(0.62, `rgba(${col},0.5)`); g.addColorStop(0.82, `rgba(${col},0.75)`); g.addColorStop(1, `rgba(${col},0)`);
+  c.fillStyle = g; c.fillRect(0, 0, 64, 64);
+  return _soft['b' + col] = cv;
+}
+const WARM = '255,224,164', COOL = '188,204,236';
+
+// bake the steady bloom for a layer (skips the live-flicker windows). Cached like the layer sprite.
+function glowSprite(e, L) {
+  if (L._glow && L._glowW === e.W && L._glowDPR === e.DPR) return L._glow;
+  const DPR = e.DPR || 1, CW = e.W + PAD * 2, far = L.depth <= BOKEH_DEPTH;
+  const cv = document.createElement('canvas'); cv.width = Math.floor(CW * DPR); cv.height = Math.floor(e.H * DPR);
+  const c = cv.getContext('2d'); c.setTransform(DPR, 0, 0, DPR, 0, 0); c.translate(PAD, 0); c.globalCompositeOperation = 'lighter';
+  for (const b of L.blds) for (const wn of b.wins) {
+    if (wn.flk != null) continue;                       // flicker windows are drawn live
+    const col = wn.warm ? WARM : COOL;
+    if (far) { const r = 7 + wn.bk * 6; c.globalAlpha = 0.5; c.drawImage(bokeh(col), wn.x - r, wn.y - r, r * 2, r * 2); }
+    else { const r = 4.5; c.globalAlpha = 0.6; c.drawImage(softGlow(col), wn.x - r, wn.y - r, r * 2, r * 2); }
+  }
+  L._glow = cv; L._glowW = e.W; L._glowDPR = e.DPR; return cv;
+}
+
+// a failing-tube value 0..1: dark most of the time, then a short buzzing burst now and then
+function flickerVal(t, ph) {
+  if (Math.sin(t * 0.6 + ph * 9.0) < 0.55) return 0;     // not in a flicker burst right now
+  const buzz = Math.sin(t * 34 + ph * 6.28);
+  return buzz > -0.1 ? 0.55 + 0.45 * Math.sin(t * 60 + ph) : 0.12;
+}
+
+// paint the window bloom for a backdrop's layers on the light buffer at the parallax offset.
+export function windowGlow(e, layers, par) {
+  const c = e.light, CW = e.W + PAD * 2, t = e.t;
+  c.save(); c.globalCompositeOperation = 'lighter';
+  for (const L of layers) {
+    c.globalAlpha = L.depth <= BOKEH_DEPTH ? 0.6 : 0.85;
+    c.drawImage(glowSprite(e, L), par * L.depth - PAD, 0, CW, e.H);
+  }
+  for (const L of layers) {                              // live failing-tube windows over the steady bloom
+    const off = par * L.depth, far = L.depth <= BOKEH_DEPTH, r = far ? 8 : 4.5;
+    for (const b of L.blds) for (const wn of b.wins) {
+      if (wn.flk == null) continue;
+      const v = flickerVal(t, wn.flk); if (v <= 0) continue;
+      c.globalAlpha = v * (far ? 0.55 : 0.85);
+      c.drawImage(far ? bokeh(wn.warm ? WARM : COOL) : softGlow(wn.warm ? WARM : COOL), wn.x + off - r, wn.y - r, r * 2, r * 2);
+    }
+  }
+  c.restore();
 }
 
 // the shared dark wet floor (coloured light reflections are added later on the light buffer)

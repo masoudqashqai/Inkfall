@@ -9,14 +9,18 @@ defineEffect('steam', function (e) {
   c.restore();
 });
 
-// a distant searchlight beam sweeping the sky. It lives in the BACK layer (behind the backdrop),
-// so it never lands on the rooftop floor, and it is just the beam: no glow, no floor reflection.
-defineEffect('searchlight', function (e) {
-  const c = e.ctx, t = e.t, ang = Math.sin(t * 0.4) * 0.5;
-  c.save(); c.translate((this.x || 0.5) * e.W, e.H); c.rotate(ang); c.globalCompositeOperation = 'lighter';
-  const lg = c.createLinearGradient(0, 0, 0, -e.H); lg.addColorStop(0, 'rgba(190,200,220,0.10)'); lg.addColorStop(1, 'rgba(190,200,220,0)');
-  c.fillStyle = lg; c.beginPath(); c.moveTo(0, 0); c.lineTo(-70, -e.H); c.lineTo(70, -e.H); c.closePath(); c.fill(); c.restore();
-}, { layer: 'back' });
+// a distant searchlight sweeping the sky. It is now a lighting-system beam (was a hand-drawn cone):
+// emitLight registers an upward sweeping beam with negligible influence, so it lights nothing on the
+// ground, it is purely the shaft of light in the air. No glow, washes or reflection.
+defineEffect('searchlight', function (e) {}, {
+  emitLight(e) {
+    e.addLight({
+      x: (this.x || 0.5) * e.W, y: e.H, col: '190,200,220',
+      r: 1, I: 0, glow: false, surface: false, refl: false, wash: false,
+      beam: { dir: Math.PI, len: e.H, farW: 70 * (this.scale || 1), I: this.intensity || 0.34, sweep: 0.5, sweepSpeed: 0.4 },
+    });
+  },
+});
 
 defineEffect('newspaper', function (e) {                      // blows in from the left, tumbles, settles
   const c = e.ctx, st = e.sceneT(), pP = smooth01(st / 4.5), tumbling = pP < 0.97;

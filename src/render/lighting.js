@@ -6,6 +6,8 @@
 //      emitter size, height above the floor (distance) and power, so it matches the source.
 // rim / tint / shadow all read the same records, which keeps the look uniform.
 import { lerp } from '../engine/math.js';
+import { stageOf } from './stage.js';
+import { WASH } from '../style/shadows.js';
 
 // register a light this frame. Fields:
 //   x, y        position (y above the floor = the light's height)
@@ -16,6 +18,10 @@ import { lerp } from '../engine/math.js';
 //                 uses these for a tight bright halo while keeping a large faint influence.
 //   refl        draw the wet-floor reflection (default true)
 //   reflW, reflI, reflLen   optional overrides (used by the moon for a bespoke faint streak)
+//   wash        draw the diffuse floor + wall surface washes (default true; a distant light sets false)
+//   beam        optional volumetric cone of light in the air (the lamp's downward shaft, the rooftop
+//               searchlight's sweep): { dir (0 = straight down, radians), len, farW or spread,
+//               I (0..1), sweep, sweepSpeed }. The lighting pass paints it on the additive buffer.
 export function addLight(e, rec) {
   if (rec.col == null) rec.col = '255,250,225';
   if (rec.r == null) rec.r = 150;
@@ -28,6 +34,14 @@ export function addLight(e, rec) {
   if (rec.glowR == null) rec.glowR = rec.r;
   if (rec.glowI == null) rec.glowI = rec.I;
   if (rec.refl == null) rec.refl = true;
+  if (rec.wash == null) rec.wash = true;
+  if (rec.beam) {
+    const b = rec.beam;
+    if (b.dir == null) b.dir = 0;
+    if (b.I == null) b.I = 1;
+    if (b.len == null) b.len = 200;
+    if (b.farW == null) b.farW = b.spread != null ? b.len * Math.tan(b.spread) : b.len * 0.45;
+  }
   e.lights.push(rec);
 }
 
@@ -124,27 +138,51 @@ export function litColor(e, x, gr, gg, gb) {
   return [Math.round(lerp(gr, r / wsum, m)), Math.round(lerp(gg, g / wsum, m)), Math.round(lerp(gb, b / wsum, m))];
 }
 
-// systematic directional ground shadow used by EVERY grounded object (drawn to the world ctx).
-// A pre-rendered soft black sprite gives the soft edge with no per-frame blur filter.
-export function groundShadow(e, wx, halfW, objH) {
-  const c = e.ctx, g = e.gy, sp = softRadial('0,0,0');
-  const cands = e.lights.map(L => ({ L, w: L.I * (1 - Math.abs(wx - L.x) / (L.r * 1.2)) })).filter(o => o.w > 0.06).sort((a, b) => b.w - a.w).slice(0, 2);
-  c.save();
-  if (!cands.length) { c.globalAlpha = 0.32; const rX = halfW * 1.25, rY = halfW * 0.3; c.drawImage(sp, wx - rX, g + 4 - rY, rX * 2, rY * 2); c.restore(); return; }
-  for (const { L, w } of cands) {
-    const dir = wx >= L.x ? 1 : -1, dist = Math.abs(wx - L.x), vert = Math.max(24, g - L.y);
-    const len = Math.min(objH * 2.2, halfW + objH * (dist / vert) * 0.9 + objH * 0.2);
-    const rX = halfW * 0.7 + len * 0.55, rY = halfW * 0.3;
-    c.globalAlpha = Math.min(0.42, 0.32 * w);
-    c.drawImage(sp, wx + dir * len * 0.45 - rX, g + 4 - rY, rX * 2, rY * 2);
-  }
-  c.restore();
+// DIFFUSE SURFACE WASHES — light pooling on the stage as oriented surfaces (separate from the
+// tight surface glow and the wet specular streak). A soft pool on the floor near the light's base,
+// and, where the set has a near wall, a soft pool climbing the wall. These make light placement
+// read in the same floor + wall box the shadows are cast into, so the two systems agree.
+function floorWash(e, L, st) {
+  const c = e.light, rx = L.r * 0.7, ry = (st.H - st.gy) * WASH.floorReach;
+  c.save(); c.beginPath(); c.rect(L.x - rx, st.gy, rx * 2, st.H - st.gy); c.clip();
+  c.globalCompositeOperation = 'lighter'; c.globalAlpha = WASH.floorAlpha * L.glowI;
+  c.drawImage(softRadial(L.col), L.x - rx, st.gy - ry * 0.35, rx * 2, ry * 1.7); c.restore();
+}
+function wallWash(e, L, st) {
+  const c = e.light, w = st.wall, rx = L.r * 0.7, ry = (st.gy - w.top) * WASH.wallReach;
+  c.save(); c.beginPath(); c.rect(L.x - rx, w.top, rx * 2, st.gy - w.top); c.clip();
+  c.globalCompositeOperation = 'lighter'; c.globalAlpha = WASH.wallAlpha * L.glowI;
+  c.drawImage(softRadial(L.col), L.x - rx, st.gy - ry * 1.35, rx * 2, ry * 1.7); c.restore();
 }
 
-// the lighting pass body: surface + air glow, then the wet-floor reflection, per light
+// VOLUMETRIC BEAM — a cone of light hanging in the wet air (the lamp's shaft, the searchlight's
+// sweep). Apex at the emitter, fading along its length, tinted by the light's colour, painted on the
+// additive buffer so the rain and grain read through it. dir 0 points straight down; a beam can
+// sweep (the searchlight) by oscillating its direction.
+function beam(e, L) {
+  const b = L.beam, c = e.light;
+  let dir = b.dir + (b.sweep ? Math.sin(e.t * (b.sweepSpeed || 0.4)) * b.sweep : 0);
+  const ax = Math.sin(dir), ay = Math.cos(dir), pxv = -ay, pyv = ax;   // axis + perpendicular
+  const nearW = Math.max(L.ew * 0.6, 3), fx = L.x + ax * b.len, fy = L.y + ay * b.len;
+  const g = c.createLinearGradient(L.x, L.y, fx, fy);
+  g.addColorStop(0, `rgba(${L.col},${0.30 * b.I})`); g.addColorStop(0.5, `rgba(${L.col},${0.10 * b.I})`); g.addColorStop(1, `rgba(${L.col},0)`);
+  c.save(); c.globalCompositeOperation = 'lighter'; c.fillStyle = g;
+  c.beginPath();
+  c.moveTo(L.x - pxv * nearW, L.y - pyv * nearW); c.lineTo(L.x + pxv * nearW, L.y + pyv * nearW);
+  c.lineTo(fx + pxv * b.farW, fy + pyv * b.farW); c.lineTo(fx - pxv * b.farW, fy - pyv * b.farW);
+  c.closePath(); c.fill(); c.restore();
+}
+
+// the lighting pass body: a flat ambient lift so blacks never crush, then per light the beam (if
+// any), the surface + air glow, the diffuse floor + wall washes, and the wet-floor reflection.
 export function drawLightLayer(e) {
+  const st = stageOf(e), R = e.coverRect(), c = e.light;
+  c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = WASH.ambientAlpha * st.ambient.level / 0.16;
+  c.fillStyle = `rgb(${st.ambient.col})`; c.fillRect(R.x, R.y, R.w, R.h); c.restore();
   for (const L of e.lights) {
+    if (L.beam) beam(e, L);
     if (L.glow) { if (L.surface) surfaceGlow(e, L); airGlow(e, L); }
+    if (L.wash) { floorWash(e, L, st); if (st.wall) wallWash(e, L, st); }
     if (L.refl) floorRefl(e, L);
   }
 }
