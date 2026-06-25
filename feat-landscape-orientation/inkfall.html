@@ -16,32 +16,32 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
 #c { position: fixed; left: 0; top: 0; display: block; touch-action: none; }
 /* the canvas is sized + centered by the engine to a landscape band, so the body's black shows
    through as letterbox bars (top/bottom on a tall screen, left/right on a wide one) */
-#scenetag { position: fixed; top: max(14px, env(safe-area-inset-top)); left: 16px; z-index: 10;
+#scenetag { position: fixed; top: max(12px, env(safe-area-inset-top)); left: 14px; z-index: 10;
   font-family: "Special Elite", "Courier New", monospace;
-  color: #d8d4c8; font-size: clamp(15px, 3.8vw, 19px); letter-spacing: 0.3em; font-weight: 400; text-shadow: 2px 2px 0 #000;
+  color: #d8d4c8; font-size: clamp(12px, 2.2vmin, 15px); letter-spacing: 0.25em; font-weight: 400; text-shadow: 2px 2px 0 #000;
   opacity: 0; transition: opacity 0.5s ease; }
 #scenetag b { color: #c20012; }
-#caption { position: fixed; left: 50%; bottom: calc(max(24px, env(safe-area-inset-bottom)) + 18px); transform: translateX(-50%);
-  z-index: 10; width: min(94vw, 800px); background: rgba(245,242,232,0.95); color: #111;
-  border: 2px solid #000; box-shadow: 7px 7px 0 rgba(0,0,0,0.6);
-  padding: clamp(22px, 5.4vw, 34px) clamp(22px, 5vw, 36px);
+#caption { position: fixed; left: 50%; bottom: calc(max(16px, env(safe-area-inset-bottom)) + 12px); transform: translateX(-50%);
+  z-index: 10; width: min(92vw, 680px); background: rgba(245,242,232,0.95); color: #111;
+  border: 2px solid #000; box-shadow: 5px 5px 0 rgba(0,0,0,0.55);
+  padding: clamp(12px, 2.2vmin, 18px) clamp(14px, 2.6vmin, 22px);
   font-family: "Special Elite", "Courier New", monospace;
-  font-size: clamp(21px, 6vw, 31px); line-height: 1.55; letter-spacing: 0.005em; transition: opacity 0.35s ease; }
+  font-size: clamp(15px, 3vmin, 21px); line-height: 1.45; letter-spacing: 0.005em; transition: opacity 0.35s ease; }
 #caption b { color: #c20012; font-weight: 700; }
-#tapnote { position: fixed; left: 50%; bottom: 7px; transform: translateX(-50%); z-index: 10; white-space: nowrap;
-  color: #7c7c7c; font-size: clamp(9px, 2.6vw, 12px); letter-spacing: 0.06em; }
+#tapnote { position: fixed; left: 50%; bottom: 6px; transform: translateX(-50%); z-index: 10; white-space: nowrap;
+  color: #7c7c7c; font-size: clamp(8px, 1.6vmin, 11px); letter-spacing: 0.06em; }
 #build { position: fixed; left: 8px; bottom: 4px; z-index: 50; color: #3a3a3a; font-size: 9px;
   letter-spacing: 0.1em; font-family: "Courier New", monospace; }
 #editbtn, #mute, #shoot { font-variant-emoji: text; }   /* keep the HUD glyphs monochrome (noir), never colour emoji */
 #topbar { position: fixed; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); z-index: 25;
-  display: flex; align-items: stretch; gap: 8px; }
+  display: flex; align-items: stretch; gap: 6px; }
 #topbar button { font-family: inherit; cursor: pointer; background: rgba(0,0,0,0.55); color: #d8d4c8;
   border: 1px solid rgba(255,255,255,0.28); display: inline-flex; align-items: center; justify-content: center; }
 #topbar button:hover, #topbar button:active { border-color: #e10010; color: #fff; }
-#editbtn { font-size: clamp(14px, 3.9vw, 18px); letter-spacing: 0.16em; padding: 0 clamp(18px, 5vw, 26px);
-  height: clamp(50px, 13.5vw, 60px); }
-#mute, #shoot { display: none; font-size: clamp(22px, 6vw, 28px); line-height: 1;
-  width: clamp(50px, 13.5vw, 60px); height: clamp(50px, 13.5vw, 60px); }
+#editbtn { font-size: clamp(11px, 2.2vmin, 14px); letter-spacing: 0.16em; padding: 0 clamp(13px, 2.6vmin, 18px);
+  height: clamp(38px, 7vmin, 46px); }
+#mute, #shoot { display: none; font-size: clamp(15px, 3.4vmin, 21px); line-height: 1;
+  width: clamp(38px, 7vmin, 46px); height: clamp(38px, 7vmin, 46px); }
 #mute.show, #shoot.show { display: inline-flex; }
 #poster { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center;
   flex-direction: column; background: rgba(0,0,0,0.92); }
@@ -52,11 +52,11 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
   border: 1px solid #fff; font-family: inherit; font-size: clamp(14px, 3.4vw, 16px); letter-spacing: 0.16em; text-decoration: none; }
 #poster a:hover { background: #e10010; border-color: #e10010; }
 #poster button:hover { background: #fff; color: #000; }
-#scenenav { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(max(20px, env(safe-area-inset-bottom)) + 20px);
-  z-index: 25; display: none; gap: 10px; flex-wrap: wrap; justify-content: center; width: min(96vw, 860px); }
+#scenenav { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(max(16px, env(safe-area-inset-bottom)) + 16px);
+  z-index: 25; display: none; gap: 8px; flex-wrap: wrap; justify-content: center; width: min(94vw, 760px); }
 #scenenav.show { display: flex; }
-#scenenav button { font-family: inherit; font-size: clamp(13px, 3.5vw, 17px); letter-spacing: 0.12em; font-weight: 700; cursor: pointer;
-  color: #c9c4b6; background: rgba(8,8,10,0.62); border: 1px solid rgba(216,212,200,0.3); padding: 14px 17px; line-height: 1.25; }
+#scenenav button { font-family: inherit; font-size: clamp(11px, 2.2vmin, 14px); letter-spacing: 0.12em; font-weight: 700; cursor: pointer;
+  color: #c9c4b6; background: rgba(8,8,10,0.62); border: 1px solid rgba(216,212,200,0.3); padding: 10px 14px; line-height: 1.25; }
 #scenenav button:hover { color: #fff; border-color: rgba(255,255,255,0.6); }
 #scenenav button.cur { color: #fff; border-color: #e10010; box-shadow: 0 0 12px rgba(225,0,16,0.45); }
 #editor { position: fixed; inset: 0; z-index: 40; display: none; flex-direction: column; gap: 10px;
@@ -101,17 +101,15 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
   #enter { margin-top: 22px; }
 }
 
-/* short viewports (landscape phones, small desktop windows): keep the bigger caption
-   from eating the frame — scale it to the available height and tuck it down */
+/* short viewports (landscape phones, small desktop windows): tuck the caption down and lift the
+   scene nav clear of it (the font already scales with height via vmin) */
 @media (max-height: 560px) {
-  #caption { font-size: clamp(17px, 4.4vh, 25px); line-height: 1.4;
-    padding: clamp(10px, 2vh, 16px) clamp(14px, 3vw, 22px);
-    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 8px); }
-  #scenenav { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 100px); }
+  #caption { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 8px); }
+  #scenenav { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 88px); }
 }
-/* wide desktops: comfortably readable from a distance */
+/* wide desktops: a touch larger so it reads from a distance, still within the standard scale */
 @media (min-width: 1100px) {
-  #caption { font-size: 30px; width: min(72vw, 860px); }
+  #caption { font-size: 22px; width: min(62vw, 680px); }
 }
 
 /* rotate prompt: shown on a phone/tablet held in portrait, while the screen is asked to turn */
@@ -341,7 +339,7 @@ __mod["src/engine/engine.js"] = function(__exports, __req){
 // device-pixel sizing, and the requestAnimationFrame loop. It keeps the shared Frame's
 // scalars (size, time, contexts) live and hands a tick to the manager each frame.
 const { Frame } = __req("src/engine/frame.js");
-const { ASPECT_MIN, ASPECT_MAX } = __req("src/engine/viewport.js");
+const { ASPECT_MIN, ASPECT_MAX, ASPECT_MAX_TOUCH, isRotatable } = __req("src/engine/viewport.js");
 
 class Engine {
   constructor() {
@@ -372,9 +370,10 @@ class Engine {
   resize() {
     this.DPR = Math.min(window.devicePixelRatio || 1, 2);
     const vw = innerWidth, vh = innerHeight, ar = vw / vh;
+    const maxAr = isRotatable() ? ASPECT_MAX_TOUCH : ASPECT_MAX;  // let modern phones fill, still cap desktop ultrawides
     let w = vw, h = vh;
     if (ar < ASPECT_MIN) h = Math.round(vw / ASPECT_MIN);        // too tall: cap the height
-    else if (ar > ASPECT_MAX) w = Math.round(vh * ASPECT_MAX);   // too wide: cap the width
+    else if (ar > maxAr) w = Math.round(vh * maxAr);             // too wide: cap the width
     this.W = w; this.H = h;
     for (const cv of [this.cv, this.lightCv, this.snapCv]) { cv.width = Math.floor(w * this.DPR); cv.height = Math.floor(h * this.DPR); }
     this.cv.style.width = w + 'px'; this.cv.style.height = h + 'px';
@@ -713,9 +712,11 @@ __mod["src/engine/viewport.js"] = function(__exports, __req){
 //      only shows when the browser ignores that signal. If the screen reverts to portrait mid story
 //      the prompt returns and the play clock pauses until landscape comes back. As a fallback the
 //      prompt offers "watch anyway", which plays letterboxed.
-const ASPECT_MIN = 16 / 10;   // below this the screen is too tall: bars top and bottom
-const ASPECT_MAX = 2.0;       // above this the screen is too wide: bars left and right
-const SKIP_DELAY = 4000;             // wait before the prompt offers the "watch anyway" fallback
+const ASPECT_MIN = 16 / 10;       // below this the screen is too tall: bars top and bottom
+const ASPECT_MAX = 2.0;           // desktop cap: bars left and right past this (true ultrawides)
+const ASPECT_MAX_TOUCH = 2.4;     // phones/tablets reach wider: modern handsets are ~19.5:9 to
+                                         // 21:9 in landscape (2.17 to 2.33), so let them fill edge to edge
+const SKIP_DELAY = 4000;                 // wait before the prompt offers the "watch anyway" fallback
 
 // a device counts as rotatable if it is touch first and exposes the Screen Orientation API
 function isRotatable() {
@@ -803,6 +804,7 @@ class Viewport {
 
 __exports.ASPECT_MIN = ASPECT_MIN;
 __exports.ASPECT_MAX = ASPECT_MAX;
+__exports.ASPECT_MAX_TOUCH = ASPECT_MAX_TOUCH;
 __exports.isRotatable = isRotatable;
 __exports.Viewport = Viewport;
 };
