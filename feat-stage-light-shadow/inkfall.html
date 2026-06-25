@@ -168,7 +168,7 @@ __req("src/library/index.js");
 const { STORIES } = __req("stories/manifest.js");
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 48 · region-scoped shadows, lighter render'
+const BUILD = 'v2 build 49 · albedo-aware cloth, readable shadows'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 
@@ -1258,12 +1258,15 @@ function castOne(e, c, st, cr) {
   for (const { L, w } of lit) {
     const t = shadowThrow(st, L.x, L.y, bx, headY);
     const emitSoft = Math.min(0.5, (L.ew + L.eh) / (2 * t.lh));   // a broad emitter throws a softer edge
+    // opacity from the light's weight, but with a gentle curve so a dim light (the high moon) still
+    // throws a readable shadow while a strong light is barely changed.
+    const wA = Math.pow(w, 0.6);
     c.save(); c.translate(bx, baseY);
 
     // FLOOR: lay the silhouette away from the light, foreshortened toward the camera. Recedes as
     // the light drops (the wall takes over), so the two stamps never both run at full strength.
     const throwScale = Math.min(SHADE.maxLen, Math.max(0.3, Math.abs(bx - L.x) / t.lh) * SHADE.lengthGain);
-    const fAlpha = SHADE.floorAlpha * w * dens * (1 - 0.5 * t.low);
+    const fAlpha = SHADE.floorAlpha * wA * dens * (1 - 0.5 * t.low);
     const fSoft = emitSoft + throwScale * 0.04 + SHADE.penumbra * 0.05;
     c.save(); c.beginPath(); c.rect(-st.gy * 4, 0, st.gy * 8, st.H); c.clip();   // floor only (below feet)
     projStamp(e, c, cr, fAlpha, fSoft, f => [1, 0, -t.dir * throwScale * f, -throwScale * SHADE.floorTilt * f, 0, 0]);
@@ -1272,7 +1275,7 @@ function castOne(e, c, st, cr) {
     // WALL: only where the set has a near wall and the light sits low enough to throw up it.
     if (st.wall && t.low > 0.2) {
       const rise = 1.1 + t.low * 2.0, lean = (Math.abs(bx - L.x) / t.lh) * 0.5 + 0.1;
-      const wAlpha = SHADE.wallAlpha * w * dens * t.low;
+      const wAlpha = SHADE.wallAlpha * wA * dens * t.low;
       const wSoft = emitSoft + SHADE.penumbra * 0.06;
       const wallTop = st.wall.top - baseY;   // local y where the wall ends (negative, above feet)
       c.save(); c.beginPath(); c.rect(-st.gy * 4, wallTop, st.gy * 8, baseY - st.wall.top); c.clip();   // wall band only
@@ -2236,6 +2239,10 @@ const { PALETTE, ANIM } = __req("src/style/palette.js");
 const { TWO_PI, lerp, smooth01 } = __req("src/engine/math.js");
 const { rimSign, bodyGrad, ember, cigSmoke, drawFedora, drawPistol, muzzleFlash } = __req("src/library/shared.js");
 
+// cloth albedos (the cast's own material colours, noir-desaturated). bodyGrad shades from these, so
+// a dark suit stays dark under a bright light and the detective's pale trench lifts more.
+const TRENCH = [120, 112, 94], HEAVY = [54, 58, 66], PINSTRIPE = [44, 46, 56], SUIT = [66, 70, 80];
+
 // shared detective pose (so emitLight and draw agree without storing state)
 function trenchPose(e, p) {
   const s = e.scaleOf(p), X = e.X(p), gy = e.gy + (p.dy || 0) * e.unit, t = e.t, sway = Math.sin(t * ANIM.swaySpeed) * 1.2;
@@ -2252,7 +2259,7 @@ defineActor('trenchMan', function (e) {                       // detective: tren
   c.save(); c.translate(X + sway, gy);
   c.fillStyle = '#050608'; c.fillRect(-13 * s, -32 * s, 11 * s, 32 * s); c.fillRect(3 * s, -32 * s, 11 * s, 32 * s);
   c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-9 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(10 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.fill();
-  c.fillStyle = bodyGrad(c, 96, s, rim, tint);
+  c.fillStyle = bodyGrad(c, 96, s, rim, tint, TRENCH);
   c.beginPath(); c.moveTo(-22 * s, -36 * s); c.lineTo(-18 * s, -92 * s); c.lineTo(18 * s, -92 * s); c.lineTo(22 * s, -36 * s); c.quadraticCurveTo(0, -28 * s, -22 * s, -36 * s); c.closePath(); c.fill();
   c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 1.5 * s; c.beginPath(); c.moveTo(2 * s, -90 * s); c.lineTo(5 * s, -38 * s); c.stroke();
   c.fillStyle = '#0c0d10'; c.fillRect(-20 * s, -58 * s, 40 * s, 6 * s); c.fillStyle = '#26282e'; c.fillRect(-4 * s, -58 * s, 8 * s, 6 * s);
@@ -2264,7 +2271,7 @@ defineActor('trenchMan', function (e) {                       // detective: tren
   c.beginPath(); c.moveTo(-13 * s, -87 * s); c.lineTo(-21 * s, -50 * s); c.stroke();
   c.strokeStyle = 'rgba(150,160,178,0.3)'; c.lineWidth = 1.4 * s; c.beginPath(); c.moveTo(12 * s, -90 * s); c.lineTo(ex, ey); c.stroke();
   c.fillStyle = '#bcbab0'; c.beginPath(); c.arc(hx, hy, 2.9 * s, 0, TWO_PI); c.arc(-21 * s, -48 * s, 3.2 * s, 0, TWO_PI); c.fill();
-  c.fillStyle = bodyGrad(c, 24, s, rim, tint);
+  c.fillStyle = bodyGrad(c, 24, s, rim, tint, TRENCH);
   c.beginPath(); c.moveTo(-26 * s, -90 * s); c.quadraticCurveTo(0, -104 * s, 26 * s, -90 * s); c.lineTo(18 * s, -84 * s); c.quadraticCurveTo(0, -94 * s, -18 * s, -84 * s); c.closePath(); c.fill();
   c.fillStyle = PALETTE.ink; c.beginPath(); c.moveTo(-10 * s, -96 * s); c.lineTo(-2 * s, -107 * s); c.lineTo(-1 * s, -92 * s); c.closePath(); c.moveTo(10 * s, -96 * s); c.lineTo(2 * s, -107 * s); c.lineTo(1 * s, -92 * s); c.closePath(); c.fill();
   c.fillStyle = '#15161a'; c.fillRect(-6 * s, -104 * s, 12 * s, 10 * s);
@@ -2302,11 +2309,11 @@ defineActor('thug', function (e) {                            // the heavy: broa
   c.save(); c.translate(X, gy);
   c.fillStyle = '#050608'; c.fillRect(-18 * s, -36 * s, 15 * s, 36 * s); c.fillRect(3 * s, -36 * s, 15 * s, 36 * s);
   c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-11 * s, -1 * s, 12 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(12 * s, -1 * s, 12 * s, 4 * s, 0, 0, TWO_PI); c.fill();
-  c.fillStyle = bodyGrad(c, 82, s, rim);
+  c.fillStyle = bodyGrad(c, 82, s, rim, null, HEAVY);
   c.beginPath(); c.moveTo(-30 * s, -36 * s); c.lineTo(-34 * s, -78 * s); c.quadraticCurveTo(0, -96 * s, 34 * s, -78 * s); c.lineTo(30 * s, -36 * s); c.quadraticCurveTo(0, -28 * s, -30 * s, -36 * s); c.closePath(); c.fill();
   c.fillStyle = '#cfcdc3'; c.beginPath(); c.moveTo(-6 * s, -82 * s); c.lineTo(6 * s, -82 * s); c.lineTo(3 * s, -54 * s); c.lineTo(-3 * s, -54 * s); c.closePath(); c.fill();
   c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(-2.5 * s, -80 * s); c.lineTo(2.5 * s, -80 * s); c.lineTo(1.5 * s, -56 * s); c.lineTo(-1.5 * s, -56 * s); c.closePath(); c.fill();
-  c.fillStyle = bodyGrad(c, 36, s, rim); c.beginPath(); c.moveTo(-12 * s, -84 * s); c.lineTo(-6 * s, -82 * s); c.lineTo(-7 * s, -52 * s); c.lineTo(-16 * s, -56 * s); c.closePath(); c.moveTo(12 * s, -84 * s); c.lineTo(6 * s, -82 * s); c.lineTo(7 * s, -52 * s); c.lineTo(16 * s, -56 * s); c.closePath(); c.fill();
+  c.fillStyle = bodyGrad(c, 36, s, rim, null, HEAVY); c.beginPath(); c.moveTo(-12 * s, -84 * s); c.lineTo(-6 * s, -82 * s); c.lineTo(-7 * s, -52 * s); c.lineTo(-16 * s, -56 * s); c.closePath(); c.moveTo(12 * s, -84 * s); c.lineTo(6 * s, -82 * s); c.lineTo(7 * s, -52 * s); c.lineTo(16 * s, -56 * s); c.closePath(); c.fill();
   c.fillStyle = PALETTE.ink; c.fillRect(-34 * s, -80 * s, 9 * s, 42 * s); c.fillRect(25 * s, -80 * s, 9 * s, 42 * s);
   c.beginPath(); c.arc(-30 * s, -36 * s, 7 * s, 0, TWO_PI); c.arc(30 * s, -36 * s, 7 * s, 0, TWO_PI); c.fill();
   c.fillStyle = '#1a1b20'; c.beginPath(); c.arc(0, -90 * s, 11 * s, 0, TWO_PI); c.fill();
@@ -2330,7 +2337,7 @@ defineActor('boss', function (e) {                            // mob boss: pinst
   c.save(); c.translate(X, gy);
   c.fillStyle = '#050608'; c.fillRect(-13 * s, -32 * s, 11 * s, 32 * s); c.fillRect(3 * s, -32 * s, 11 * s, 32 * s);
   c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-9 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(10 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.fill();
-  c.fillStyle = bodyGrad(c, 92, s, rim);
+  c.fillStyle = bodyGrad(c, 92, s, rim, null, PINSTRIPE);
   c.beginPath(); c.moveTo(-24 * s, -34 * s); c.lineTo(-20 * s, -88 * s); c.quadraticCurveTo(0, -100 * s, 20 * s, -88 * s); c.lineTo(24 * s, -34 * s); c.quadraticCurveTo(0, -28 * s, -24 * s, -34 * s); c.closePath(); c.fill();
   c.strokeStyle = 'rgba(150,160,180,0.16)'; c.lineWidth = 1; for (let i = -3; i <= 3; i++) { c.beginPath(); c.moveTo(i * 6 * s, -88 * s); c.lineTo(i * 6 * s + i * 1.2 * s, -34 * s); c.stroke(); }
   c.fillStyle = '#cfcdc3'; c.beginPath(); c.moveTo(-5 * s, -88 * s); c.lineTo(5 * s, -88 * s); c.lineTo(3 * s, -60 * s); c.lineTo(-3 * s, -60 * s); c.closePath(); c.fill();
@@ -2364,7 +2371,7 @@ defineActor('gunman', function (e) {                          // shooter, arm ex
   c.save(); c.translate(X, gy); if (this.flip) c.scale(-1, 1);
   c.fillStyle = '#050608'; c.fillRect(-12 * s, -32 * s, 10 * s, 32 * s); c.fillRect(4 * s, -32 * s, 10 * s, 32 * s);
   c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-8 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(11 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.fill();
-  c.fillStyle = bodyGrad(c, 88, s, rim, tint);
+  c.fillStyle = bodyGrad(c, 88, s, rim, tint, SUIT);
   c.beginPath(); c.moveTo(-20 * s, -34 * s); c.lineTo(-16 * s, -86 * s); c.quadraticCurveTo(0, -98 * s, 16 * s, -86 * s); c.lineTo(20 * s, -34 * s); c.quadraticCurveTo(0, -28 * s, -20 * s, -34 * s); c.closePath(); c.fill();
   c.fillStyle = '#1a1b20'; c.beginPath(); c.arc(0, -104 * s, 9 * s, 0, TWO_PI); c.fill();
   c.fillStyle = PALETTE.ink; c.beginPath(); c.arc(0, -104 * s, 9 * s, Math.PI * 1.1, Math.PI * 2.0); c.fill();
@@ -2529,10 +2536,12 @@ __mod["src/style/materials.js"] = function(__exports, __req){
 // the form light is computed from EVERY scene light, weighted by power and nearness, considering
 // BOTH axes: the horizontal side that catches the light (with a dead zone + hysteresis so a
 // flickering neon can't snap the lit edge side to side, the old "flickering man" artifact) and the
-// vertical lean (a light overhead lights the top, a barrel fire at the feet lights from below).
-// `front` lights (a held cigarette) are local glows, not form light, so they are excluded here and
-// stay a small local highlight instead of relighting the whole figure.
-let _vb = 0;   // vertical light bias (-1 below .. +1 above), set by rimSign for the paired bodyGrad call
+// vertical lean (a light overhead lights the top, a barrel fire at the feet lights from below). It
+// also measures how STRONGLY the form is lit (0..1), so bodyGrad can lift the cloth in proportion
+// to the light. `front` lights (a held cigarette) are local glows, not form light, so they are
+// excluded here and stay a small local highlight instead of relighting the whole figure.
+const BASE = [58, 64, 73];   // default cloth albedo (the old steel) for objects that name no colour
+let _vb = 0, _lit = 0;       // vertical light bias + light amount, set by rimSign for the paired bodyGrad
 
 function rimSign(e, node) {
   const X = e.X(node);
@@ -2545,22 +2554,29 @@ function rimSign(e, node) {
   if (lx < X - margin) sign = -1; else if (lx > X + margin) sign = 1;
   const yc = e.gy + (node.dy || 0) * e.unit - 50 * e.unit;       // roughly the torso height
   _vb = Math.max(-1, Math.min(1, (yc - ly) / (90 * e.unit)));    // + when the light sits above the torso
+  // light amount, smoothed on the node so a flickering neon does not pulse the whole body
+  const a = Math.min(1, wsum * 0.9);
+  node._lit = node._lit == null ? a : node._lit + (a - node._lit) * 0.1;
+  _lit = node._lit;
   return node._rim = sign;
 }
 
-// "form" light: a lit edge toward the light, tinted by its colour. The gradient axis tilts with the
-// light's vertical lean (_vb from rimSign), so a figure under a high lamp is lit from above, not
-// flatly from the side.
-function bodyGrad(c, h, s, rim, tint) {
+// "form" light, ALBEDO aware: the cloth is shaded from its own base colour, lifted on the lit edge
+// in proportion to the light reaching it (and faintly toward the light's colour) and dropped to
+// near black on the shadowed edge. So a bright light barely lifts a dark material and lifts a pale
+// one fully, the cloth keeps its identity. The gradient axis tilts with the light's vertical lean.
+function bodyGrad(c, h, s, rim, tint, albedo) {
   rim = rim || 1;
+  const A = albedo || BASE, cl = v => v < 0 ? 0 : v > 255 ? 255 : Math.round(v);
   const gx = rim * 34 * s, gvy = -_vb * 20 * s;                  // tilt the lit edge toward the light's height
   const g = c.createLinearGradient(gx, gvy, -gx, -gvy);
-  let lit = '#3a4049';
-  // a faint wash of the light's colour on the lit edge, NOT a repaint of the cloth. Kept very low so
-  // a coloured light only hints at the coat rather than recolouring it, and the moon never blows it
-  // to white.
-  if (tint) { const m = 0.1; lit = `rgb(${Math.round(58 + (tint[0] - 58) * m)},${Math.round(64 + (tint[1] - 64) * m)},${Math.round(73 + (tint[2] - 73) * m)})`; }
-  g.addColorStop(0, lit); g.addColorStop(0.42, '#181b21'); g.addColorStop(1, '#080909');
+  const lm = 0.85 + _lit * 0.7;                                  // lit-side lift from the light amount
+  let tr = 1, tg = 1, tb = 1;                                    // faint colour bleed of the light
+  if (tint) { const mx = Math.max(tint[0], tint[1], tint[2], 1), k = 0.12; tr = 1 - k + k * tint[0] / mx; tg = 1 - k + k * tint[1] / mx; tb = 1 - k + k * tint[2] / mx; }
+  const lit = `rgb(${cl(A[0] * lm * tr)},${cl(A[1] * lm * tg)},${cl(A[2] * lm * tb)})`;
+  const mid = `rgb(${cl(A[0] * 0.45)},${cl(A[1] * 0.45)},${cl(A[2] * 0.45)})`;
+  const dark = `rgb(${cl(A[0] * 0.16)},${cl(A[1] * 0.16)},${cl(A[2] * 0.18)})`;
+  g.addColorStop(0, lit); g.addColorStop(0.42, mid); g.addColorStop(1, dark);
   return g;
 }
 

@@ -4,10 +4,12 @@
 // the form light is computed from EVERY scene light, weighted by power and nearness, considering
 // BOTH axes: the horizontal side that catches the light (with a dead zone + hysteresis so a
 // flickering neon can't snap the lit edge side to side, the old "flickering man" artifact) and the
-// vertical lean (a light overhead lights the top, a barrel fire at the feet lights from below).
-// `front` lights (a held cigarette) are local glows, not form light, so they are excluded here and
-// stay a small local highlight instead of relighting the whole figure.
-let _vb = 0;   // vertical light bias (-1 below .. +1 above), set by rimSign for the paired bodyGrad call
+// vertical lean (a light overhead lights the top, a barrel fire at the feet lights from below). It
+// also measures how STRONGLY the form is lit (0..1), so bodyGrad can lift the cloth in proportion
+// to the light. `front` lights (a held cigarette) are local glows, not form light, so they are
+// excluded here and stay a small local highlight instead of relighting the whole figure.
+const BASE = [58, 64, 73];   // default cloth albedo (the old steel) for objects that name no colour
+let _vb = 0, _lit = 0;       // vertical light bias + light amount, set by rimSign for the paired bodyGrad
 
 export function rimSign(e, node) {
   const X = e.X(node);
@@ -20,21 +22,28 @@ export function rimSign(e, node) {
   if (lx < X - margin) sign = -1; else if (lx > X + margin) sign = 1;
   const yc = e.gy + (node.dy || 0) * e.unit - 50 * e.unit;       // roughly the torso height
   _vb = Math.max(-1, Math.min(1, (yc - ly) / (90 * e.unit)));    // + when the light sits above the torso
+  // light amount, smoothed on the node so a flickering neon does not pulse the whole body
+  const a = Math.min(1, wsum * 0.9);
+  node._lit = node._lit == null ? a : node._lit + (a - node._lit) * 0.1;
+  _lit = node._lit;
   return node._rim = sign;
 }
 
-// "form" light: a lit edge toward the light, tinted by its colour. The gradient axis tilts with the
-// light's vertical lean (_vb from rimSign), so a figure under a high lamp is lit from above, not
-// flatly from the side.
-export function bodyGrad(c, h, s, rim, tint) {
+// "form" light, ALBEDO aware: the cloth is shaded from its own base colour, lifted on the lit edge
+// in proportion to the light reaching it (and faintly toward the light's colour) and dropped to
+// near black on the shadowed edge. So a bright light barely lifts a dark material and lifts a pale
+// one fully, the cloth keeps its identity. The gradient axis tilts with the light's vertical lean.
+export function bodyGrad(c, h, s, rim, tint, albedo) {
   rim = rim || 1;
+  const A = albedo || BASE, cl = v => v < 0 ? 0 : v > 255 ? 255 : Math.round(v);
   const gx = rim * 34 * s, gvy = -_vb * 20 * s;                  // tilt the lit edge toward the light's height
   const g = c.createLinearGradient(gx, gvy, -gx, -gvy);
-  let lit = '#3a4049';
-  // a faint wash of the light's colour on the lit edge, NOT a repaint of the cloth. Kept very low so
-  // a coloured light only hints at the coat rather than recolouring it, and the moon never blows it
-  // to white.
-  if (tint) { const m = 0.1; lit = `rgb(${Math.round(58 + (tint[0] - 58) * m)},${Math.round(64 + (tint[1] - 64) * m)},${Math.round(73 + (tint[2] - 73) * m)})`; }
-  g.addColorStop(0, lit); g.addColorStop(0.42, '#181b21'); g.addColorStop(1, '#080909');
+  const lm = 0.85 + _lit * 0.7;                                  // lit-side lift from the light amount
+  let tr = 1, tg = 1, tb = 1;                                    // faint colour bleed of the light
+  if (tint) { const mx = Math.max(tint[0], tint[1], tint[2], 1), k = 0.12; tr = 1 - k + k * tint[0] / mx; tg = 1 - k + k * tint[1] / mx; tb = 1 - k + k * tint[2] / mx; }
+  const lit = `rgb(${cl(A[0] * lm * tr)},${cl(A[1] * lm * tg)},${cl(A[2] * lm * tb)})`;
+  const mid = `rgb(${cl(A[0] * 0.45)},${cl(A[1] * 0.45)},${cl(A[2] * 0.45)})`;
+  const dark = `rgb(${cl(A[0] * 0.16)},${cl(A[1] * 0.16)},${cl(A[2] * 0.18)})`;
+  g.addColorStop(0, lit); g.addColorStop(0.42, mid); g.addColorStop(1, dark);
   return g;
 }
