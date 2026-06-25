@@ -4,11 +4,13 @@
 import { defineActor } from '../../objects/registry.js';
 import { PALETTE, ANIM } from '../../style/palette.js';
 import { TWO_PI, lerp, smooth01 } from '../../engine/math.js';
-import { rimSign, bodyGrad, ember, cigSmoke, drawFedora, drawPistol, muzzleFlash } from '../shared.js';
+import { rimSign, bodyGrad, shade, ember, cigSmoke, drawFedora, drawPistol, muzzleFlash } from '../shared.js';
 
 // cloth albedos (the cast's own material colours, noir-desaturated). bodyGrad shades from these, so
 // a dark suit stays dark under a bright light and the detective's pale trench lifts more.
 const TRENCH = [120, 112, 94], HEAVY = [54, 58, 66], PINSTRIPE = [44, 46, 56], SUIT = [66, 70, 80];
+// flat bright surfaces (shirt, bare skin) dimmed by the light through shade(), so an unlit figure goes dark
+const SHIRT = [207, 205, 195], BONE = [220, 220, 220], HAND = [188, 186, 176];
 
 // a one-shot strike (from the legacy build): rises 0 -> 1 over `rise`, then decays over `fall`, so a
 // lighter ignites quickly and settles, instead of starting at full and fading linearly.
@@ -45,7 +47,7 @@ defineActor('trenchMan', function (e) {                       // detective: tren
   c.beginPath(); c.moveTo(sx, sy); c.lineTo(ex, ey); c.lineTo(hx, hy); c.stroke();
   c.beginPath(); c.moveTo(-11 * s, -87 * s); c.lineTo(-16 * s, -42 * s); c.stroke();   // the other arm hangs straight at his side
   c.strokeStyle = 'rgba(150,160,178,0.3)'; c.lineWidth = 1.4 * s; c.beginPath(); c.moveTo(12 * s, -90 * s); c.lineTo(ex, ey); c.stroke();
-  c.fillStyle = '#bcbab0'; c.beginPath(); c.arc(hx, hy, 2.9 * s, 0, TWO_PI); c.arc(-16 * s, -42 * s, 2.9 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = shade(HAND); c.beginPath(); c.arc(hx, hy, 2.9 * s, 0, TWO_PI); c.arc(-16 * s, -42 * s, 2.9 * s, 0, TWO_PI); c.fill();
   c.fillStyle = bodyGrad(c, 24, s, rim, tint, TRENCH);
   c.beginPath(); c.moveTo(-26 * s, -90 * s); c.quadraticCurveTo(0, -104 * s, 26 * s, -90 * s); c.lineTo(18 * s, -84 * s); c.quadraticCurveTo(0, -94 * s, -18 * s, -84 * s); c.closePath(); c.fill();
   c.fillStyle = PALETTE.ink; c.beginPath(); c.moveTo(-10 * s, -96 * s); c.lineTo(-2 * s, -107 * s); c.lineTo(-1 * s, -92 * s); c.closePath(); c.moveTo(10 * s, -96 * s); c.lineTo(2 * s, -107 * s); c.lineTo(1 * s, -92 * s); c.closePath(); c.fill();
@@ -54,7 +56,7 @@ defineActor('trenchMan', function (e) {                       // detective: tren
   c.fillStyle = PALETTE.ink; c.beginPath(); c.arc(0, -112 * s, 10 * s, Math.PI * 1.15, Math.PI * 1.95); c.fill();
   drawFedora(c, 0, -120 * s, 13 * s, rim);
   if (aim > 0.5) {
-    c.save(); c.translate(hx, hy); c.fillStyle = '#d8d2c4'; c.fillRect(2 * s, -1 * s, 7 * s, 2 * s); c.restore();
+    c.save(); c.translate(hx, hy); c.fillStyle = shade([216, 210, 196]); c.fillRect(2 * s, -1 * s, 7 * s, 2 * s); c.restore();
     if (litCig) { cigSmoke(c, hx + 9 * s, hy, s, t); ember(c, hx + 9 * s, hy, s, t); }
     // the lighter held to the cigarette: a small teardrop flame that flickers for a moment then is
     // gone. Its glow on the scene comes from emitLight (the light system), not a painted gradient.
@@ -97,7 +99,7 @@ defineActor('thug', function (e) {                            // the heavy: broa
   c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-11 * s, -1 * s, 12 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(12 * s, -1 * s, 12 * s, 4 * s, 0, 0, TWO_PI); c.fill();
   c.fillStyle = bodyGrad(c, 82, s, rim, null, HEAVY);
   c.beginPath(); c.moveTo(-30 * s, -36 * s); c.lineTo(-34 * s, -78 * s); c.quadraticCurveTo(0, -96 * s, 34 * s, -78 * s); c.lineTo(30 * s, -36 * s); c.quadraticCurveTo(0, -28 * s, -30 * s, -36 * s); c.closePath(); c.fill();
-  c.fillStyle = '#cfcdc3'; c.beginPath(); c.moveTo(-6 * s, -82 * s); c.lineTo(6 * s, -82 * s); c.lineTo(3 * s, -54 * s); c.lineTo(-3 * s, -54 * s); c.closePath(); c.fill();
+  c.fillStyle = shade(SHIRT); c.beginPath(); c.moveTo(-6 * s, -82 * s); c.lineTo(6 * s, -82 * s); c.lineTo(3 * s, -54 * s); c.lineTo(-3 * s, -54 * s); c.closePath(); c.fill();
   c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(-2.5 * s, -80 * s); c.lineTo(2.5 * s, -80 * s); c.lineTo(1.5 * s, -56 * s); c.lineTo(-1.5 * s, -56 * s); c.closePath(); c.fill();
   c.fillStyle = bodyGrad(c, 36, s, rim, null, HEAVY); c.beginPath(); c.moveTo(-12 * s, -84 * s); c.lineTo(-6 * s, -82 * s); c.lineTo(-7 * s, -52 * s); c.lineTo(-16 * s, -56 * s); c.closePath(); c.moveTo(12 * s, -84 * s); c.lineTo(6 * s, -82 * s); c.lineTo(7 * s, -52 * s); c.lineTo(16 * s, -56 * s); c.closePath(); c.fill();
   c.fillStyle = PALETTE.ink; c.fillRect(-34 * s, -80 * s, 9 * s, 42 * s); c.fillRect(25 * s, -80 * s, 9 * s, 42 * s);
@@ -126,7 +128,7 @@ defineActor('boss', function (e) {                            // mob boss: pinst
   c.fillStyle = bodyGrad(c, 92, s, rim, null, PINSTRIPE);
   c.beginPath(); c.moveTo(-24 * s, -34 * s); c.lineTo(-20 * s, -88 * s); c.quadraticCurveTo(0, -100 * s, 20 * s, -88 * s); c.lineTo(24 * s, -34 * s); c.quadraticCurveTo(0, -28 * s, -24 * s, -34 * s); c.closePath(); c.fill();
   c.strokeStyle = 'rgba(150,160,180,0.16)'; c.lineWidth = 1; for (let i = -3; i <= 3; i++) { c.beginPath(); c.moveTo(i * 6 * s, -88 * s); c.lineTo(i * 6 * s + i * 1.2 * s, -34 * s); c.stroke(); }
-  c.fillStyle = '#cfcdc3'; c.beginPath(); c.moveTo(-5 * s, -88 * s); c.lineTo(5 * s, -88 * s); c.lineTo(3 * s, -60 * s); c.lineTo(-3 * s, -60 * s); c.closePath(); c.fill();
+  c.fillStyle = shade(SHIRT); c.beginPath(); c.moveTo(-5 * s, -88 * s); c.lineTo(5 * s, -88 * s); c.lineTo(3 * s, -60 * s); c.lineTo(-3 * s, -60 * s); c.closePath(); c.fill();
   c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(-2.5 * s, -86 * s); c.lineTo(2.5 * s, -86 * s); c.lineTo(1.4 * s, -58 * s); c.lineTo(-1.4 * s, -58 * s); c.closePath(); c.fill();
   c.fillStyle = '#15161a'; c.fillRect(-5 * s, -100 * s, 10 * s, 10 * s);
   c.fillStyle = '#1a1b20'; c.beginPath(); c.arc(0, -108 * s, 9 * s, 0, TWO_PI); c.fill();
@@ -201,14 +203,14 @@ defineActor('womanInRed', function (e) {                      // femme fatale â€
   const rim = rimSign(e, this), tint = e.litTint(X, this), sw = walk * 2 * s;   // sw: the hem drifts as she moves
   c.save(); c.translate(X, gy);
   // a leg through the thigh slit (bone) + a red heel
-  c.fillStyle = PALETTE.bone; c.save(); c.translate(walk * 2 * s, 0); c.beginPath(); c.moveTo(-2 * s, -36 * s); c.lineTo(3 * s, -36 * s); c.lineTo(4 * s, -2 * s); c.lineTo(0, -2 * s); c.closePath(); c.fill(); c.restore();
+  c.fillStyle = shade(BONE); c.save(); c.translate(walk * 2 * s, 0); c.beginPath(); c.moveTo(-2 * s, -36 * s); c.lineTo(3 * s, -36 * s); c.lineTo(4 * s, -2 * s); c.lineTo(0, -2 * s); c.closePath(); c.fill(); c.restore();
   c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(sw, -2 * s); c.lineTo(8 * s + sw, 0); c.lineTo(sw, 1 * s); c.closePath(); c.fill();
   // slim bone arms with a soft bend, hands resting at the waist
-  c.strokeStyle = PALETTE.bone; c.lineWidth = 3.2 * s; c.lineCap = 'round'; c.lineJoin = 'round';
+  c.strokeStyle = shade(BONE); c.lineWidth = 3.2 * s; c.lineCap = 'round'; c.lineJoin = 'round';
   c.beginPath(); c.moveTo(-7 * s, -70 * s); c.lineTo(-12 * s, -56 * s); c.lineTo(-9 * s, -44 * s); c.stroke();
   c.beginPath(); c.moveTo(7 * s, -70 * s); c.lineTo(12 * s, -56 * s); c.lineTo(9 * s, -44 * s); c.stroke();
   // a slim neck (bone) so the head meets the gown
-  c.fillStyle = PALETTE.bone; c.beginPath(); c.moveTo(-2.5 * s, -80 * s); c.lineTo(2.5 * s, -80 * s); c.lineTo(2 * s, -68 * s); c.lineTo(-2 * s, -68 * s); c.closePath(); c.fill();
+  c.fillStyle = shade(BONE); c.beginPath(); c.moveTo(-2.5 * s, -80 * s); c.lineTo(2.5 * s, -80 * s); c.lineTo(2 * s, -68 * s); c.lineTo(-2 * s, -68 * s); c.closePath(); c.fill();
   // the gown: shaded by the lighting system (a red material, lit edge toward the light, not a baked
   // sheen), sweetheart neckline, cinched waist, curvy hips, a long mermaid skirt. The soft red bleed
   // is her motif (the colour that bleeds).
@@ -228,7 +230,7 @@ defineActor('womanInRed', function (e) {                      // femme fatale â€
   c.strokeStyle = '#b8000d'; c.lineWidth = 1.3 * s;            // thin shoulder straps
   c.beginPath(); c.moveTo(-6 * s, -73 * s); c.lineTo(-3 * s, -82 * s); c.moveTo(6 * s, -73 * s); c.lineTo(3 * s, -82 * s); c.stroke();
   // head (bone), dark bob, red lips
-  c.fillStyle = PALETTE.bone; c.beginPath(); c.arc(0, -84 * s, 6.5 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = shade(BONE); c.beginPath(); c.arc(0, -84 * s, 6.5 * s, 0, TWO_PI); c.fill();
   c.fillStyle = '#070708'; c.beginPath(); c.arc(0, -86 * s, 8 * s, Math.PI * 0.9, Math.PI * 2.2); c.fill();
   c.beginPath(); c.moveTo(6 * s, -88 * s); c.quadraticCurveTo(12 * s, -78 * s, 7 * s, -66 * s); c.quadraticCurveTo(4 * s, -74 * s, 4 * s, -84 * s); c.closePath(); c.fill();
   c.fillStyle = PALETTE.redHot; c.beginPath(); c.ellipse(-1 * s, -81 * s, 2.2 * s, 1.1 * s, 0, 0, TWO_PI); c.fill();
@@ -265,12 +267,13 @@ defineActor('dealer', function (e) {                          // croupier behind
 
 defineActor('singer', function (e) {                          // lounge singer at the mic, in a spotlight
   const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, gown = this.red ? '#cf0a16' : '#cdc9bf';
+  rimSign(e, this);                                            // set the light amount for shade() (her skin)
   c.save(); c.translate(X, gy);
   c.fillStyle = gown; c.shadowColor = this.red ? 'rgba(210,0,24,0.4)' : 'rgba(0,0,0,0)'; c.shadowBlur = this.red ? 14 * s : 0;
   c.beginPath(); c.moveTo(-6 * s, -66 * s); c.quadraticCurveTo(-10 * s, -30 * s, -16 * s, 0); c.quadraticCurveTo(0, 5 * s, 16 * s, 0); c.quadraticCurveTo(10 * s, -30 * s, 6 * s, -66 * s); c.closePath(); c.fill();
   c.beginPath(); c.moveTo(-6 * s, -66 * s); c.quadraticCurveTo(-7 * s, -78 * s, -4 * s, -84 * s); c.lineTo(4 * s, -84 * s); c.quadraticCurveTo(7 * s, -78 * s, 6 * s, -66 * s); c.closePath(); c.fill(); c.shadowBlur = 0;
   c.strokeStyle = gown; c.lineWidth = 5 * s; c.lineCap = 'round'; c.beginPath(); c.moveTo(4 * s, -80 * s); c.lineTo(16 * s, -92 * s); c.stroke();
-  c.fillStyle = PALETTE.bone; c.beginPath(); c.arc(16 * s, -92 * s, 3.5 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = shade(BONE); c.beginPath(); c.arc(16 * s, -92 * s, 3.5 * s, 0, TWO_PI); c.fill();
   c.beginPath(); c.arc(0, -92 * s, 6.5 * s, 0, TWO_PI); c.fill();
   c.fillStyle = '#070708'; c.beginPath(); c.arc(0, -94 * s, 8 * s, Math.PI * 0.85, Math.PI * 2.25); c.fill();
   c.fillStyle = PALETTE.redHot; c.beginPath(); c.ellipse(0, -89 * s, 2.2 * s, 1.1 * s, 0, 0, TWO_PI); c.fill();

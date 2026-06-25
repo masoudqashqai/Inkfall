@@ -56,3 +56,11 @@ export function bodyGrad(c, h, s, rim, tint, albedo) {
   g.addColorStop(0, lit); g.addColorStop(0.42, mid); g.addColorStop(1, dark);
   return g;
 }
+
+// dim a FLAT surface colour (a white shirt, bare skin, a tie) by how much light reaches this figure,
+// the same smoothed amount the coat uses, with a floor so an unlit figure darkens but never vanishes.
+// Call after rimSign for the node, so the light amount is current. Returns an rgb() string.
+export function shade(rgb, floor = 0.42) {
+  const k = floor + (1 - floor) * _lit;
+  return `rgb(${Math.round(rgb[0] * k)},${Math.round(rgb[1] * k)},${Math.round(rgb[2] * k)})`;
+}
