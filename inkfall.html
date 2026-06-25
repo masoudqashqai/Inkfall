@@ -663,22 +663,26 @@ function wallWash(e, L, st) {
 }
 
 // VOLUMETRIC BEAM — a cone of light hanging in the wet air (the lamp's shaft, the searchlight's
-// sweep). Apex at the emitter, fading along its length, tinted by the light's colour, painted on the
-// additive buffer so the rain and grain read through it. dir 0 points straight down; a beam can
-// sweep (the searchlight) by oscillating its direction.
-function beam(e, L) {
-  const b = L.beam, c = e.light;
-  let dir = b.dir + (b.sweep ? Math.sin(e.t * (b.sweepSpeed || 0.4)) * b.sweep : 0);
+// sweep). Apex at the emitter, fading along its length, tinted by the colour, painted additively so
+// the rain and grain read through it. dir 0 points straight down; a beam can sweep (the searchlight)
+// by oscillating its direction. Shared so a near beam can draw on the light buffer (in front of the
+// backdrop) and a distant one, like the rooftop searchlight, can draw in the back world layer
+// (behind the backdrop buildings), both from one beam model.
+function drawBeam(c, t, x, y, ew, col, b) {
+  let dir = b.dir + (b.sweep ? Math.sin(t * (b.sweepSpeed || 0.4)) * b.sweep : 0);
   const ax = Math.sin(dir), ay = Math.cos(dir), pxv = -ay, pyv = ax;   // axis + perpendicular
-  const nearW = Math.max(L.ew * 0.6, 3), fx = L.x + ax * b.len, fy = L.y + ay * b.len;
-  const g = c.createLinearGradient(L.x, L.y, fx, fy);
-  g.addColorStop(0, `rgba(${L.col},${0.30 * b.I})`); g.addColorStop(0.5, `rgba(${L.col},${0.10 * b.I})`); g.addColorStop(1, `rgba(${L.col},0)`);
+  const nearW = Math.max(ew * 0.6, 3), len = b.len != null ? b.len : 200;
+  const farW = b.farW != null ? b.farW : (b.spread != null ? len * Math.tan(b.spread) : len * 0.45);
+  const I = b.I != null ? b.I : 1, fx = x + ax * len, fy = y + ay * len;
+  const g = c.createLinearGradient(x, y, fx, fy);
+  g.addColorStop(0, `rgba(${col},${0.30 * I})`); g.addColorStop(0.5, `rgba(${col},${0.10 * I})`); g.addColorStop(1, `rgba(${col},0)`);
   c.save(); c.globalCompositeOperation = 'lighter'; c.fillStyle = g;
   c.beginPath();
-  c.moveTo(L.x - pxv * nearW, L.y - pyv * nearW); c.lineTo(L.x + pxv * nearW, L.y + pyv * nearW);
-  c.lineTo(fx + pxv * b.farW, fy + pyv * b.farW); c.lineTo(fx - pxv * b.farW, fy - pyv * b.farW);
+  c.moveTo(x - pxv * nearW, y - pyv * nearW); c.lineTo(x + pxv * nearW, y + pyv * nearW);
+  c.lineTo(fx + pxv * farW, fy + pyv * farW); c.lineTo(fx - pxv * farW, fy - pyv * farW);
   c.closePath(); c.fill(); c.restore();
 }
+function beam(e, L) { drawBeam(e.light, e.t, L.x, L.y, L.ew, L.col, L.beam); }
 
 // BACK light: everything that belongs behind the cast (so a foreground figure occludes it). A flat
 // ambient lift, then per non-front light its beam, surface + air glow, floor + wall washes, and the
@@ -708,6 +712,7 @@ __exports.streak = streak;
 __exports.dominantLight = dominantLight;
 __exports.litTint = litTint;
 __exports.litColor = litColor;
+__exports.drawBeam = drawBeam;
 __exports.drawBackLight = drawBackLight;
 __exports.drawFrontLight = drawFrontLight;
 };
@@ -2877,6 +2882,7 @@ __mod["src/library/effects/atmosphere.js"] = function(__exports, __req){
 // ATMOSPHERE — drifting steam, a sweeping rooftop searchlight, and a tabloid that blows in.
 const { defineEffect } = __req("src/objects/registry.js");
 const { smooth01, lerp } = __req("src/engine/math.js");
+const { drawBeam } = __req("src/render/lighting.js");
 
 defineEffect('steam', function (e) {
   const c = e.ctx, X = e.X(this), gy = (this.y != null ? this.y * e.H : e.gy), t = e.t, seed = this.seed || 0;
@@ -2885,18 +2891,13 @@ defineEffect('steam', function (e) {
   c.restore();
 });
 
-// a distant searchlight sweeping the sky. It is now a lighting-system beam (was a hand-drawn cone):
-// emitLight registers an upward sweeping beam with negligible influence, so it lights nothing on the
-// ground, it is purely the shaft of light in the air. No glow, washes or reflection.
-defineEffect('searchlight', function (e) {}, {
-  emitLight(e) {
-    e.addLight({
-      x: (this.x || 0.5) * e.W, y: e.H, col: '190,200,220',
-      r: 1, I: 0, glow: false, surface: false, refl: false, wash: false,
-      beam: { dir: Math.PI, len: e.H, farW: 70 * (this.scale || 1), I: this.intensity || 0.34, sweep: 0.5, sweepSpeed: 0.4 },
-    });
-  },
-});
+// a distant searchlight sweeping the sky. It uses the lighting system's shared beam, but draws it in
+// the BACK layer (behind the backdrop), so the city buildings occlude it and it reads as far off,
+// instead of painting over the scene. It only emits the shaft, no glow, wash or floor light.
+defineEffect('searchlight', function (e) {
+  const b = { dir: Math.PI, len: e.H, farW: 70 * (this.scale || 1), I: this.intensity || 0.34, sweep: 0.5, sweepSpeed: 0.4 };
+  drawBeam(e.ctx, e.t, (this.x || 0.5) * e.W, e.H, 8, '190,200,220', b);
+}, { layer: 'back' });
 
 defineEffect('newspaper', function (e) {                      // blows in from the left, tumbles, settles
   const c = e.ctx, st = e.sceneT(), pP = smooth01(st / 4.5), tumbling = pP < 0.97;

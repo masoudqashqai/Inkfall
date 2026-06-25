@@ -170,22 +170,26 @@ function wallWash(e, L, st) {
 }
 
 // VOLUMETRIC BEAM — a cone of light hanging in the wet air (the lamp's shaft, the searchlight's
-// sweep). Apex at the emitter, fading along its length, tinted by the light's colour, painted on the
-// additive buffer so the rain and grain read through it. dir 0 points straight down; a beam can
-// sweep (the searchlight) by oscillating its direction.
-function beam(e, L) {
-  const b = L.beam, c = e.light;
-  let dir = b.dir + (b.sweep ? Math.sin(e.t * (b.sweepSpeed || 0.4)) * b.sweep : 0);
+// sweep). Apex at the emitter, fading along its length, tinted by the colour, painted additively so
+// the rain and grain read through it. dir 0 points straight down; a beam can sweep (the searchlight)
+// by oscillating its direction. Shared so a near beam can draw on the light buffer (in front of the
+// backdrop) and a distant one, like the rooftop searchlight, can draw in the back world layer
+// (behind the backdrop buildings), both from one beam model.
+export function drawBeam(c, t, x, y, ew, col, b) {
+  let dir = b.dir + (b.sweep ? Math.sin(t * (b.sweepSpeed || 0.4)) * b.sweep : 0);
   const ax = Math.sin(dir), ay = Math.cos(dir), pxv = -ay, pyv = ax;   // axis + perpendicular
-  const nearW = Math.max(L.ew * 0.6, 3), fx = L.x + ax * b.len, fy = L.y + ay * b.len;
-  const g = c.createLinearGradient(L.x, L.y, fx, fy);
-  g.addColorStop(0, `rgba(${L.col},${0.30 * b.I})`); g.addColorStop(0.5, `rgba(${L.col},${0.10 * b.I})`); g.addColorStop(1, `rgba(${L.col},0)`);
+  const nearW = Math.max(ew * 0.6, 3), len = b.len != null ? b.len : 200;
+  const farW = b.farW != null ? b.farW : (b.spread != null ? len * Math.tan(b.spread) : len * 0.45);
+  const I = b.I != null ? b.I : 1, fx = x + ax * len, fy = y + ay * len;
+  const g = c.createLinearGradient(x, y, fx, fy);
+  g.addColorStop(0, `rgba(${col},${0.30 * I})`); g.addColorStop(0.5, `rgba(${col},${0.10 * I})`); g.addColorStop(1, `rgba(${col},0)`);
   c.save(); c.globalCompositeOperation = 'lighter'; c.fillStyle = g;
   c.beginPath();
-  c.moveTo(L.x - pxv * nearW, L.y - pyv * nearW); c.lineTo(L.x + pxv * nearW, L.y + pyv * nearW);
-  c.lineTo(fx + pxv * b.farW, fy + pyv * b.farW); c.lineTo(fx - pxv * b.farW, fy - pyv * b.farW);
+  c.moveTo(x - pxv * nearW, y - pyv * nearW); c.lineTo(x + pxv * nearW, y + pyv * nearW);
+  c.lineTo(fx + pxv * farW, fy + pyv * farW); c.lineTo(fx - pxv * farW, fy - pyv * farW);
   c.closePath(); c.fill(); c.restore();
 }
+function beam(e, L) { drawBeam(e.light, e.t, L.x, L.y, L.ew, L.col, L.beam); }
 
 // BACK light: everything that belongs behind the cast (so a foreground figure occludes it). A flat
 // ambient lift, then per non-front light its beam, surface + air glow, floor + wall washes, and the
