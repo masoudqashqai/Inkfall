@@ -1,0 +1,3015 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#000000" />
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<title>INKFALL — a noir story engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Special+Elite&display=swap" rel="stylesheet">
+<style>
+:root { color-scheme: dark; }
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+html, body { height: 100%; overflow: hidden; background: #000; font-family: "Courier New", monospace; }
+#c { position: fixed; inset: 0; display: block; touch-action: none; }
+#scenetag { position: fixed; top: max(14px, env(safe-area-inset-top)); left: 16px; z-index: 10;
+  font-family: "Special Elite", "Courier New", monospace;
+  color: #d8d4c8; font-size: clamp(15px, 3.8vw, 19px); letter-spacing: 0.3em; font-weight: 400; text-shadow: 2px 2px 0 #000;
+  opacity: 0; transition: opacity 0.5s ease; }
+#scenetag b { color: #c20012; }
+#caption { position: fixed; left: 50%; bottom: calc(max(24px, env(safe-area-inset-bottom)) + 18px); transform: translateX(-50%);
+  z-index: 10; width: min(94vw, 800px); background: rgba(245,242,232,0.95); color: #111;
+  border: 2px solid #000; box-shadow: 7px 7px 0 rgba(0,0,0,0.6);
+  padding: clamp(22px, 5.4vw, 34px) clamp(22px, 5vw, 36px);
+  font-family: "Special Elite", "Courier New", monospace;
+  font-size: clamp(21px, 6vw, 31px); line-height: 1.55; letter-spacing: 0.005em; transition: opacity 0.35s ease; }
+#caption b { color: #c20012; font-weight: 700; }
+#tapnote { position: fixed; left: 50%; bottom: 7px; transform: translateX(-50%); z-index: 10; white-space: nowrap;
+  color: #7c7c7c; font-size: clamp(9px, 2.6vw, 12px); letter-spacing: 0.06em; }
+#build { position: fixed; left: 8px; bottom: 4px; z-index: 50; color: #3a3a3a; font-size: 9px;
+  letter-spacing: 0.1em; font-family: "Courier New", monospace; }
+#editbtn, #mute, #shoot { font-variant-emoji: text; }   /* keep the HUD glyphs monochrome (noir), never colour emoji */
+#topbar { position: fixed; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); z-index: 25;
+  display: flex; align-items: stretch; gap: 8px; }
+#topbar button { font-family: inherit; cursor: pointer; background: rgba(0,0,0,0.55); color: #d8d4c8;
+  border: 1px solid rgba(255,255,255,0.28); display: inline-flex; align-items: center; justify-content: center; }
+#topbar button:hover, #topbar button:active { border-color: #e10010; color: #fff; }
+#editbtn { font-size: clamp(14px, 3.9vw, 18px); letter-spacing: 0.16em; padding: 0 clamp(18px, 5vw, 26px);
+  height: clamp(50px, 13.5vw, 60px); }
+#mute, #shoot { display: none; font-size: clamp(22px, 6vw, 28px); line-height: 1;
+  width: clamp(50px, 13.5vw, 60px); height: clamp(50px, 13.5vw, 60px); }
+#mute.show, #shoot.show { display: inline-flex; }
+#poster { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center;
+  flex-direction: column; background: rgba(0,0,0,0.92); }
+#poster.show { display: flex; }
+#poster img { max-width: 88vw; max-height: 70vh; border: 1px solid rgba(216,212,200,0.4); box-shadow: 0 0 40px rgba(0,0,0,0.8); }
+#poster .poster-row { margin-top: 18px; display: flex; gap: 12px; }
+#poster a, #poster button { padding: 15px 32px; cursor: pointer; background: transparent; color: #fff;
+  border: 1px solid #fff; font-family: inherit; font-size: clamp(14px, 3.4vw, 16px); letter-spacing: 0.16em; text-decoration: none; }
+#poster a:hover { background: #e10010; border-color: #e10010; }
+#poster button:hover { background: #fff; color: #000; }
+#scenenav { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(max(20px, env(safe-area-inset-bottom)) + 20px);
+  z-index: 25; display: none; gap: 10px; flex-wrap: wrap; justify-content: center; width: min(96vw, 860px); }
+#scenenav.show { display: flex; }
+#scenenav button { font-family: inherit; font-size: clamp(13px, 3.5vw, 17px); letter-spacing: 0.12em; font-weight: 700; cursor: pointer;
+  color: #c9c4b6; background: rgba(8,8,10,0.62); border: 1px solid rgba(216,212,200,0.3); padding: 14px 17px; line-height: 1.25; }
+#scenenav button:hover { color: #fff; border-color: rgba(255,255,255,0.6); }
+#scenenav button.cur { color: #fff; border-color: #e10010; box-shadow: 0 0 12px rgba(225,0,16,0.45); }
+#editor { position: fixed; inset: 0; z-index: 40; display: none; flex-direction: column; gap: 10px;
+  background: rgba(6,7,10,0.97); padding: max(16px, env(safe-area-inset-top)) 16px 16px; }
+#editor .ed-head { color: #e10010; letter-spacing: 0.3em; font-weight: 700; font-size: clamp(14px, 3.6vw, 16px); }
+#editor .ed-help { color: #8a8a8a; font-size: clamp(11px, 2.7vw, 13px); line-height: 1.8; }
+#ed-text { flex: 1; width: 100%; resize: none; background: #0e1014; color: #d6e0c8; border: 1px solid #2a2e36;
+  font-family: "Courier New", monospace; font-size: clamp(13px, 3vw, 15px); line-height: 1.5; padding: 12px; }
+#ed-err { color: #ff6a6a; font-size: clamp(12px, 2.8vw, 14px); min-height: 16px; }
+.ed-btns { display: flex; gap: 12px; flex-wrap: wrap; }
+.ed-btns button { flex: 1; min-width: 100px; padding: 16px; cursor: pointer; font-family: inherit; font-weight: 700;
+  letter-spacing: 0.18em; font-size: clamp(14px, 3.4vw, 16px); background: transparent; color: #fff; border: 1px solid #fff; }
+#ed-play { background: #e10010; border-color: #e10010; }
+.ed-btns button:active { opacity: 0.7; }
+#intro { position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; text-align: center; padding: 28px 22px; overflow-y: auto;
+  background: #050505; transition: opacity 0.8s ease; }
+#intro h1 { font-family: "Oswald", sans-serif; color: #fff; font-size: clamp(72px, 23vw, 200px); letter-spacing: 0.04em; font-weight: 700;
+  line-height: 1.0; transform: skewX(-7deg); }
+#intro h1 .b { color: #e10010; }
+#intro p { font-family: "Oswald", sans-serif; color: #ece6d6; margin-top: 22px; font-size: clamp(22px, 6vw, 30px); letter-spacing: 0.28em; font-weight: 600; }
+#intro .sub { font-family: "Oswald", sans-serif; color: rgba(236,230,214,0.72); margin-top: 18px; font-size: clamp(20px, 5vw, 25px); letter-spacing: 0.02em;
+  font-weight: 400; max-width: 640px; line-height: 1.65; }
+#intro .pick-label { font-family: "Oswald", sans-serif; color: rgba(236,230,214,0.55); margin-top: 44px; font-size: clamp(16px, 4vw, 19px); letter-spacing: 0.38em; font-weight: 600; }
+#storypick { margin-top: 18px; display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
+.storybtn { font-family: "Oswald", sans-serif; cursor: pointer; background: transparent; color: #f2eee2; border: 1px solid rgba(236,230,214,0.45);
+  font-size: clamp(22px, 5.6vw, 27px); letter-spacing: 0.16em; font-weight: 600; padding: 22px 32px; transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease; }
+.storybtn:hover { border-color: #fff; background: rgba(236,230,214,0.06); }
+.storybtn.cur { color: #fff; border-color: #e10010; }
+.storybtn small { display: block; color: rgba(236,230,214,0.6); font-size: clamp(14px, 3.6vw, 17px); letter-spacing: 0.1em; margin-top: 10px; font-weight: 400; }
+.storybtn:hover small { color: rgba(236,230,214,0.88); }
+.storybtn.cur small { color: #ea5a5a; }
+#enter { font-family: "Oswald", sans-serif; margin-top: 40px; padding: 24px 64px; cursor: pointer; background: transparent; color: #fff;
+  border: 1px solid #fff; font-size: clamp(23px, 5.8vw, 28px); letter-spacing: 0.28em; font-weight: 600; transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease; }
+#enter:hover, #enter:active { background: #e10010; border-color: #e10010; }
+/* short screens (landscape / small desktop windows): shrink the intro so it still fits */
+@media (max-height: 720px) {
+  #intro h1 { font-size: clamp(48px, 12vh, 110px); }
+  #intro p { font-size: clamp(16px, 3.4vh, 22px); margin-top: 12px; }
+  #intro .sub { font-size: clamp(14px, 2.8vh, 18px); margin-top: 10px; }
+  #intro .pick-label { margin-top: 20px; }
+  #enter { margin-top: 22px; }
+}
+
+/* short viewports (landscape phones, small desktop windows): keep the bigger caption
+   from eating the frame — scale it to the available height and tuck it down */
+@media (max-height: 560px) {
+  #caption { font-size: clamp(17px, 4.4vh, 25px); line-height: 1.4;
+    padding: clamp(10px, 2vh, 16px) clamp(14px, 3vw, 22px);
+    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 8px); }
+  #scenenav { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 100px); }
+}
+/* wide desktops: comfortably readable from a distance */
+@media (min-width: 1100px) {
+  #caption { font-size: 30px; width: min(72vw, 860px); }
+}
+
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="scenetag"></div>
+<div id="caption" style="display:none"></div>
+<div id="tapnote" style="display:none">TAP — NEXT&nbsp; ·&nbsp; DRAG — LOOK&nbsp; ·&nbsp; HOLD — LIGHTNING</div>
+<div id="intro">
+  <h1>INK<span class="b">FALL</span></h1>
+  <p id="introsub">A NOIR STORY ENGINE</p>
+  <div class="sub" id="introblurb">Feed it a story. Get back a rain-soaked, black-and-white world where the only colour is the colour that bleeds.</div>
+  <div class="pick-label">CHOOSE YOUR TALE</div>
+  <div id="storypick"></div>
+  <button id="enter">ENTER THE CITY</button>
+</div>
+
+<div id="build"></div>
+<div id="topbar">
+  <button id="shoot" title="save a poster of this frame">❏</button>
+  <button id="mute" title="sound">♪</button>
+  <button id="editbtn">✎ STORY</button>
+</div>
+<div id="scenenav"></div>
+
+<div id="poster">
+  <img id="posterimg" alt="Inkfall poster" />
+  <div class="poster-row">
+    <a id="posterdl" download="inkfall.png">SAVE</a>
+    <button id="posterclose">BACK TO THE RAIN</button>
+  </div>
+</div>
+<div id="editor">
+  <div class="ed-head">STORY EDITOR — JSON</div>
+  <textarea id="ed-text" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
+  <div id="ed-err"></div>
+  <div class="ed-help">backdrops: skyline · alley · rooftop · room · penthouse &nbsp;|&nbsp; lights: lamp · neon · bulb · glow &nbsp;|&nbsp; people: trenchMan · thug · boss · gunman · dealer · womanInRed · womanInBlack · singer &nbsp;|&nbsp; animals: cat · crow &nbsp;|&nbsp; movers: redCar &nbsp;|&nbsp; weapons: knife · pistol · tommyGun &nbsp;|&nbsp; casino: cardTable · slotMachine · rouletteWheel · drink · cash &nbsp;|&nbsp; street: trafficLight · barrelFire · fireHydrant · payphone · streetSign · waterTower · dumpster · manhole · coffee &nbsp;|&nbsp; effects: steam · searchlight · newspaper · bloodSplat · bodyOnGround · chalkOutline · bloodDrain &nbsp;|&nbsp; line fx: muzzle · blood · lightning · hammer · lighter &nbsp;|&nbsp; reveal/hide with onFlag / hideOnFlag</div>
+  <div class="ed-btns"><button id="ed-play">▶ PLAY</button><button id="ed-reset">DEFAULT</button><button id="ed-close">CLOSE</button></div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const __mod = {}, __cache = {};
+function __req(k){ if (__cache[k]) return __cache[k]; const e = {}; __cache[k] = e; __mod[k](e, __req); return e; }
+__mod["src/boot.js"] = function(__exports, __req){
+// BOOT — wires the DOM to the engine + manager. Imports the library (side-effect registration),
+// builds the intro picker from the story manifest, lazy-loads the chosen story, and runs the
+// loop. The editor round-trips a story as JSON (stories are pure data).
+const { Engine } = __req("src/engine/engine.js");
+const { Manager } = __req("src/scene/manager.js");
+const { Audio2 } = __req("src/assets/audio.js");
+const { rand32, TWO_PI } = __req("src/engine/math.js");
+__req("src/library/index.js");
+const { STORIES } = __req("stories/manifest.js");
+
+const el = id => document.getElementById(id);
+const BUILD = 'v2 build 42 · the sable dame'
+console.log('INKFALL', BUILD);
+el('build').textContent = BUILD;
+
+const engine = new Engine(); engine.init();
+const manager = new Manager(engine);
+manager.attachDom({ cap: el('caption'), tag: el('scenetag'), tap: el('tapnote'), nav: el('scenenav') });
+
+// input → manager
+const { bindInput } = __req("src/engine/input.js");
+bindInput(engine.cv, {
+  isReady: () => manager.started,
+  onTap: () => manager.advance(),
+  onDrag: dx => manager.drag(dx),
+  onHold: () => manager.holdLightning(),
+});
+
+const cache = {};
+const loadStory = i => (cache[i] ||= STORIES[i].load());
+let defaultStory = null;
+
+function applyIntroText(s) {
+  if (s && s.title) el('intro').querySelector('h1').innerHTML = s.title.replace(/^(.{3})(.*)$/, '$1<span class="b">$2</span>');
+  if (s && s.subtitle) el('introsub').textContent = s.subtitle;
+  if (s && s.blurb) el('introblurb').textContent = s.blurb;
+}
+
+function buildStoryPicker() {
+  const pick = el('storypick'); pick.innerHTML = '';
+  STORIES.forEach((s, i) => {
+    const b = document.createElement('button'); b.className = 'storybtn'; b.dataset.i = i;
+    b.innerHTML = `${s.name}<small>${s.tagline}</small>`;
+    b.addEventListener('click', () => selectStory(i));
+    pick.appendChild(b);
+  });
+}
+
+async function selectStory(i) {
+  const s = await loadStory(i);
+  manager.loadStory(s);
+  Audio2.setStory(s.audio);
+  applyIntroText(s);
+  document.querySelectorAll('.storybtn').forEach(b => b.classList.toggle('cur', +b.dataset.i === i));
+}
+
+function beginPlay() {
+  const intro = el('intro');
+  intro.style.opacity = '0'; setTimeout(() => intro.style.display = 'none', 800);
+  el('caption').style.display = 'block';
+  el('tapnote').style.display = 'block';
+  el('mute').classList.add('show');
+  el('shoot').classList.add('show');
+  Audio2.start();
+  manager.requestStart();
+}
+el('enter').addEventListener('click', beginPlay);
+
+const muteEl = el('mute');
+muteEl.addEventListener('click', () => { const on = Audio2.toggle(); muteEl.textContent = on ? '♪' : '✕'; muteEl.style.color = on ? '#d8d4c8' : '#777'; });
+
+// ---- "pull a frame": turn the live canvas into a downloadable noir poster ----
+let halftone = null;
+function buildHalftone() {
+  const tile = 6, c = document.createElement('canvas'); c.width = c.height = tile * 8;
+  const x = c.getContext('2d'); x.fillStyle = '#000';
+  for (let yy = 0; yy < 8; yy++) for (let xx = 0; xx < 8; xx++) { x.beginPath(); x.arc(xx * tile + tile / 2, yy * tile + tile / 2, tile * 0.32, 0, TWO_PI); x.fill(); }
+  return c;
+}
+function makePoster() {
+  const cv = engine.cv, W = engine.W, H = engine.H, pw = 900;
+  const m = 56, fw = pw - m * 2, fh = Math.round(fw * (H / W)), fy = 150;
+  const ph = fy + fh + 170;   // height follows the captured frame's aspect (portrait on mobile, landscape on desktop) so nothing overflows
+  const pc = document.createElement('canvas'); pc.width = pw; pc.height = ph;
+  const p = pc.getContext('2d');
+  p.fillStyle = '#000'; p.fillRect(0, 0, pw, ph);
+  p.drawImage(cv, 0, 0, cv.width, cv.height, m, fy, fw, fh);               // the captured frame
+  p.strokeStyle = '#fff'; p.lineWidth = 5; p.strokeRect(m, fy, fw, fh);    // inked border
+  p.fillStyle = '#e10010';                                                 // ink-splatter corners
+  for (const [cxp, cyp, ci] of [[m, fy, 0], [m + fw, fy, 1], [m, fy + fh, 2], [m + fw, fy + fh, 3]]) {
+    const rng = rand32(ci * 71 + 5);
+    for (let k = 0; k < 9; k++) { const a = rng() * TWO_PI, d = rng() * 34, r = 1 + rng() * 6; p.beginPath(); p.arc(cxp + Math.cos(a) * d, cyp + Math.sin(a) * d, r, 0, TWO_PI); p.fill(); }
+  }
+  p.save(); p.translate(pw / 2, 92); p.transform(1, 0, -0.13, 1, 0, 0);    // INKFALL title
+  p.textAlign = 'center'; p.textBaseline = 'middle'; p.font = '900 88px "Arial Black", Impact, sans-serif';
+  const iw = p.measureText('INK').width, fwid = p.measureText('FALL').width;
+  p.shadowColor = 'rgba(255,255,255,0.25)'; p.shadowBlur = 24; p.fillStyle = '#fff'; p.fillText('INK', -fwid / 2, 0);
+  p.shadowColor = 'rgba(225,0,16,0.7)'; p.fillStyle = '#e10010'; p.fillText('FALL', iw / 2, 0);
+  p.restore(); p.shadowBlur = 0;
+  const tag = ((el('caption').textContent || (manager.story && manager.story.subtitle) || '') + '').replace(/<[^>]*>/g, '').toUpperCase();
+  p.fillStyle = '#d8d4c8'; p.font = 'italic 24px Georgia, "Times New Roman", serif'; p.textAlign = 'center';
+  let line = '', ty = fy + fh + 56;
+  for (const w of tag.split(' ')) { if (p.measureText(line + w).width > fw - 40) { p.fillText(line.trim(), pw / 2, ty); ty += 34; line = ''; } line += w + ' '; }
+  p.fillText(line.trim(), pw / 2, ty);
+  p.fillStyle = '#6a6a6a'; p.font = '700 13px "Courier New", monospace'; p.fillText('B A S I N   C I T Y   ·   I N K F A L L', pw / 2, ph - 40);
+  if (!halftone) halftone = buildHalftone();
+  p.globalAlpha = 0.06; for (let yy = 0; yy < ph; yy += halftone.width) for (let xx = 0; xx < pw; xx += halftone.width) p.drawImage(halftone, xx, yy); p.globalAlpha = 1;
+  const url = pc.toDataURL('image/png');
+  el('posterimg').src = url; el('posterdl').href = url;
+  el('posterclose').textContent = 'BACK TO ' + ((manager.current && manager.current.title || 'THE RAIN').replace(/&nbsp;/g, ' ')).toUpperCase();
+  el('poster').classList.add('show');
+}
+el('shoot').addEventListener('click', () => { if (manager.started) makePoster(); });
+el('posterclose').addEventListener('click', () => el('poster').classList.remove('show'));
+
+// ---- story editor (pure-data JSON) ----
+const editor = el('editor'), edText = el('ed-text'), edErr = el('ed-err');
+const noCache = (k, v) => (k && k[0] === '_') ? undefined : v;
+el('editbtn').addEventListener('click', () => { edText.value = JSON.stringify(manager.story, noCache, 2); edErr.textContent = ''; editor.style.display = 'flex'; });
+el('ed-close').addEventListener('click', () => editor.style.display = 'none');
+el('ed-reset').addEventListener('click', () => { edText.value = JSON.stringify(defaultStory, noCache, 2); edErr.textContent = 'Default story loaded into the editor — press PLAY to run it.'; });
+el('ed-play').addEventListener('click', () => {
+  let s; try { s = JSON.parse(edText.value); } catch (err) { edErr.textContent = 'JSON error: ' + err.message; return; }
+  if (!s || !Array.isArray(s.scenes) || !s.scenes.length) { edErr.textContent = 'A story needs a non-empty "scenes" array.'; return; }
+  manager.loadStory(s); Audio2.setStory(s.audio); applyIntroText(s);
+  try { localStorage.setItem('inkfall_story', JSON.stringify(s, noCache)); } catch (e) {}
+  editor.style.display = 'none';
+  if (!manager.started) beginPlay();
+});
+
+// ---- bootstrap ----
+(async () => {
+  buildStoryPicker();
+  defaultStory = await loadStory(0);
+  await selectStory(0);
+  engine.run(e => manager.tick(e));
+})();
+
+};
+__mod["src/engine/engine.js"] = function(__exports, __req){
+// ENGINE — owns the on-screen canvas, the single additive LIGHT BUFFER (offscreen), the
+// device-pixel sizing, and the requestAnimationFrame loop. It keeps the shared Frame's
+// scalars (size, time, contexts) live and hands a tick to the manager each frame.
+const { Frame } = __req("src/engine/frame.js");
+
+class Engine {
+  constructor() {
+    this.cv = null; this.ctx = null; this.DPR = 1; this.W = 0; this.H = 0; this.unit = 1;
+    this.lightCv = null; this.lightCtx = null;
+    this.snapCv = null; this.snapCtx = null;   // a frozen copy of the last frame, for the beat crossfade
+    this.frame = new Frame();
+    this.drops = []; this.grain = null;     // rain particles + film-grain tile (persist across scenes)
+    this.last = 0;
+  }
+
+  init() {
+    this.cv = document.getElementById('c');
+    this.ctx = this.cv.getContext('2d', { alpha: false });   // NOT desynchronized: the low-latency surface tears/flickers badly on real phones (fine on desktop + emulation, so it hid)
+    this.lightCv = document.createElement('canvas');
+    this.lightCtx = this.lightCv.getContext('2d');
+    this.snapCv = document.createElement('canvas');
+    this.snapCtx = this.snapCv.getContext('2d');
+    addEventListener('resize', () => this.resize());
+    this.W = innerWidth; this.H = innerHeight;
+    this.resize();
+  }
+
+  resize() {
+    this.DPR = Math.min(window.devicePixelRatio || 1, 2);
+    this.W = innerWidth; this.H = innerHeight;
+    for (const cv of [this.cv, this.lightCv, this.snapCv]) { cv.width = Math.floor(this.W * this.DPR); cv.height = Math.floor(this.H * this.DPR); }
+    this.cv.style.width = this.W + 'px'; this.cv.style.height = this.H + 'px';
+    this.initRain();
+    if (!this.grain) this.buildGrain();
+    if (this.onResize) this.onResize();
+  }
+
+  initRain() {
+    this.drops.length = 0;
+    const n = Math.floor((this.W * this.H) / 5200);
+    for (let i = 0; i < n; i++) this.drops.push({ x: Math.random() * (this.W + 200) - 100, y: Math.random() * this.H, len: 8 + Math.random() * 16, sp: 9 + Math.random() * 9 });
+  }
+  buildGrain() {
+    const g = document.createElement('canvas'); g.width = g.height = 220;
+    const gx = g.getContext('2d'), im = gx.createImageData(220, 220);
+    for (let i = 0; i < im.data.length; i += 4) { const v = Math.random() * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 255; }
+    gx.putImageData(im, 0, 0); this.grain = g;
+  }
+
+  // refresh the Frame's per-frame scalars + contexts
+  syncFrame(now) {
+    const f = this.frame;
+    f.W = this.W; f.H = this.H; f.unit = Math.min(this.W, this.H) / 360;
+    f.t = now / 1000; f.dt = Math.min((now - this.last) / 1000, 0.05);
+    f.main = this.ctx; f.light = this.lightCtx; f.ctx = this.ctx;
+    f.drops = this.drops; f.grain = this.grain; f.DPR = this.DPR;
+    this.last = now;
+    return f;
+  }
+
+  // device-pixel transform helpers (buffers + main share the same backing size)
+  setWorldTransform(ctx) { ctx.setTransform(this.DPR, 0, 0, this.DPR, 0, 0); }
+  setDeviceTransform(ctx) { ctx.setTransform(1, 0, 0, 1, 0, 0); }
+
+  // freeze the current on-screen frame so the next beat can crossfade out of it
+  snapshot() { this.snapCtx.setTransform(1, 0, 0, 1, 0, 0); this.snapCtx.clearRect(0, 0, this.snapCv.width, this.snapCv.height); this.snapCtx.drawImage(this.cv, 0, 0); }
+
+  run(onTick) {
+    this.last = performance.now();
+    const loop = now => { requestAnimationFrame(loop); onTick(this.syncFrame(now), now); };
+    requestAnimationFrame(loop);
+  }
+}
+
+__exports.Engine = Engine;
+};
+__mod["src/engine/frame.js"] = function(__exports, __req){
+// FRAME — the per-frame facade handed to passes and to every object's draw/update/emitLight.
+// It bundles the live timing + sizes, the three drawing contexts (world buffer, additive
+// light buffer, main), and the coordinate + lighting helpers. Objects read `e.ctx` as their
+// target and call helpers like `e.X(node)`, `e.groundShadow(...)`, `e.pushLight(...)`.
+const { PALETTE } = __req("src/style/palette.js");
+const { lerp, smooth01 } = __req("src/engine/math.js");
+const L = __req("src/render/lighting.js");
+
+class Frame {
+  constructor() {
+    this.W = this.H = 0; this.unit = 1; this.t = 0; this.dt = 0;
+    this.world = this.light = this.main = null;  // the three 2d contexts
+    this.ctx = null;                              // active draw target (set per pass)
+    this.scene = null;                            // active Scene
+    this.lights = [];                             // light records, rebuilt each frame
+  }
+
+  // live, scene-derived values
+  get gy() { return (this.scene.ground || 0.8) * this.H; }
+  get keyLight() { return this.scene.keyLight || { x: 0.3, y: 0.3 }; }
+  get flags() { return this.scene.flags; }
+  get lineIdx() { return this.scene.lineIdx; }
+  beat() { return Math.max(0, this.t - this.scene.lineStart); }
+  sceneT() { return Math.max(0, this.t - this.scene.sceneStart); }
+
+  // the world-space rectangle that exactly fills the screen at the current camera zoom. Full-screen
+  // washes (sky, wet floor, lightning flash) fill THIS instead of [0,0,W,H] so the establishing
+  // zoom-out (zoom < 1) never exposes black borders.
+  coverRect() {
+    const cam = this.scene.camera, z = cam.zoom || 1;
+    if (z >= 1) return { x: 0, y: 0, w: this.W, h: this.H };
+    const fx = cam.focal.x, fy = cam.focal.y;
+    return { x: fx * (1 - 1 / z), y: fy * (1 - 1 / z), w: this.W / z, h: this.H / z };
+  }
+
+  // coordinate helpers (shared by the whole library)
+  X(n) { return n.x * this.W + this.scene.camera.look * (n.par == null ? 0.5 : n.par); }
+  scaleOf(n) { return this.unit * (n.scale || 1); }
+  // a node with n.walk = [x per line] glides between marks across each line
+  walkX(n) {
+    if (!n.walk) return this.X(n);
+    const w = n.walk, i = Math.min(this.lineIdx, w.length - 1), prev = i > 0 ? w[i - 1] : w[0];
+    const nx = lerp(prev, w[i], smooth01(this.beat() / (n.walkDur || 3.4)));
+    return nx * this.W + this.scene.camera.look * (n.par == null ? 0.5 : n.par);
+  }
+
+  // continuous footstep loop, only while an actor is actually moving (set by walking actors)
+  walkSound(on) { this.scene.walkSound(on); }
+
+  // lighting facade (delegates to the shared service so objects never roll their own).
+  // Objects describe a light once with addLight({...}); the lighting pass draws halo + refl.
+  addLight(rec) { L.addLight(this, rec); }
+  dominantLight(x) { return L.dominantLight(this, x); }
+  litTint(x) { return L.litTint(this, x); }
+  litColor(x, gr, gg, gb) { return L.litColor(this, x, gr, gg, gb); }
+  groundShadow(x, halfW, objH) { L.groundShadow(this, x, halfW, objH); }
+}
+
+Frame.prototype.palette = PALETTE;
+
+__exports.Frame = Frame;
+};
+__mod["src/style/palette.js"] = function(__exports, __req){
+// THE LOOK — the fixed art direction. Grayscale plus the colours that bleed.
+// This is one of the central style knobs: change it and every story shifts.
+const PALETTE = {
+  ink: '#020203', nearInk: '#050506', midInk: '#070809', farInk: '#0c0e13',
+  paper: '#f5f2e8', bone: '#dcdcdc', steel: '#aab4c8',
+  red: '#c8000f', redHot: '#ff0018', ember: '#ff2010', amber: '#ffd400',
+  moon: '#e8edf6', skyTop: '#04050a', skyMid: '#0a0c12', skyLow: '#16181f',
+  warmWin: 'rgba(255,236,196,0.9)', coolWin: 'rgba(202,220,255,0.72)',
+};
+
+// Global animation timing + overlay intensities. The other central style knob.
+const ANIM = {
+  swaySpeed: 1.1, walkSpeed: 2.2, emberSpeed: 6, flickerSpeed: 9,
+  rainAlpha: 0.35, grainAlpha: 0.015, grainAlphaEnd: 0.15, vignette: 0.7, parallaxLerp: 0.08,
+  boltGap: [5, 13],
+  transIn: 2.0, transOut: 1.6, cardHold: 1.7,   // scene-transition speed: higher in/out = faster wipe; cardHold = act-card dwell (s)
+};
+
+__exports.PALETTE = PALETTE;
+__exports.ANIM = ANIM;
+};
+__mod["src/engine/math.js"] = function(__exports, __req){
+// Pure math + colour helpers used across the engine, passes and library.
+const TWO_PI = Math.PI * 2;
+
+// mulberry32: a fast seedable PRNG. rand32(seed) returns a 0..1 generator.
+const rand32 = a => () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+const lerp = (a, b, p) => a + (b - a) * p;
+const clamp = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
+const clamp01 = p => p < 0 ? 0 : p > 1 ? 1 : p;
+const smooth01 = p => { p = clamp01(p); return p * p * (3 - 2 * p); };
+
+// "#rgb"/"#rrggbb" → "r,g,b" ; passthrough for "r,g,b" strings.
+const hexRgb = h => { h = h.replace('#', ''); if (h.length === 3) h = h.split('').map(x => x + x).join(''); return parseInt(h.slice(0, 2), 16) + ',' + parseInt(h.slice(2, 4), 16) + ',' + parseInt(h.slice(4, 6), 16); };
+const cssRgb = col => { if (col[0] === '#') return hexRgb(col); const m = col.match(/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/); return m ? `${m[1]},${m[2]},${m[3]}` : '255,250,225'; };
+
+__exports.TWO_PI = TWO_PI;
+__exports.rand32 = rand32;
+__exports.lerp = lerp;
+__exports.clamp = clamp;
+__exports.clamp01 = clamp01;
+__exports.smooth01 = smooth01;
+__exports.hexRgb = hexRgb;
+__exports.cssRgb = cssRgb;
+};
+__mod["src/render/lighting.js"] = function(__exports, __req){
+// LIGHTING SERVICE — the one shared light + shadow model. An object describes a light once with
+// addLight({...}); the lighting PASS then paints, on the additive light buffer:
+//   1. a tight SURFACE glow shaped to the emitter (lights the wall/surface the light sits on),
+//   2. a soft, reduced AIR glow (the atmospheric bloom),
+//   3. a wet-floor REFLECTION whose width/length/brightness are derived from the light's
+//      emitter size, height above the floor (distance) and power, so it matches the source.
+// rim / tint / shadow all read the same records, which keeps the look uniform.
+const { lerp } = __req("src/engine/math.js");
+
+// register a light this frame. Fields:
+//   x, y        position (y above the floor = the light's height)
+//   col('r,g,b'), r (influence radius for rim/tint/rain), I (power 0..1)
+//   ew, eh      emitter half-size (shape of the source: wide for a neon, point for a bulb)
+//   glow        draw the air + surface glow (default true)
+//   glowR, glowI  glow radius + brightness, decoupled from influence (default r, I). The moon
+//                 uses these for a tight bright halo while keeping a large faint influence.
+//   refl        draw the wet-floor reflection (default true)
+//   reflW, reflI, reflLen   optional overrides (used by the moon for a bespoke faint streak)
+function addLight(e, rec) {
+  if (rec.col == null) rec.col = '255,250,225';
+  if (rec.r == null) rec.r = 150;
+  if (rec.I == null) rec.I = 0.5;
+  if (rec.ew == null) rec.ew = rec.r * 0.10;
+  if (rec.eh == null) rec.eh = rec.ew;
+  if (rec.glow == null) rec.glow = true;
+  if (rec.surface == null) rec.surface = true;   // tight near-field core (distant lights like the moon set false)
+  if (rec.ring == null) rec.ring = false;         // halo as a RING around the emitter (moon: glow without washing the disc)
+  if (rec.glowR == null) rec.glowR = rec.r;
+  if (rec.glowI == null) rec.glowI = rec.I;
+  if (rec.refl == null) rec.refl = true;
+  e.lights.push(rec);
+}
+
+// --- pre-rendered soft sprites (built once per colour). Blitting these replaces per-frame
+// gradient creation AND the expensive ctx.filter='blur(...)' that v2 used for glow/refl/shadow. ---
+const _sprites = {};
+function softRadial(col) {                      // a soft round glow, peak alpha 1 at centre
+  const key = 'r:' + col; if (_sprites[key]) return _sprites[key];
+  const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+  const c = cv.getContext('2d'), g = c.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, `rgba(${col},1)`); g.addColorStop(0.5, `rgba(${col},0.32)`); g.addColorStop(1, `rgba(${col},0)`);
+  c.fillStyle = g; c.fillRect(0, 0, 128, 128);
+  return _sprites[key] = cv;
+}
+function softRing(col) {                          // a soft halo RING: transparent core, bright ring, fades out
+  const key = 'g:' + col; if (_sprites[key]) return _sprites[key];
+  const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+  const c = cv.getContext('2d'), g = c.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, `rgba(${col},0)`); g.addColorStop(0.4, `rgba(${col},0)`); g.addColorStop(0.52, `rgba(${col},1)`); g.addColorStop(0.75, `rgba(${col},0.4)`); g.addColorStop(1, `rgba(${col},0)`);
+  c.fillStyle = g; c.fillRect(0, 0, 128, 128);
+  return _sprites[key] = cv;
+}
+function softColumn(col) {                       // a soft vertical streak: bright at the top, feathered sides
+  const key = 'c:' + col; if (_sprites[key]) return _sprites[key];
+  const W = 64, H = 256, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const c = cv.getContext('2d'), vg = c.createLinearGradient(0, 0, 0, H);
+  vg.addColorStop(0, `rgba(${col},1)`); vg.addColorStop(0.4, `rgba(${col},0.36)`); vg.addColorStop(1, `rgba(${col},0)`);
+  c.fillStyle = vg; c.fillRect(0, 0, W, H);
+  c.globalCompositeOperation = 'destination-in';
+  const hg = c.createLinearGradient(0, 0, W, 0);
+  hg.addColorStop(0, 'rgba(0,0,0,0)'); hg.addColorStop(0.5, 'rgba(0,0,0,1)'); hg.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = hg; c.fillRect(0, 0, W, H);
+  return _sprites[key] = cv;
+}
+
+// tight near-field glow shaped to the emitter: the light hitting the surface it sits on
+function surfaceGlow(e, L) {
+  const rx = Math.max(L.ew * 1.25, 8) + L.r * 0.10, ry = Math.max(L.eh * 1.25, 8) + L.r * 0.10, c = e.light;
+  c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.30 * L.glowI;
+  c.drawImage(softRadial(L.col), L.x - rx, L.y - ry, rx * 2, ry * 2); c.restore();
+}
+
+// soft, wide atmospheric bloom — kept gentle (the "glow in the air", dialled down)
+function airGlow(e, L) {
+  const R = L.glowR, c = e.light;
+  c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.15 * L.glowI;
+  c.drawImage(L.ring ? softRing(L.col) : softRadial(L.col), L.x - R, L.y - R, R * 2, R * 2); c.restore();
+}
+
+// a soft streak down the wet floor (low-level; also used for static off-screen signs)
+function streak(e, x, col, I, w, len) {
+  if (I < 0.02 || len < 2) return;
+  const c = e.light;
+  c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.5 * I;
+  c.drawImage(softColumn(col), x - w, e.gy, w * 2, len); c.restore();
+}
+
+// the floor reflection for a real light: derived from its height, size and power so it matches
+function floorRefl(e, L) {
+  const gy = e.gy, H = e.H, h = gy - L.y;
+  if (h <= 2) return;                                   // at/below the floor: no reflection
+  let I, w, len;
+  if (L.reflI != null) {                                // bespoke (moon)
+    I = L.reflI; w = L.reflW != null ? L.reflW : 24; len = (H - gy) * (L.reflLen || 0.7);
+  } else {
+    const reach = L.r / (L.r + h);                      // geometry: low/large light reaches the floor more
+    I = L.I * reach * 0.7;                              // brightness from power + geometry (distance/dimness)
+    w = Math.max(8, L.ew * 0.7 + L.r * 0.12);          // width from emitter size + spread
+    len = Math.min(H - gy, h * 0.5 + L.r * 0.45);      // length from height + size
+  }
+  streak(e, L.x, L.col, I, w, len);
+}
+
+// the strongest light reaching a point (rim side, form tint, shadow direction)
+function dominantLight(e, wx) {
+  let best = null, bw = 0.12;
+  for (const L of e.lights) { const w = L.I * (1 - Math.abs(wx - L.x) / (L.r * 1.1)); if (w > bw) { bw = w; best = L; } }
+  return best;
+}
+// the ambient light colour at a point, as a smooth weighted BLEND of nearby lights (not a single
+// dominant pick) so a figure between two flickering lights gets a gentle tint, not a hard flip.
+function litTint(e, wx) {
+  let r = 0, g = 0, b = 0, wsum = 0;
+  for (const L of e.lights) { const w = L.I * (1 - Math.abs(wx - L.x) / (L.r * 1.1)); if (w > 0) { const cc = L.col.split(','); r += cc[0] * w; g += cc[1] * w; b += cc[2] * w; wsum += w; } }
+  return wsum < 0.12 ? null : [r / wsum, g / wsum, b / wsum];
+}
+
+// blended colour of every light reaching x (red + green → amber), else the fallback grey
+function litColor(e, x, gr, gg, gb) {
+  let r = 0, g = 0, b = 0, wsum = 0;
+  for (const L of e.lights) { const w = L.I * (1 - Math.abs(x - L.x) / (L.r * 0.6)); if (w > 0) { const cc = L.col.split(','); r += cc[0] * w; g += cc[1] * w; b += cc[2] * w; wsum += w; } }
+  if (wsum < 0.18) return [gr, gg, gb];
+  const m = Math.min(1, wsum * 0.9 + 0.2);
+  return [Math.round(lerp(gr, r / wsum, m)), Math.round(lerp(gg, g / wsum, m)), Math.round(lerp(gb, b / wsum, m))];
+}
+
+// systematic directional ground shadow used by EVERY grounded object (drawn to the world ctx).
+// A pre-rendered soft black sprite gives the soft edge with no per-frame blur filter.
+function groundShadow(e, wx, halfW, objH) {
+  const c = e.ctx, g = e.gy, sp = softRadial('0,0,0');
+  const cands = e.lights.map(L => ({ L, w: L.I * (1 - Math.abs(wx - L.x) / (L.r * 1.2)) })).filter(o => o.w > 0.06).sort((a, b) => b.w - a.w).slice(0, 2);
+  c.save();
+  if (!cands.length) { c.globalAlpha = 0.32; const rX = halfW * 1.25, rY = halfW * 0.3; c.drawImage(sp, wx - rX, g + 4 - rY, rX * 2, rY * 2); c.restore(); return; }
+  for (const { L, w } of cands) {
+    const dir = wx >= L.x ? 1 : -1, dist = Math.abs(wx - L.x), vert = Math.max(24, g - L.y);
+    const len = Math.min(objH * 2.2, halfW + objH * (dist / vert) * 0.9 + objH * 0.2);
+    const rX = halfW * 0.7 + len * 0.55, rY = halfW * 0.3;
+    c.globalAlpha = Math.min(0.42, 0.32 * w);
+    c.drawImage(sp, wx + dir * len * 0.45 - rX, g + 4 - rY, rX * 2, rY * 2);
+  }
+  c.restore();
+}
+
+// the lighting pass body: surface + air glow, then the wet-floor reflection, per light
+function drawLightLayer(e) {
+  for (const L of e.lights) {
+    if (L.glow) { if (L.surface) surfaceGlow(e, L); airGlow(e, L); }
+    if (L.refl) floorRefl(e, L);
+  }
+}
+
+__exports.addLight = addLight;
+__exports.streak = streak;
+__exports.dominantLight = dominantLight;
+__exports.litTint = litTint;
+__exports.litColor = litColor;
+__exports.groundShadow = groundShadow;
+__exports.drawLightLayer = drawLightLayer;
+};
+__mod["src/scene/manager.js"] = function(__exports, __req){
+// MANAGER — the flow controller. Owns the camera, the compositor, the list of scenes, the
+// transition state machine, the establishing shot, narration (captions + fx), and the scene
+// navigator. Drives one tick: update the world, then render it. Render runs every frame (so
+// the scene plays behind the intro); narration + transitions only run once started.
+const { Camera } = __req("src/engine/camera.js");
+const { Compositor } = __req("src/engine/compositor.js");
+const { Scene } = __req("src/scene/scene.js");
+const { Audio2 } = __req("src/assets/audio.js");
+const { lerp, smooth01 } = __req("src/engine/math.js");
+const { ANIM } = __req("src/style/palette.js");
+
+class Manager {
+  constructor(engine) {
+    this.engine = engine;
+    this.camera = new Camera();
+    this.compositor = new Compositor(engine);
+    this.scenes = []; this.idx = 0;
+    this.started = false; this._startReq = false;
+    this.transState = null; this.transAlpha = 0; this.cardT = 0; this.pending = 0; this.opening = false;
+    this.finishing = false; this.ended = false; this.endStart = 0;   // the story has run its last act
+    this.fadeT = null; this.fadeDur = 0.7;                            // beat crossfade: dissolve the old frame into the new line
+    this.seen = []; this.navShown = false;
+    this.dom = {};
+    engine.frame.flow = this;                         // the transition pass reads e.flow
+    engine.onResize = () => this.scenes.forEach(s => s.invalidateGeometry());
+  }
+
+  attachDom(dom) { this.dom = dom; }                  // { cap, tag, tap, nav, onNav }
+  get current() { return this.scenes[this.idx]; }
+
+  loadStory(story) {
+    this.story = story;
+    this.scenes = (story.scenes || []).map(d => new Scene(d, this.camera));
+    this.scenes.forEach(s => s.buildContent());
+    this.idx = 0; this.transState = null; this.transAlpha = 0; this.camera.reset();
+    this.finishing = false; this.ended = false;
+    if (this.started) { this.current.onEnter(this.engine.frame); this.showTag(); }
+    this.buildSceneNav();
+  }
+
+  requestStart() { this._startReq = true; }
+
+  tick(e) {
+    e.scene = this.current;
+    this.current.ensureGeometry(e);
+    this.camera.update(e.dt);
+
+    if (this._startReq && !this.started) { this._startReq = false; this.doStart(e); }
+    if (this.started) { this.runFlow(e); this.runEstablishing(e); }
+    e.scene = this.current;   // runFlow may have switched scenes: update + render the SAME (new) scene, so the old scene is not re-drawn (which was restarting its walk-loop into the next act)
+    e.scene.update(e.dt, e);
+
+    this.compositor.render(e);
+    this.applyOverlayVisibility();
+  }
+
+  doStart(e) {
+    this.started = true; this.seen = []; this.navShown = false; this.opening = true;
+    this.finishing = false; this.ended = false;
+    this.transAlpha = 1; this.enterScene(0, e); this.transState = 'card'; this.cardT = 0;
+  }
+
+  // establishing shot: open wide and push in to the framed view. The zoom goes below 1 (a true
+  // zoom-in), so the full-screen washes (sky, wet floor, lightning) overscan via e.coverRect()
+  // to cover the wider field, leaving no black borders.
+  runEstablishing(e) {
+    if (!this.opening) return;
+    const ob = e.sceneT();
+    this.camera.focal = { x: e.W / 2, y: e.gy - 70 * e.unit };
+    this.camera.zoom = lerp(0.86, 1, smooth01(ob / 3.4));
+    if (ob > 3.6) { this.opening = false; this.camera.zoom = 1; }
+  }
+
+  runFlow(e) {
+    if (this.transState === 'in') {
+      this.transAlpha += e.dt * ANIM.transIn;
+      if (this.transAlpha >= 1) {
+        this.transAlpha = 1;
+        if (this.finishing) { this.finishing = false; this.ended = true; this.transState = null; this.transAlpha = 0; this.revealNav(); Audio2.whoosh(); }  // last act done: cut to the black THE END screen + scene picker
+        else { this.enterScene(this.pending, e); this.transState = 'card'; this.cardT = 0; }
+      }
+    } else if (this.transState === 'card') {
+      this.cardT += e.dt;
+      if (this.cardT >= ANIM.cardHold) { this.current.sceneStart = e.t; this.showLine(e); this.showTag(); this.transState = 'out'; }
+    } else if (this.transState === 'out') {
+      this.transAlpha -= e.dt * ANIM.transOut;
+      if (this.transAlpha <= 0) { this.transAlpha = 0; this.transState = null; }
+    }
+  }
+
+  enterScene(idx, e) {
+    this.idx = idx; this.current.ensureGeometry(e); this.current.onEnter(e);
+    this.fadeT = null;                                  // no stale beat-crossfade bleeding into a new act
+    Audio2.scene(this.current.data); Audio2.whoosh();   // swap ambience + play the swoosh as the act-name card renders
+    if (!this.seen.includes(idx)) this.seen.push(idx);
+    if (this.navShown) this.highlightNav();
+  }
+
+  // the scene picker, revealed on THE END so any act can be replayed
+  revealNav() { this.navShown = true; if (this.dom.nav) this.dom.nav.classList.add('show'); this.highlightNav(); }
+  highlightNav() { if (this.dom.nav) this.dom.nav.querySelectorAll('button').forEach(b => b.classList.toggle('cur', +b.dataset.s === this.idx)); }
+
+  advance() {
+    if (!this.started || this.transState || this.ended) return;
+    const s = this.current, e = this.engine.frame;
+    if (s.lineIdx < s.data.script.length - 1) { this.engine.snapshot(); this.fadeT = e.t; Audio2.duck(this.fadeDur); s.lineIdx++; this.showLine(e); return; }   // crossfade the beat + fade any lingering sfx with it
+    Audio2.duck(0.8);                                                                                       // act change: fade ringing sfx out across the wipe (loops fade in scene())
+    if (this.idx < this.scenes.length - 1) { this.pending = this.idx + 1; this.transState = 'in'; }         // next act
+    else { this.finishing = true; this.endStart = e.t; this.transState = 'in'; }                            // last act: wipe to THE END
+  }
+
+  // replay any act. Works mid-story and from THE END (clears the ending so colour + play resume).
+  jumpTo(idx) {
+    if (!this.started || this.transState) return;
+    if (idx === this.idx && !this.ended) return;
+    this.ended = false; this.finishing = false;
+    Audio2.duck(0.8);
+    this.pending = idx; this.transState = 'in';
+  }
+
+  holdLightning() { if (this.started) this.current.lightning = 1; }
+  drag(dx) { this.camera.dragBy(dx); }
+
+  showLine(e) {
+    const s = this.current, line = s.data.script[s.lineIdx]; s.lineStart = e.t;
+    const cap = this.dom.cap;
+    if (cap) { cap.style.opacity = '0'; setTimeout(() => { cap.innerHTML = line.text; cap.style.opacity = '1'; }, 170); }
+    for (const fx of (line.fx || [])) {
+      if (fx === 'muzzle') { s.flags.muzzle = 1.0; s.fireGun(e); this.camera.shake(6); }
+      else if (fx === 'blood') { s.flags.blood = true; s.flags._bloodT = e.t; }
+      else if (fx === 'lightning') { s.lightning = Math.max(s.lightning, 0.8); setTimeout(() => Audio2.thunder(), 200 + Math.random() * 400); }
+      else if (fx === 'hammer') Audio2.gunCock();   // revolver hammer pull (cocking the gun)
+      else if (fx === 'lighter') { Audio2.lidOpen(); setTimeout(() => Audio2.flint(), 650); }
+    }
+  }
+
+  showTag() { const t = this.dom.tag; if (!t) return; t.innerHTML = this.current.title; t.style.opacity = '0.85'; clearTimeout(this._tag); this._tag = setTimeout(() => t.style.opacity = '0', 2600); }
+
+  applyOverlayVisibility() {
+    const covering = this.transState === 'in' || this.transState === 'card';
+    if (this.dom.cap && (covering || this.ended)) this.dom.cap.style.opacity = '0';   // no caption over THE END
+    if (this.dom.tap) this.dom.tap.style.opacity = (covering || this.ended) ? '0' : (this.started ? '1' : '0');
+  }
+
+  buildSceneNav() {
+    const nav = this.dom.nav; if (!nav) return;
+    nav.innerHTML = ''; nav.classList.remove('show'); this.navShown = false;
+    (this.scenes || []).forEach((s, i) => {
+      const b = document.createElement('button'); b.dataset.s = i;
+      b.innerHTML = (s.data.title || ('SCENE ' + i)).replace(/&nbsp;/g, ' ');
+      b.addEventListener('click', () => this.jumpTo(i));
+      nav.appendChild(b);
+    });
+  }
+}
+
+__exports.Manager = Manager;
+};
+__mod["src/engine/camera.js"] = function(__exports, __req){
+// CAMERA — the single owner of how the world maps to the screen: a horizontal "look"
+// offset (drag parallax), an establishing zoom, and a decaying shake. Objects keep their
+// own parallax factor `par`; the camera supplies the shared `look` they multiply by.
+const { ANIM } = __req("src/style/palette.js");
+
+class Camera {
+  constructor() {
+    this.look = 0; this.lookTarget = 0;     // drag parallax (-100..100)
+    this.zoom = 1; this.focal = { x: 0, y: 0 };
+    this.shakeAmt = 0; this.shx = 0; this.shy = 0;
+  }
+  dragBy(dx) { this.lookTarget = Math.max(-100, Math.min(100, this.lookTarget + dx * 0.5)); }
+  shake(a) { this.shakeAmt = Math.max(this.shakeAmt, a); }
+  reset() { this.look = this.lookTarget = 0; this.zoom = 1; this.shakeAmt = 0; }
+
+  update(dt) {
+    this.look += (this.lookTarget - this.look) * ANIM.parallaxLerp;
+    if (this.shakeAmt > 0.001) {
+      this.shx = (Math.random() - 0.5) * this.shakeAmt; this.shy = (Math.random() - 0.5) * this.shakeAmt;
+      this.shakeAmt = Math.max(0, this.shakeAmt - dt * 60);
+    } else { this.shx = this.shy = this.shakeAmt = 0; }
+  }
+
+  // apply zoom (around the focal point) + shake to a context; caller wraps in save/restore
+  apply(ctx) {
+    if (this.shx || this.shy) ctx.translate(this.shx, this.shy);
+    if (this.zoom !== 1) { ctx.translate(this.focal.x, this.focal.y); ctx.scale(this.zoom, this.zoom); ctx.translate(-this.focal.x, -this.focal.y); }
+  }
+}
+
+__exports.Camera = Camera;
+};
+__mod["src/engine/compositor.js"] = function(__exports, __req){
+// COMPOSITOR — the ordered render. Draws the world to the main canvas (camera-applied), the
+// additive light layer to the offscreen buffer, composites them, then weather over the top and
+// the screen-space post + transition. Two buffers keep the light layer separable for the look.
+const { sky } = __req("src/render/passes/sky.js");
+const { lighting } = __req("src/render/passes/lighting.js");
+const { weather } = __req("src/render/passes/weather.js");
+const { post } = __req("src/render/passes/post.js");
+const { transition } = __req("src/render/passes/transition.js");
+
+class Compositor {
+  constructor(engine) { this.engine = engine; }
+
+  render(e) {
+    const eng = this.engine, main = e.main, light = e.light, cam = e.scene.camera;
+    e.lights = [];
+
+    // THE END: a black screen with grain + vignette + the title (no scene drawn)
+    if (e.flow && e.flow.ended) {
+      eng.setWorldTransform(main); e.ctx = main;
+      main.fillStyle = '#050505'; main.fillRect(0, 0, e.W, e.H);
+      post(e); transition(e);
+      return;
+    }
+
+    // WORLD → main, camera-applied (the establishing zoom stays >= 1, so the world always overfills)
+    eng.setWorldTransform(main);
+    main.fillStyle = '#000'; main.fillRect(0, 0, e.W, e.H);
+    main.save(); cam.apply(main); e.ctx = main;
+    sky(e);                       // sky + moon (moon registers its light)
+    e.scene.collectLights(e);     // declared lights + emissive props → e.lights (before objects)
+    e.scene.drawBack(e);          // distant elements (e.g. a searchlight beam) behind the backdrop
+    e.scene.drawBackdrop(e);
+    e.scene.drawFixtures(e);      // the visible lamp/neon/bulb fixtures
+    e.scene.drawObjects(e);       // props/actors/movers/effects (depth order) + brass
+    main.restore();
+
+    // LIGHT BUFFER → camera-applied
+    eng.setWorldTransform(light);
+    light.clearRect(0, 0, e.W, e.H);
+    light.save(); cam.apply(light); e.ctx = light;
+    lighting(e);                  // halos + reflections for every light + static neon reflections
+    e.scene.drawLightExtras(e);   // ripples
+    light.restore();
+
+    // composite the light layer additively onto the world (device pixels, 1:1)
+    eng.setDeviceTransform(main);
+    main.globalCompositeOperation = 'lighter';
+    main.drawImage(eng.lightCv, 0, 0);
+    main.globalCompositeOperation = 'source-over';
+
+    // WEATHER over the lit scene, camera-applied
+    eng.setWorldTransform(main); main.save(); cam.apply(main); e.ctx = main;
+    weather(e);
+    main.restore();
+
+    // POST + TRANSITION — screen space, no camera
+    eng.setWorldTransform(main); e.ctx = main;
+    post(e);
+    transition(e);
+
+    // BEAT CROSSFADE — dissolve the frozen previous frame out, so advancing a line never pops
+    const f = e.flow;
+    if (f && f.fadeT != null && !f.transState && !f.ended) {
+      const a = 1 - (e.t - f.fadeT) / f.fadeDur;
+      if (a <= 0) f.fadeT = null;
+      else { eng.setDeviceTransform(main); main.save(); main.globalAlpha = a; main.drawImage(eng.snapCv, 0, 0); main.restore(); }
+    }
+  }
+}
+
+__exports.Compositor = Compositor;
+};
+__mod["src/render/passes/sky.js"] = function(__exports, __req){
+// SKY PASS — sky gradient, faint stars, and the moon. The moon is a full-moon DISC only; its
+// halo is real light from the lighting system (a registered light with glow), not a painted
+// gradient, so the bloom composites like every other source. It also lends a faint cool rim
+// (large, weak influence) and a long faint floor reflection.
+const { PALETTE } = __req("src/style/palette.js");
+const { TWO_PI } = __req("src/engine/math.js");
+
+let _skyGrad = null, _skyH = 0;   // the sky gradient is constant per height: build once, reuse
+
+function sky(e) {
+  const c = e.ctx, scene = e.scene, R = e.coverRect();
+  if (!_skyGrad || _skyH !== e.H) {
+    _skyGrad = c.createLinearGradient(0, 0, 0, e.H);
+    _skyGrad.addColorStop(0, PALETTE.skyTop); _skyGrad.addColorStop(0.55, PALETTE.skyMid); _skyGrad.addColorStop(1, PALETTE.skyLow);
+    _skyH = e.H;
+  }
+  c.fillStyle = _skyGrad; c.fillRect(R.x, R.y, R.w, R.h);
+  c.fillStyle = 'rgba(200,210,230,0.5)';
+  for (let i = 0; i < 40; i++) { const sx = (i * 197.3) % e.W, sy = (i * 91.7) % (e.H * 0.4); if ((i * 13) % 5 === 0) c.fillRect(sx, sy, 1.4, 1.4); }
+
+  if (scene.indoor) return;   // no sky/moon indoors (the room wall would occlude it anyway)
+  const m = scene.moon || { x: 0.78, y: 0.18 }, mx = m.x * e.W + scene.camera.look * 0.1, my = m.y * e.H, mr = 34;
+
+  // the moon disc: a soft radially-shaded body with a few faint craters
+  const md = c.createRadialGradient(mx - mr * 0.32, my - mr * 0.32, mr * 0.15, mx, my, mr);
+  md.addColorStop(0, '#f6f8fc'); md.addColorStop(0.65, PALETTE.moon); md.addColorStop(1, '#bcc4d4');
+  c.fillStyle = md; c.beginPath(); c.arc(mx, my, mr, 0, TWO_PI); c.fill();
+  c.fillStyle = 'rgba(116,128,152,0.55)';
+  c.beginPath(); c.arc(mx - 9, my - 5, 6, 0, TWO_PI); c.arc(mx + 11, my + 9, 8, 0, TWO_PI); c.arc(mx + 5, my - 13, 3.5, 0, TWO_PI); c.arc(mx - 13, my + 11, 4, 0, TWO_PI); c.fill();
+  c.strokeStyle = 'rgba(255,255,255,0.18)'; c.lineWidth = 1; c.beginPath(); c.arc(mx, my, mr, 0, TWO_PI); c.stroke();
+
+  // halo as a ring, painted on the WORLD layer (additive) so the backdrop occludes it exactly like
+  // the disc: a centred moon glows through the alley's sky gap, a moon behind a wall is hidden.
+  c.save(); c.globalCompositeOperation = 'lighter';
+  const hr = 94, hg = c.createRadialGradient(mx, my, 0, mx, my, hr);
+  hg.addColorStop(0, 'rgba(210,222,245,0)'); hg.addColorStop(0.36, 'rgba(210,222,245,0)');
+  hg.addColorStop(0.5, 'rgba(210,222,245,0.34)'); hg.addColorStop(0.74, 'rgba(210,222,245,0.13)'); hg.addColorStop(1, 'rgba(210,222,245,0)');
+  c.fillStyle = hg; c.beginPath(); c.arc(mx, my, hr, 0, TWO_PI); c.fill(); c.restore();
+
+  // register only as influence (cool rim tint) + a faint floor reflection. The glow is the ring
+  // above, drawn in the world so it can be occluded, so this light carries no light-buffer glow.
+  if (my < e.gy) e.addLight({ x: mx, y: my, col: '210,222,245', r: e.H * 0.62, I: 0.3, glow: false, reflW: 26, reflI: 0.13, reflLen: 0.8 });
+}
+
+__exports.sky = sky;
+};
+__mod["src/render/passes/lighting.js"] = function(__exports, __req){
+// LIGHTING PASS — paints the additive light buffer: every registered light's halo + wet-floor
+// reflection, plus the scene's static neon reflections (the backdrop `reflect` data, which v1
+// declared but never drew). The compositor then composites this buffer onto the scene.
+const { drawLightLayer, streak } = __req("src/render/lighting.js");
+const { cssRgb } = __req("src/engine/math.js");
+
+function lighting(e) {
+  // static off-screen neon reflections on the wet floor (skyline backdrop `reflect`)
+  const bd = e.scene.data.backdrop, refl = bd && bd.reflect;
+  if (refl) for (const r of refl) streak(e, r.x * e.W + e.scene.camera.look * 0.5, cssRgb(r.color), 0.42, 16, (e.H - e.gy) * 0.7);
+  drawLightLayer(e);
+}
+
+__exports.lighting = lighting;
+};
+__mod["src/render/passes/weather.js"] = function(__exports, __req){
+// WEATHER PASS — rain (coloured by the light each drop falls through, or bloody on a blood-rain
+// scene) and lightning (flash + bolt). Outdoor only; the scene decides `indoor`.
+const { ANIM } = __req("src/style/palette.js");
+const { rand32 } = __req("src/engine/math.js");
+
+function weather(e) {
+  if (e.scene.indoor) { e.scene.lightning = 0; return; }
+  rain(e, e.scene.data.bloodRain);
+  if (e.scene._boltSeed != null) bolt(e, e.scene._boltSeed);
+  if (e.scene.lightning > 0) { const c = e.ctx, R = e.coverRect(); c.fillStyle = `rgba(255,255,255,${e.scene.lightning * 0.5})`; c.fillRect(R.x, R.y, R.w, R.h); }
+}
+
+function rain(e, bloodRain) {
+  const c = e.ctx, drops = e.drops, drift = [], lit = !bloodRain && e.lights.length > 0;
+  c.lineWidth = bloodRain ? 1.6 : 1.1;   // blood rain falls heavier
+  c.strokeStyle = bloodRain ? `rgba(168,8,16,${ANIM.rainAlpha + 0.22})` : `rgba(180,190,210,${ANIM.rainAlpha})`;
+  c.beginPath();
+  for (let i = 0; i < drops.length; i++) {
+    const d = drops[i]; d.y += d.sp * e.dt * 60; d.x -= d.sp * e.dt * 21;
+    if (d.y > e.H) { d.y = -10; d.x = Math.random() * (e.W + 200) - 50; }
+    let bi = -1;
+    if (lit) { let bw = 0.3; for (let k = 0; k < e.lights.length; k++) { const L = e.lights[k]; const w = L.I * (1 - Math.hypot(d.x - L.x, (d.y - L.y) * 0.6) / L.r); if (w > bw) { bw = w; bi = k; } } }
+    drift[i] = bi;
+    if (bi < 0) { c.moveTo(d.x, d.y); c.lineTo(d.x - d.len * 0.35, d.y + d.len); }
+  }
+  c.stroke();
+  if (lit) for (let k = 0; k < e.lights.length; k++) {
+    c.strokeStyle = `rgba(${e.lights[k].col},${ANIM.rainAlpha + 0.1})`; c.beginPath();
+    for (let i = 0; i < drops.length; i++) if (drift[i] === k) { const d = drops[i]; c.moveTo(d.x, d.y); c.lineTo(d.x - d.len * 0.35, d.y + d.len); }
+    c.stroke();
+  }
+}
+
+function bolt(e, seed) {
+  const c = e.ctx, rng = rand32(seed); let x = e.W * (0.2 + rng() * 0.6), y = 0;
+  c.save(); c.strokeStyle = 'rgba(255,255,255,0.95)'; c.lineWidth = 2.5; c.shadowColor = '#cfe0ff'; c.shadowBlur = 18; c.lineCap = 'round'; c.beginPath(); c.moveTo(x, y);
+  const segs = 9 + (rng() * 5 | 0);
+  for (let i = 0; i < segs; i++) { x += (rng() - 0.5) * 70; y += e.H * 0.55 / segs; c.lineTo(x, y); if (rng() < 0.3) { c.moveTo(x, y); c.lineTo(x + (rng() - 0.5) * 60, y + 30 + rng() * 40); c.moveTo(x, y); } }
+  c.stroke(); c.restore(); c.shadowBlur = 0;
+}
+
+__exports.weather = weather;
+};
+__mod["src/render/passes/post.js"] = function(__exports, __req){
+// POST PASS — the screen-space finish: film grain + vignette, drawn with no camera transform.
+// Grain is subtle on the scenes (ANIM.grainAlpha) and heavier on the black THE END screen
+// (ANIM.grainAlphaEnd) for an aged-print feel. The central place to evolve the global grade.
+const { ANIM } = __req("src/style/palette.js");
+
+let _vig = null, _vigKey = '';   // vignette gradient cached per size + strength
+
+function post(e) {
+  const c = e.ctx, ended = !!(e.flow && e.flow.ended);
+
+  if (e.grain) {
+    c.globalAlpha = ended ? ANIM.grainAlphaEnd : ANIM.grainAlpha;
+    const gx = -Math.random() * 80, gy = -Math.random() * 80;
+    for (let yy = gy; yy < e.H; yy += 220) for (let xx = gx; xx < e.W; xx += 220) c.drawImage(e.grain, xx, yy);
+    c.globalAlpha = 1;
+  }
+
+  const vig = ended ? Math.min(0.92, ANIM.vignette + 0.16) : ANIM.vignette;
+  const key = `${e.W}x${e.H}:${vig}`;
+  if (_vigKey !== key) {
+    _vig = c.createRadialGradient(e.W / 2, e.H / 2, Math.min(e.W, e.H) * 0.3, e.W / 2, e.H / 2, Math.max(e.W, e.H) * 0.75);
+    _vig.addColorStop(0, 'rgba(0,0,0,0)'); _vig.addColorStop(1, `rgba(0,0,0,${vig})`); _vigKey = key;
+  }
+  c.fillStyle = _vig; c.fillRect(0, 0, e.W, e.H);
+}
+
+__exports.post = post;
+};
+__mod["src/render/passes/transition.js"] = function(__exports, __req){
+// TRANSITION PASS — the comic-panel ink wipe between scenes and the act-name title card shown
+// over the covered frame. Screen-space; the scene/manager drives the state machine.
+const { TWO_PI, rand32 } = __req("src/engine/math.js");
+const { ANIM } = __req("src/style/palette.js");
+
+function transition(e) {
+  const f = e.flow;
+  if (f.transState === 'card') { panelWipe(e, 1); drawCard(e); }
+  else if (f.transAlpha > 0) panelWipe(e, f.transAlpha);
+  if (f.finishing || f.ended) drawEnd(e);   // rises over the closing wipe and stays through the reveal
+}
+
+// the closing "THE END" title, fading in over the frozen, desaturated final scene
+function drawEnd(e) {
+  const c = e.ctx, a = Math.min(1, (e.t - e.flow.endStart) / 1.6);
+  c.save(); c.globalAlpha = a; c.fillStyle = '#ece6d6'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.font = `600 ${Math.round(Math.min(e.W, e.H) * 0.085)}px "Oswald",sans-serif`;
+  if ('letterSpacing' in c) c.letterSpacing = '0.42em';
+  c.fillText('THE END', e.W / 2, e.H / 2);
+  if ('letterSpacing' in c) c.letterSpacing = '0px';
+  c.restore();
+}
+
+// three torn-edged black bars slide in from alternating sides
+function panelWipe(e, p) {
+  const c = e.ctx, W = e.W, H = e.H;
+  c.save();
+  const bars = [{ y: 0, h: 0.40 }, { y: 0.38, h: 0.30 }, { y: 0.66, h: 0.40 }];
+  bars.forEach((b, i) => {
+    const fromLeft = i % 2 === 0, bw = W * Math.min(1, p * 1.25), bx = fromLeft ? 0 : W - bw;
+    c.fillStyle = '#000'; c.fillRect(bx, b.y * H, bw, b.h * H);
+    if (bw > 2 && bw < W) {
+      const edge = fromLeft ? bw : W - bw, rng = rand32(i * 99 + Math.floor(p * 40));
+      c.fillStyle = '#000';
+      for (let k = 0; k < 10; k++) { const yy = b.y * H + rng() * b.h * H, rr = 2 + rng() * 9; c.beginPath(); c.arc(edge + (fromLeft ? -rr : rr), yy, rr, 0, TWO_PI); c.fill(); }
+      c.strokeStyle = 'rgba(255,255,255,0.06)'; c.lineWidth = 2; c.beginPath(); c.moveTo(edge, b.y * H); c.lineTo(edge, (b.y + b.h) * H); c.stroke();
+    }
+  });
+  c.restore();
+}
+
+function drawCard(e) {
+  const c = e.ctx, f = e.flow, title = (e.scene.data.title || '').replace(/&nbsp;/g, ' '), hold = ANIM.cardHold;
+  let a = 1; if (f.cardT < 0.3) a = f.cardT / 0.3; else if (f.cardT > hold - 0.3) a = Math.max(0, (hold - f.cardT) / 0.3);
+  c.save(); c.globalAlpha = a; c.fillStyle = '#f3f0e6'; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.font = `600 ${Math.round(Math.min(e.W, e.H) * 0.07)}px "Oswald",sans-serif`;
+  if ('letterSpacing' in c) c.letterSpacing = '0.32em';
+  c.fillText(title, e.W / 2, e.H / 2);
+  if ('letterSpacing' in c) c.letterSpacing = '0px';
+  c.restore();
+}
+
+__exports.transition = transition;
+};
+__mod["src/scene/scene.js"] = function(__exports, __req){
+// SCENE — one act. Owns its built content (backdrop, lights, objects) and its per-scene
+// runtime (flags, current line, timing, weather, brass + ripples). The Manager drives the
+// flow between scenes; the Scene just knows how to build, light, update, and draw itself.
+const { create, createBackdrop } = __req("src/objects/registry.js");
+const { Shells } = __req("src/library/effects/shells.js");
+const { Ripples } = __req("src/library/effects/ripples.js");
+const { Audio2 } = __req("src/assets/audio.js");
+const { ANIM } = __req("src/style/palette.js");
+
+class Scene {
+  constructor(data, camera) {
+    this.data = data; this.camera = camera;
+    this.flags = {}; this.lineIdx = 0; this.sceneStart = 0; this.lineStart = 0;
+    this.lightning = 0; this.nextBolt = 4; this._boltSeed = null;
+    this.shells = new Shells(); this.ripples = new Ripples();
+    this.backdrop = null; this.lightNodes = []; this.objects = [];
+  }
+
+  get title() { return this.data.title; }
+  get ground() { return this.data.ground; }
+  get keyLight() { return this.data.keyLight || { x: 0.3, y: 0.3 }; }
+  get moon() { return this.data.moon; }
+  get hideMoon() { return this.data.hideMoon != null ? this.data.hideMoon : !!(this.backdrop && this.backdrop.hideMoon); }
+  get indoor() { return this.data.indoor != null ? this.data.indoor : !!(this.backdrop && this.backdrop.indoor); }
+
+  buildContent() {
+    const bd = this.data.backdrop;
+    this.backdrop = bd ? createBackdrop(bd.type, this.data) : null;
+    this.lightNodes = (this.data.lights || []).map(l => create(l.type, l)).filter(Boolean);
+    this.objects = (this.data.cast || []).map(p => create(p.type, p)).filter(Boolean);
+  }
+  // backdrop geometry depends on the viewport, so it is (re)built lazily once a frame exists
+  ensureGeometry(e) { if (this.backdrop && this.backdrop.build && !this.backdrop.geom) this.backdrop.geom = this.backdrop.build(e); }
+  invalidateGeometry() { if (this.backdrop) this.backdrop.geom = null; }
+
+  onEnter(e) { this.flags = {}; this.lineIdx = 0; this.sceneStart = e.t; this.lineStart = e.t; this.shells.clear(); this.ripples.clear(); }
+
+  visible(o) {
+    if (o.onFlag && !this.flags[o.onFlag]) return false;
+    if (o.hideOnFlag && this.flags[o.hideOnFlag]) return false;
+    return true;
+  }
+
+  collectLights(e) {
+    for (const L of this.lightNodes) if (L.emitLight) L.emitLight(e);
+    for (const o of this.objects) if (this.visible(o) && o.emitLight) o.emitLight(e);
+  }
+  drawBackdrop(e) { if (this.backdrop && this.backdrop.draw) this.backdrop.draw(e); }
+  drawFixtures(e) { for (const L of this.lightNodes) if (L.draw) L.draw(e); }
+  // visible objects of a layer, back-to-front by depth
+  _layer(layer) { return this.objects.filter(o => this.visible(o) && (o.layer || 'mid') === layer).sort((a, b) => (a.depth || 0) - (b.depth || 0)); }
+  drawBack(e) { for (const o of this._layer('back')) o.draw(e); }   // distant elements, behind the backdrop
+  drawObjects(e) {
+    for (const o of this._layer('mid')) o.draw(e);
+    this.shells.draw(e);
+  }
+  drawLightExtras(e) { this.ripples.draw(e); }   // additive ripples onto the light buffer
+
+  update(dt, e) {
+    if (this.flags.muzzle > 0) this.flags.muzzle = Math.max(0, this.flags.muzzle - dt * 2.2);
+    for (const o of this.objects) if (o.update) o.update(dt, e);
+    this.shells.update(dt, e); this.ripples.update(dt, e);
+    this._boltSeed = null;
+    if (!this.indoor) {
+      if (Math.random() < 0.85) this.ripples.spawn(e);
+      this.nextBolt -= dt;
+      if (this.nextBolt <= 0) { this.lightning = Math.max(this.lightning, 0.9); if (Math.random() < 0.7) this._boltSeed = (performance.now() | 0); this.nextBolt = ANIM.boltGap[0] + Math.random() * (ANIM.boltGap[1] - ANIM.boltGap[0]); }
+      if (this.lightning > 0) this.lightning = Math.max(0, this.lightning - dt * 3);
+    } else this.lightning = 0;
+  }
+
+  // two shots: each its own gunshot + a brass casing ejected from the gunman in the cast
+  fireGun(e) {
+    const g = this.objects.find(o => o.type === 'gunman');
+    const shot = () => { Audio2.gun(); if (g) { const s = e.scaleOf(g), x = e.X(g) + 48 * s, y = e.gy - 84 * s; this.shells.spawn(x, y, s, e.gy + 6); } };
+    shot(); setTimeout(shot, 230);
+  }
+
+  walkSound(on) { Audio2.setLoop('footstep', on); }
+}
+
+__exports.Scene = Scene;
+};
+__mod["src/objects/registry.js"] = function(__exports, __req){
+// REGISTRY — name → factory for every library object. A story names a `type`; the scene asks
+// the registry to build the right Node subclass with the story params and the library's draw /
+// update / emitLight hooks attached. Add a type once; every story can then place it.
+const { Node } = __req("src/objects/node.js");
+const { Actor } = __req("src/objects/actor.js");
+const { Mover } = __req("src/objects/mover.js");
+const { Prop } = __req("src/objects/prop.js");
+const { Effect } = __req("src/objects/effect.js");
+const { Light } = __req("src/objects/light.js");
+
+const BASES = { node: Node, actor: Actor, mover: Mover, prop: Prop, effect: Effect, light: Light };
+const registry = new Map();
+
+// methods: { draw, update?, emitLight?, castsShadow?, depth? } as plain functions (use `this`)
+function define(name, kind, methods = {}) { registry.set(name, { kind, methods }); }
+const defineActor = (name, draw, m = {}) => define(name, 'actor', { draw, ...m });
+const defineMover = (name, draw, m = {}) => define(name, 'mover', { draw, ...m });
+const defineProp = (name, draw, m = {}) => define(name, 'prop', { draw, ...m });
+const defineEffect = (name, draw, m = {}) => define(name, 'effect', { draw, ...m });
+const defineLight = (name, m) => define(name, 'light', m);
+
+function has(name) { return registry.has(name); }
+
+// Backdrops are not Nodes: each is a factory(data) → { indoor?, build(e)→geom, draw(e) }.
+const backdrops = new Map();
+function defineBackdrop(name, factory) { backdrops.set(name, factory); }
+function createBackdrop(name, data) { const f = backdrops.get(name); if (!f) { console.warn('Inkfall: unknown backdrop', name); return null; } return f(data); }
+
+function create(name, params = {}) {
+  const spec = registry.get(name);
+  if (!spec) { console.warn('Inkfall: unknown object type', name); return null; }
+  const Base = BASES[spec.kind] || Node;
+  const obj = new Base(params);
+  const m = spec.methods;
+  if (m.draw) obj.draw = m.draw;
+  if (m.update) obj.update = m.update;
+  if (m.emitLight) obj.emitLight = m.emitLight;
+  if (m.castsShadow != null) obj.castsShadow = m.castsShadow;
+  if (m.depth != null && params.depth == null) obj.depth = m.depth;
+  if (m.layer != null && params.layer == null) obj.layer = m.layer;
+  return obj;
+}
+
+__exports.define = define;
+__exports.defineActor = defineActor;
+__exports.defineMover = defineMover;
+__exports.defineProp = defineProp;
+__exports.defineEffect = defineEffect;
+__exports.defineLight = defineLight;
+__exports.has = has;
+__exports.defineBackdrop = defineBackdrop;
+__exports.createBackdrop = createBackdrop;
+__exports.create = create;
+};
+__mod["src/objects/node.js"] = function(__exports, __req){
+// NODE — the base for everything placed in a scene. Holds a normalized transform and the
+// optional lifecycle hooks (update, draw, emitLight). Specializations (Actor, Mover, Prop,
+// Effect, Light) stay thin on purpose; the design is built to grow (e.g. an Actor clip system)
+// without changing this contract. `e` passed to hooks is the per-frame Frame facade.
+class Node {
+  constructor(params = {}) {
+    this.x = 0.5; this.par = 0.5; this.scale = 1; this.depth = 0;
+    this.layer = 'mid';                   // 'back' = behind the backdrop (distant), 'mid' = with the cast
+    Object.assign(this, params);          // story params (x, y, scale, par, dy, flip, seed, ...)
+    this.kind = 'node';
+    this.castsShadow = false;
+  }
+  update(dt, e) {}     // advance simulation/animation state
+  emitLight(e) {}      // register lights via e.addLight({...})
+  draw(e) {}           // paint to e.ctx (the world target)
+}
+
+__exports.Node = Node;
+};
+__mod["src/objects/actor.js"] = function(__exports, __req){
+// ACTOR — a character that moves (humans, animals). For now motion is driven by scene timing
+// (e.lineIdx / e.beat) plus per-actor params, read inside draw. This is the planned home for a
+// real clip/timeline animation system later; the Node contract will not need to change.
+const { Node } = __req("src/objects/node.js");
+
+class Actor extends Node {
+  constructor(params) { super(params); this.kind = 'actor'; this.castsShadow = true; }
+}
+
+__exports.Actor = Actor;
+};
+__mod["src/objects/mover.js"] = function(__exports, __req){
+// MOVER — a kinematic object (cars, trains). May carry a `walk` path (story-driven glide) or a
+// velocity. Kept simple now; a path/physics follower can be added here later.
+const { Node } = __req("src/objects/node.js");
+
+class Mover extends Node {
+  constructor(params) { super(params); this.kind = 'mover'; this.castsShadow = true; }
+}
+
+__exports.Mover = Mover;
+};
+__mod["src/objects/prop.js"] = function(__exports, __req){
+// PROP — a static set piece (tables, ladders, hydrants, signs). Still lit and may cast a
+// shadow; some props also emit light (barrel fire, traffic light) via emitLight.
+const { Node } = __req("src/objects/node.js");
+
+class Prop extends Node {
+  constructor(params) { super(params); this.kind = 'prop'; }
+}
+
+__exports.Prop = Prop;
+};
+__mod["src/objects/effect.js"] = function(__exports, __req){
+// EFFECT — atmosphere and consequence that is not a solid object: steam, fire embers, blood,
+// blowing debris. May own particle state advanced in update(); never casts a ground shadow.
+const { Node } = __req("src/objects/node.js");
+
+class Effect extends Node {
+  constructor(params) { super(params); this.kind = 'effect'; }
+}
+
+__exports.Effect = Effect;
+};
+__mod["src/objects/light.js"] = function(__exports, __req){
+// LIGHT — a declared light source (lamp, neon, bulb, glow). Its emitLight registers the light
+// record (consumed by the lighting pass for halo + reflection, and by rim/shadow); its draw
+// paints the visible fixture (the post, the sign) to the world.
+const { Node } = __req("src/objects/node.js");
+
+class Light extends Node {
+  constructor(params) { super(params); this.kind = 'light'; }
+}
+
+__exports.Light = Light;
+};
+__mod["src/library/effects/shells.js"] = function(__exports, __req){
+// SHELLS — ejected brass casings, spawned on a muzzle flash, tumbling and settling in slow
+// motion. A scene-owned system (not a placed object). Draws to the world ctx, over the cast.
+const { Audio2 } = __req("src/assets/audio.js");
+
+class Shells {
+  constructor() { this.list = []; }
+  spawn(x, y, s, gy) { this.list.push({ x, y, s, gy, vx: 0.2 + Math.random() * 0.7, vy: -2.6 - Math.random() * 1.0, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.7, rest: false }); }
+  clear() { this.list.length = 0; }
+  update(dt, e) {
+    const sdt = Math.min(dt, 0.05) * 0.32;
+    for (const sh of this.list) {
+      if (sh.rest) continue;
+      sh.vy += 16 * sdt; sh.x += sh.vx * 60 * sdt; sh.y += sh.vy * 60 * sdt; sh.rot += sh.vr * sdt * 18;
+      if (sh.y >= sh.gy) { if (sh.vy > 1.0) Audio2.shellClink(); sh.y = sh.gy; sh.vy *= -0.34; sh.vx *= 0.5; sh.vr *= 0.5; if (Math.abs(sh.vy) < 0.7) { sh.rest = true; sh.vy = 0; } }
+    }
+  }
+  draw(e) {
+    const c = e.ctx;
+    for (const sh of this.list) {
+      c.save(); c.translate(sh.x, sh.y); c.rotate(sh.rot);
+      c.fillStyle = '#c9a24a'; c.fillRect(-3.4 * sh.s, -1.4 * sh.s, 6.8 * sh.s, 2.8 * sh.s);
+      c.fillStyle = '#e6c878'; c.fillRect(-3.4 * sh.s, -1.4 * sh.s, 2 * sh.s, 2.8 * sh.s);
+      c.restore();
+    }
+  }
+}
+
+__exports.Shells = Shells;
+};
+__mod["src/assets/audio.js"] = function(__exports, __req){
+// AUDIO — data-driven and scoped to the story. The engine plays nothing on its own; a story
+// declares `audio: { music, musicStart?, rain, sfx{} }` and each scene may declare `ambience`.
+//
+// Fade policy (so sound never hard-cuts or leaks across a beat/act):
+//   - loops (e.g. footsteps) are tied to their animation: held full while active, faded out when
+//     it stops or on an act change.
+//   - one-shots still ringing are ducked (faded) on a beat OR act change via duck().
+//   - ambience + rain crossfade between acts in scene().
+// A story with no audio block is silent, so sounds never bleed between stories.
+const Audio2 = (() => {
+  const A = 'assets/audio/';
+  let on = true, started = false, cfg = null;
+  let music = null, rain = null, amb = null;
+  const pools = {}, loops = {};
+
+  function mkLoop(src, v) { const a = new Audio(A + src); a.loop = true; a._v = v; a.volume = on ? v : 0; a.preload = 'auto'; return a; }
+  function stop(a) { if (!a) return; if (a._ramp) { clearInterval(a._ramp); a._ramp = null; } try { a.pause(); } catch (e) {} }
+
+  // smoothly ramp an element's volume; pause it once it reaches silence (so nothing keeps playing)
+  function ramp(a, to, dur) {
+    if (!a) return;
+    if (a._ramp) { clearInterval(a._ramp); a._ramp = null; }
+    to = Math.max(0, Math.min(1, to));
+    if (!(dur > 0)) { a.volume = to; if (to === 0) stop(a); return; }
+    const from = a.volume, steps = Math.max(1, Math.round(dur / 0.03)); let i = 0;
+    a._ramp = setInterval(() => {
+      i++; a.volume = Math.max(0, Math.min(1, from + (to - from) * i / steps));
+      if (i >= steps) { clearInterval(a._ramp); a._ramp = null; if (to === 0) stop(a); }
+    }, 30);
+  }
+
+  function resume(a) { if (!a || !on || !started) return; if (a._start && a.currentTime < a._start) { try { a.currentTime = a._start; } catch (e) {} } a.play().catch(() => {}); }
+
+  function setStory(c) {
+    [music, rain, amb].forEach(stop); music = rain = amb = null;
+    for (const k in pools) delete pools[k]; for (const k in loops) { stop(loops[k]); delete loops[k]; }
+    cfg = c || null; started = false;
+    if (!cfg) return;
+    if (cfg.music) {
+      music = mkLoop(cfg.music, cfg.musicVol == null ? 0.5 : cfg.musicVol);
+      const st = cfg.musicStart || 0;
+      if (st > 0) {   // start + loop from this offset (seconds) instead of 0
+        music.loop = false; music._start = st;
+        music.addEventListener('loadedmetadata', () => { try { music.currentTime = st; } catch (e) {} });
+        music.addEventListener('ended', () => { try { music.currentTime = st; } catch (e) {} resume(music); });
+      }
+    }
+    if (cfg.rain) rain = mkLoop(cfg.rain, 0);
+    for (const k in (cfg.sfx || {})) { const d = cfg.sfx[k], n = d.n || 2, pool = []; for (let i = 0; i < n; i++) { const a = new Audio(A + d.src); a.preload = 'auto'; pool.push(a); } pools[k] = { pool, i: 0, vol: d.vol == null ? 0.7 : d.vol }; }
+  }
+  function start() { started = true; resume(music); resume(rain); resume(amb); }
+
+  function stopLoops(dur = 0.45) { for (const k in loops) ramp(loops[k], 0, dur); }   // fade every loop out
+  function duck(dur = 0.6) { for (const k in pools) for (const a of pools[k].pool) if (!a.paused) ramp(a, 0, dur); }   // fade ringing one-shots
+
+  function scene(sc) {
+    duck(0.5);                                       // any lingering one-shot from the last act fades out
+    stopLoops();                                     // walk/animation loops fade out
+    if (amb) { ramp(amb, 0, 0.5); amb = null; }      // crossfade ambience out
+    if (cfg && sc.ambience) { amb = mkLoop(sc.ambience, sc.ambienceVol == null ? 0.4 : sc.ambienceVol); amb.volume = 0; resume(amb); ramp(amb, on ? amb._v : 0, 0.6); }
+    if (rain) { const want = cfg.rain && !sc.indoor; rain._v = want ? (sc.rainVol == null ? (cfg.rainVol == null ? 0.16 : cfg.rainVol) : sc.rainVol) : 0; if (want) { resume(rain); ramp(rain, on ? rain._v : 0, 0.6); } else ramp(rain, 0, 0.6); }
+  }
+
+  function play(name, volScale = 1, rate = 1) {
+    if (!on || !started || !pools[name]) return;
+    const s = pools[name], a = s.pool[s.i++ % s.pool.length];
+    if (a._ramp) { clearInterval(a._ramp); a._ramp = null; }   // cancel a duck on this element before reusing it
+    try { a.pause(); a.currentTime = 0; a.volume = Math.min(1, s.vol * volScale); a.playbackRate = rate; a.play().catch(() => {}); } catch (e) {}
+  }
+  function setLoop(name, on2) {
+    if (!on || !started || !cfg || !cfg.sfx || !cfg.sfx[name]) return;
+    let a = loops[name]; const d = cfg.sfx[name], tgt = d.vol == null ? 0.7 : d.vol;
+    if (on2) {   // animation active: hold at full (this also cancels a fade-out in progress, e.g. a duck)
+      if (!a) { a = loops[name] = new Audio(A + d.src); a.loop = true; a.volume = 0; }
+      if (a._ramp) { clearInterval(a._ramp); a._ramp = null; }
+      a.volume = tgt; if (a.paused) a.play().catch(() => {});
+    } else if (a && !a.paused) ramp(a, 0, 0.4);   // animation ended: fade out + pause
+  }
+  function toggle() {
+    on = !on;
+    [music, rain, amb].forEach(a => { if (a) { a.volume = on ? a._v : 0; if (on) resume(a); else stop(a); } });
+    if (!on) for (const k in loops) stop(loops[k]);
+    return on;
+  }
+  return {
+    setStory, start, scene, play, setLoop, stopLoops, duck, toggle, isOn: () => on,
+    gun: () => play('gunshot', 1, 0.97 + Math.random() * 0.06),
+    gunCock: () => play('hammer'),
+    shellClink: () => play('shell', 0.8 + Math.random() * 0.3, 0.95 + Math.random() * 0.1),
+    thunder: () => play('thunder'),
+    neonZap: () => play('neon'),
+    whoosh: () => play('whoosh'),
+    lidOpen: () => play('lidopen'),
+    flint: () => play('flint'),
+  };
+})();
+
+__exports.Audio2 = Audio2;
+};
+__mod["src/library/effects/ripples.js"] = function(__exports, __req){
+// RIPPLES — expanding puddle ripples on the wet floor, each tinted by the light above it (or
+// bloody on a blood-rain scene). A scene-owned system; draws additively to the LIGHT buffer.
+class Ripples {
+  constructor() { this.list = []; }
+  spawn(e) {
+    const x = Math.random() * e.W, y = e.gy + Math.random() * (e.H - e.gy) * 0.9, blood = e.scene.data.bloodRain;
+    const col = blood ? [220, 24, 34] : e.litColor(x, 150, 162, 180);
+    this.list.push({ x, y, r: 1, max: 10 + Math.random() * 26, life: 1, col, blood });
+  }
+  clear() { this.list.length = 0; }
+  update(dt) {
+    for (let i = this.list.length - 1; i >= 0; i--) {
+      const p = this.list[i]; p.r += dt * 34; p.life -= dt * 1.1;
+      if (p.life <= 0 || p.r > p.max) this.list.splice(i, 1);
+    }
+  }
+  draw(e) {
+    const c = e.light; c.save(); c.globalCompositeOperation = 'lighter';
+    for (const p of this.list) {
+      c.globalAlpha = (p.blood ? 0.42 : 0.22) * p.life; c.strokeStyle = `rgb(${p.col[0]},${p.col[1]},${p.col[2]})`; c.lineWidth = p.blood ? 1.9 : 1.2;
+      c.beginPath(); c.ellipse(p.x, p.y, p.r, p.r * 0.4, 0, 0, Math.PI * 2); c.stroke();
+    }
+    c.restore(); c.globalAlpha = 1;
+  }
+}
+
+__exports.Ripples = Ripples;
+};
+__mod["src/library/index.js"] = function(__exports, __req){
+// LIBRARY — importing this registers every backdrop, light, actor, mover, prop and effect on
+// the engine (side-effect imports). Add a new type to the matching file (or a new file imported
+// here); from then on every story can place it by name.
+__req("src/library/backdrops/skyline.js");
+__req("src/library/backdrops/alley.js");
+__req("src/library/backdrops/rooftop.js");
+__req("src/library/backdrops/room.js");
+__req("src/library/backdrops/penthouse.js");
+__req("src/library/lights.js");
+__req("src/library/actors/people.js");
+__req("src/library/actors/animals.js");
+__req("src/library/movers/vehicles.js");
+__req("src/library/props/casino.js");
+__req("src/library/props/weapons.js");
+__req("src/library/props/street.js");
+__req("src/library/effects/blood.js");
+__req("src/library/effects/atmosphere.js");
+
+};
+__mod["src/library/backdrops/skyline.js"] = function(__exports, __req){
+// SKYLINE — the open city: parallax layers of windowed buildings over the wet street.
+const { defineBackdrop } = __req("src/objects/registry.js");
+const { buildSkyline, paintSkyline, wetFloor } = __req("src/library/backdrops/skyline-core.js");
+
+defineBackdrop('skyline', data => ({
+  build(e) {
+    const layers = data.backdrop.layers.map(l => ({ ...l, top: l.top * e.H }));
+    return buildSkyline(e, data.backdrop.seed, layers, (data.ground || 0.8) * e.H);
+  },
+  draw(e) { paintSkyline(e, this.geom, e.scene.camera.look); wetFloor(e); },
+}));
+
+};
+__mod["src/library/backdrops/skyline-core.js"] = function(__exports, __req){
+// BACKDROP CORE — the procedural skyline shared by the skyline/alley/rooftop settings, the
+// shared wet floor, and the alley's brick + fire-escape pieces. Geometry is built once per
+// resize; painting applies the camera look as parallax.
+const { PALETTE } = __req("src/style/palette.js");
+const { rand32 } = __req("src/engine/math.js");
+
+function buildSkyline(e, seed, cfgList, groundY) {
+  const rng = rand32(seed), layers = [];
+  for (const cfg of cfgList) {
+    const blds = []; let x = -140;
+    while (x < e.W + 220) {
+      const w = cfg.minW + rng() * (cfg.maxW - cfg.minW), h = (cfg.minH + rng() * (cfg.maxH - cfg.minH)) * (groundY - cfg.top), top = groundY - h, wins = [];
+      const cols = Math.max(2, w / 16 | 0), rows = Math.max(3, h / 20 | 0);
+      for (let r = 0; r < rows; r++) for (let ci = 0; ci < cols; ci++) { if (rng() > cfg.win) continue; wins.push({ x: x + 7 + ci * (w - 14) / cols, y: top + 10 + r * (h - 16) / rows, warm: rng() > 0.8 }); }
+      const cap = rng() < 0.25 ? { type: rng() < 0.5 ? 'tank' : 'ant', x: x + w * (0.3 + rng() * 0.4) } : null;
+      blds.push({ x, w, top, h, wins, cap }); x += w + 2 + rng() * 16;
+    }
+    layers.push({ ...cfg, blds });
+  }
+  return layers;
+}
+
+// Each layer's buildings + windows are static, so they are rendered once to an offscreen canvas
+// (at device resolution) and cached on the layer. Per frame we just blit that canvas at the
+// parallax offset, instead of re-running the building/window loops every frame.
+const PAD = 200;   // horizontal margin so parallax + zoom-out never reveal the sprite's edge
+function layerSprite(e, L) {
+  if (L._sprite && L._spriteW === e.W && L._spriteDPR === e.DPR) return L._sprite;
+  const DPR = e.DPR || 1, CW = e.W + PAD * 2, H = e.H;
+  const cv = document.createElement('canvas'); cv.width = Math.floor(CW * DPR); cv.height = Math.floor(H * DPR);
+  const c = cv.getContext('2d'); c.setTransform(DPR, 0, 0, DPR, 0, 0); c.translate(PAD, 0);
+  c.fillStyle = L.shade;
+  for (const b of L.blds) { c.fillRect(b.x, b.top, b.w, b.h + 6); if (b.cap) { if (b.cap.type === 'tank') { c.fillRect(b.cap.x - 7, b.top - 14, 14, 14); c.fillRect(b.cap.x - 9, b.top - 2, 18, 3); } else c.fillRect(b.cap.x - 1, b.top - 22, 2, 22); } }
+  for (const b of L.blds) for (const wn of b.wins) { c.fillStyle = wn.warm ? PALETTE.warmWin : PALETTE.coolWin; c.fillRect(wn.x, wn.y, 4, 5); }
+  L._sprite = cv; L._spriteW = e.W; L._spriteDPR = e.DPR;
+  return cv;
+}
+
+function paintSkyline(e, layers, par) {
+  const c = e.ctx, CW = e.W + PAD * 2;
+  for (const L of layers) c.drawImage(layerSprite(e, L), par * L.depth - PAD, 0, CW, e.H);
+}
+
+// the shared dark wet floor (coloured light reflections are added later on the light buffer)
+function wetFloor(e) {
+  const c = e.ctx, g = e.gy, R = e.coverRect(), bottom = R.y + R.h;
+  const st = c.createLinearGradient(0, g, 0, e.H); st.addColorStop(0, '#0a0b0f'); st.addColorStop(1, PALETTE.ink);
+  c.fillStyle = st; c.fillRect(R.x, g, R.w, bottom - g);   // overscan so the establishing zoom-out shows no border
+  c.globalAlpha = 0.10; c.fillStyle = PALETTE.steel;
+  for (let i = 0; i < 30; i++) { const rx = ((i * 137.5 + e.t * 6) % e.W); c.fillRect(rx, g + (i % 6) * (e.H - g) / 6, 2 + (i % 4), 2); }
+  c.globalAlpha = 1;
+}
+
+function brickWall(c, e, polyFn) {
+  const g = e.gy;
+  c.save(); c.beginPath(); polyFn(); c.closePath(); c.clip();
+  const wall = c.createLinearGradient(0, 0, 0, g); wall.addColorStop(0, '#100a06'); wall.addColorStop(1, '#050302'); c.fillStyle = wall; c.fillRect(0, 0, e.W, g);   // dim alley at night: walls mostly in shadow
+  const bh = 15, bw = 34; c.strokeStyle = 'rgba(4,2,1,0.5)'; c.lineWidth = 1.4;
+  for (let yy = 0; yy < g; yy += bh) {
+    c.beginPath(); c.moveTo(0, yy); c.lineTo(e.W, yy); c.stroke();
+    const off = ((yy / bh) % 2) * bw / 2;
+    c.beginPath(); for (let xx = off; xx < e.W; xx += bw) { c.moveTo(xx, yy); c.lineTo(xx, yy + bh); } c.stroke();
+  }
+  c.restore();
+}
+
+function fireEscape(c, x, topY, h, w) {
+  c.save(); c.strokeStyle = 'rgba(120,130,144,0.75)'; c.fillStyle = 'rgba(96,104,116,0.7)'; c.lineWidth = 2; const floors = h / 34 | 0;
+  for (let i = 0; i < floors; i++) { const y = topY + i * 34; c.fillRect(x, y, w, 4); c.strokeRect(x, y - 14, w, 14); c.beginPath(); if (i % 2 === 0) { c.moveTo(x + 2, y + 4); c.lineTo(x + w - 6, y + 30); } else { c.moveTo(x + w - 2, y + 4); c.lineTo(x + 6, y + 30); } c.stroke(); }
+  c.restore();
+}
+
+function balcony(c, x, y, w) {
+  c.save(); c.strokeStyle = 'rgba(120,130,144,0.75)'; c.fillStyle = 'rgba(96,104,116,0.7)'; c.lineWidth = 2;
+  c.fillRect(x, y, w, 4);
+  c.strokeRect(x, y - 22, w, 22);
+  c.beginPath(); for (let i = 1; i < 7; i++) { const rx = x + i * w / 7; c.moveTo(rx, y - 22); c.lineTo(rx, y); } c.stroke();
+  c.beginPath(); c.moveTo(x, y - 22); c.lineTo(x + w, y - 22); c.stroke();
+  c.restore();
+}
+
+__exports.buildSkyline = buildSkyline;
+__exports.paintSkyline = paintSkyline;
+__exports.wetFloor = wetFloor;
+__exports.brickWall = brickWall;
+__exports.fireEscape = fireEscape;
+__exports.balcony = balcony;
+};
+__mod["src/library/backdrops/alley.js"] = function(__exports, __req){
+// ALLEY — two brick walls converging on a far slice of skyline, with a fire escape.
+const { defineBackdrop } = __req("src/objects/registry.js");
+const { PALETTE } = __req("src/style/palette.js");
+const { buildSkyline, paintSkyline, wetFloor, brickWall, fireEscape, balcony } = __req("src/library/backdrops/skyline-core.js");
+
+defineBackdrop('alley', data => ({
+  build(e) { return buildSkyline(e, data.backdrop.seed || 77123, [{ depth: 0.4, top: e.H * 0.3, shade: PALETTE.farInk, minW: 50, maxW: 110, minH: 0.3, maxH: 0.55, win: 0.18 }], e.H * 0.62); },
+  draw(e) {
+    const c = e.ctx, g = e.gy, look = e.scene.camera.look, vx = e.W * 0.5 + look * 0.3, vy = e.H * 0.4;
+    const slice = c.createLinearGradient(vx, vy, vx, g); slice.addColorStop(0, '#12141b'); slice.addColorStop(1, '#060708'); c.fillStyle = slice; c.fillRect(vx - e.W * 0.12, vy, e.W * 0.24, g - vy);
+    paintSkyline(e, this.geom, look * 0.4);
+    brickWall(c, e, () => { c.moveTo(0, 0); c.lineTo(e.W * 0.4, 0); c.lineTo(vx - e.W * 0.1, vy); c.lineTo(vx - e.W * 0.1, g); c.lineTo(0, g); });
+    brickWall(c, e, () => { c.moveTo(e.W, 0); c.lineTo(e.W * 0.6, 0); c.lineTo(vx + e.W * 0.1, vy); c.lineTo(vx + e.W * 0.1, g); c.lineTo(e.W, g); });
+    fireEscape(c, e.W * 0.14, e.H * 0.16, e.H * 0.5, 64);
+    balcony(c, e.W * 0.14 + 64, e.H * 0.40, e.W * 0.1);
+    wetFloor(e);
+  },
+}));
+
+};
+__mod["src/library/backdrops/rooftop.js"] = function(__exports, __req){
+// ROOFTOP — above the city: distant skyline, washing lines, a low parapet.
+const { defineBackdrop } = __req("src/objects/registry.js");
+const { PALETTE } = __req("src/style/palette.js");
+const { buildSkyline, paintSkyline } = __req("src/library/backdrops/skyline-core.js");
+
+defineBackdrop('rooftop', data => ({
+  build(e) { return buildSkyline(e, data.backdrop.seed || 55512, [{ depth: 0.3, top: e.H * 0.4, shade: PALETTE.farInk, minW: 40, maxW: 100, minH: 0.2, maxH: 0.45, win: 0.22 }, { depth: 0.6, top: e.H * 0.46, shade: '#06070b', minW: 60, maxW: 140, minH: 0.16, maxH: 0.38, win: 0.18 }], e.H * 0.72); },
+  draw(e) {
+    const c = e.ctx, g = e.gy, par = e.scene.camera.look;
+    const glow = c.createLinearGradient(0, e.H * 0.5, 0, e.H * 0.74); glow.addColorStop(0, 'rgba(40,46,60,0)'); glow.addColorStop(1, 'rgba(70,80,105,0.35)'); c.fillStyle = glow; c.fillRect(0, e.H * 0.5, e.W, e.H * 0.24);
+    paintSkyline(e, this.geom, par * 0.5);
+    c.strokeStyle = '#000'; c.lineWidth = 2; c.fillRect(e.W * 0.05, e.H * 0.18, 4, e.H * 0.2); c.fillRect(e.W * 0.92, e.H * 0.12, 4, e.H * 0.26);
+    c.beginPath(); c.moveTo(e.W * 0.05, e.H * 0.22); c.quadraticCurveTo(e.W * 0.5, e.H * 0.3, e.W * 0.93, e.H * 0.16); c.stroke();
+    c.beginPath(); c.moveTo(e.W * 0.05, e.H * 0.27); c.quadraticCurveTo(e.W * 0.5, e.H * 0.36, e.W * 0.93, e.H * 0.22); c.stroke();
+    c.fillStyle = PALETTE.ink; c.fillRect(0, g, e.W, e.H - g); c.fillStyle = '#08090c'; c.fillRect(0, g - 10, e.W, 12);
+  },
+}));
+
+};
+__mod["src/library/backdrops/room.js"] = function(__exports, __req){
+// ROOM — an interior: back wall + floor + a door ajar leaking warm light. indoor:true means
+// rain and lightning do not fall here.
+const { defineBackdrop } = __req("src/objects/registry.js");
+const { PALETTE } = __req("src/style/palette.js");
+
+defineBackdrop('room', data => ({
+  indoor: true,
+  draw(e) {
+    const c = e.ctx, g = e.gy, b = data.backdrop || {}, ox = e.scene.camera.look * 0.3;
+    const wall = c.createLinearGradient(0, 0, 0, g); wall.addColorStop(0, b.wallTop || '#0a0c11'); wall.addColorStop(1, b.wall || '#06070b');
+    c.fillStyle = wall; c.fillRect(0, 0, e.W, g);
+    c.strokeStyle = 'rgba(255,255,255,0.03)'; c.lineWidth = 1;
+    for (let x = 0; x < e.W + 60; x += 60) { c.beginPath(); c.moveTo(x + ox, 0); c.lineTo(x + ox, g); c.stroke(); }
+    if (b.door != null) {
+      const dx = b.door * e.W + ox, dw = 64 * (e.unit / 1.2), dh = g * 0.40, dtop = g - dh, gap = 11 * (e.unit / 1.2);
+      c.fillStyle = '#0a0c10'; c.fillRect(dx - dw / 2 - 5, dtop - 5, dw + 10, dh + 5);
+      const lg = c.createLinearGradient(dx + dw / 2 - gap, 0, dx + dw / 2, 0);
+      lg.addColorStop(0, 'rgba(255,234,190,0)'); lg.addColorStop(1, 'rgba(255,234,190,0.55)');
+      c.fillStyle = lg; c.fillRect(dx + dw / 2 - gap, dtop, gap, dh);
+      c.fillStyle = '#101319'; c.fillRect(dx - dw / 2, dtop, dw - gap, dh);
+      c.strokeStyle = 'rgba(255,255,255,0.05)'; c.lineWidth = 1;
+      c.strokeRect(dx - dw / 2 + 6, dtop + 8, dw - gap - 12, dh * 0.4);
+      c.strokeRect(dx - dw / 2 + 6, dtop + dh * 0.52, dw - gap - 12, dh * 0.4);
+      c.fillStyle = '#8a8f98'; c.beginPath(); c.arc(dx + dw / 2 - gap - 6, dtop + dh * 0.55, 2.4, 0, Math.PI * 2); c.fill();
+      const sp = c.createLinearGradient(dx, g, dx, g + 46); sp.addColorStop(0, 'rgba(255,234,190,0.13)'); sp.addColorStop(1, 'rgba(255,234,190,0)');
+      c.fillStyle = sp; c.beginPath(); c.moveTo(dx + dw / 2 - gap, g); c.lineTo(dx + dw / 2 + 26, g + 52); c.lineTo(dx - 8, g + 52); c.closePath(); c.fill();
+      c.strokeStyle = '#05060a'; c.lineWidth = 4; c.strokeRect(dx - dw / 2, dtop, dw, dh);
+    }
+    const fl = c.createLinearGradient(0, g, 0, e.H); fl.addColorStop(0, '#080a0e'); fl.addColorStop(1, PALETTE.ink);
+    c.fillStyle = fl; c.fillRect(0, g, e.W, e.H - g);
+    c.fillStyle = '#0c0e13'; c.fillRect(0, g - 6, e.W, 6);
+    c.globalAlpha = 0.06; c.fillStyle = PALETTE.steel;
+    for (let i = 0; i < 16; i++) { const rx = (i * 97 + e.t * 4) % e.W; c.fillRect(rx, g + (i % 5) * (e.H - g) / 5, 30, 1); }
+    c.globalAlpha = 1;
+  },
+}));
+
+};
+__mod["src/library/backdrops/penthouse.js"] = function(__exports, __req){
+// PENTHOUSE — a high-rise interior: a wall of rain-streaked glass over the night skyline, and a
+// dark glossy marble floor. indoor:true keeps the engine's rain outside; the glass shows its own.
+const { defineBackdrop } = __req("src/objects/registry.js");
+const { buildSkyline, paintSkyline } = __req("src/library/backdrops/skyline-core.js");
+
+defineBackdrop('penthouse', data => ({
+  indoor: true,
+  build(e) {
+    const layers = [
+      { depth: 0.30, top: 0.34, shade: '#0c0e13', minW: 46, maxW: 104, minH: 0.20, maxH: 0.52, win: 0.16 },
+      { depth: 0.60, top: 0.42, shade: '#070809', minW: 64, maxW: 140, minH: 0.16, maxH: 0.40, win: 0.12 },
+    ].map(l => ({ ...l, top: l.top * e.H }));
+    return buildSkyline(e, (data.backdrop && data.backdrop.seed) || 4040, layers, e.H * 0.66);
+  },
+  draw(e) {
+    const c = e.ctx, g = e.gy, W = e.W, H = e.H, t = e.t, look = e.scene.camera.look;
+    const winT = H * 0.05, winB = g - 6, winL = W * 0.05, winR = W * 0.95;
+    // interior back wall
+    const wall = c.createLinearGradient(0, 0, 0, g); wall.addColorStop(0, '#0a0c11'); wall.addColorStop(1, '#070809');
+    c.fillStyle = wall; c.fillRect(0, 0, W, g);
+    // ---- the window: the night city behind rain-streaked glass ----
+    c.save();
+    c.beginPath(); c.rect(winL, winT, winR - winL, winB - winT); c.clip();
+    const sky = c.createLinearGradient(0, winT, 0, winB); sky.addColorStop(0, '#05070d'); sky.addColorStop(1, '#0c1018');
+    c.fillStyle = sky; c.fillRect(winL, winT, winR - winL, winB - winT);
+    const mg = c.createRadialGradient(W * 0.72, H * 0.2, 0, W * 0.72, H * 0.2, 130); mg.addColorStop(0, 'rgba(150,165,195,0.16)'); mg.addColorStop(1, 'rgba(150,165,195,0)'); c.fillStyle = mg; c.fillRect(winL, winT, winR - winL, winB - winT);
+    paintSkyline(e, this.geom, look * 0.6);
+    c.strokeStyle = 'rgba(170,185,210,0.16)'; c.lineWidth = 1.1; c.beginPath();
+    for (let i = 0; i < 80; i++) { const x = (i * 53.3 + t * 40 * (0.6 + (i % 3) * 0.2)) % (winR - winL) + winL; const y = (i * 91.7 + t * 230) % (winB - winT) + winT; c.moveTo(x, y); c.lineTo(x - 4, y + 13); }
+    c.stroke();
+    c.fillStyle = 'rgba(180,195,220,0.10)';
+    for (let i = 0; i < 24; i++) { const x = (i * 137.5) % (winR - winL) + winL, y = (i * 79.3 + t * 5 * (i % 2)) % (winB - winT) + winT; c.beginPath(); c.arc(x, y, 1.3, 0, Math.PI * 2); c.fill(); }
+    c.restore();
+    // window frame + mullions
+    c.strokeStyle = '#04050a'; c.lineWidth = 8; c.strokeRect(winL, winT, winR - winL, winB - winT);
+    c.lineWidth = 4; c.strokeStyle = '#06070c';
+    for (let k = 1; k < 4; k++) { const mx = winL + (winR - winL) * k / 4; c.beginPath(); c.moveTo(mx, winT); c.lineTo(mx, winB); c.stroke(); }
+    const myy = winT + (winB - winT) * 0.5; c.beginPath(); c.moveTo(winL, myy); c.lineTo(winR, myy); c.stroke();
+    c.fillStyle = '#0c0e13'; c.fillRect(winL - 6, winB, winR - winL + 12, 8);   // sill
+    // ---- glossy marble floor ----
+    const fl = c.createLinearGradient(0, g, 0, H); fl.addColorStop(0, '#0c0e12'); fl.addColorStop(0.5, '#070809'); fl.addColorStop(1, '#040506');
+    c.fillStyle = fl; c.fillRect(0, g, W, H - g);
+    c.save(); c.globalAlpha = 0.10; c.globalCompositeOperation = 'lighter';
+    const rg = c.createLinearGradient(0, g, 0, H); rg.addColorStop(0, 'rgba(150,170,205,0.5)'); rg.addColorStop(0.55, 'rgba(150,170,205,0)'); c.fillStyle = rg;
+    c.fillRect(winL, g, winR - winL, (H - g) * 0.7); c.restore();
+    c.strokeStyle = 'rgba(150,160,180,0.05)'; c.lineWidth = 1;
+    for (let i = 0; i < 5; i++) { c.beginPath(); c.moveTo(0, g + (H - g) * (i + 0.5) / 5); c.lineTo(W, g + (H - g) * (i + 0.2) / 5); c.stroke(); }
+    c.fillStyle = '#0c0e13'; c.fillRect(0, g - 5, W, 5);   // baseboard
+  },
+}));
+
+};
+__mod["src/library/lights.js"] = function(__exports, __req){
+// LIGHTS — the declared light sources. Each registers its light record in emitLight (consumed
+// by the lighting pass for halo + reflection and by rim/shadow) and paints its visible fixture
+// in draw. The per-frame flicker is computed in emit and reused by draw.
+const { defineLight } = __req("src/objects/registry.js");
+const { hexRgb, cssRgb } = __req("src/engine/math.js");
+const { Audio2 } = __req("src/assets/audio.js");
+
+defineLight('lamp', {
+  emitLight(e) {
+    const t = e.t, X = e.X(this), s = e.unit * (this.scale || 1);
+    const flick = this.flicker ? (Math.sin(t * 30 + (this.seed || 0)) > -0.9 ? 1 : 0.4) * (0.85 + 0.15 * Math.sin(t * 7)) : 1;
+    this._flick = flick; this._X = X; this._s = s;
+    e.addLight({ x: X + 26 * s, y: e.gy - 150 * s, col: '255,250,225', r: 150 * (this.scale || 1), I: 0.5 * flick, ew: 6 * s, eh: 6 * s });
+  },
+  draw(e) {
+    const c = e.ctx, X = this._X, s = this._s, gy = e.gy, fl = (this.intensity || 1) * this._flick, ink = e.palette.ink;
+    const topY = gy - 150 * s; c.fillStyle = ink;
+    c.fillRect(X - 2 * s, topY, 4 * s, 150 * s);
+    c.beginPath(); c.moveTo(X, topY); c.lineTo(X + 26 * s, topY - 4 * s); c.lineTo(X + 26 * s, topY + 3 * s); c.closePath(); c.fill();
+    const lx = X + 26 * s, ly = topY - 2 * s, g = c.createRadialGradient(lx, ly, 0, lx, ly + 110 * s, 150 * s);
+    g.addColorStop(0, `rgba(255,250,225,${0.30 * fl})`); g.addColorStop(0.4, `rgba(230,235,255,${0.10 * fl})`); g.addColorStop(1, 'rgba(230,235,255,0)');
+    c.fillStyle = g; c.beginPath(); c.moveTo(lx, ly); c.lineTo(lx - 70 * s, gy); c.lineTo(lx + 70 * s, gy); c.closePath(); c.fill();
+    c.fillStyle = `rgba(255,250,230,${fl})`; c.shadowColor = '#fff'; c.shadowBlur = 24 * fl; c.beginPath(); c.arc(lx, ly + 4 * s, 4 * s, 0, 7); c.fill(); c.shadowBlur = 0;
+    c.fillStyle = ink; c.beginPath(); c.moveTo(lx - 7 * s, ly - 6 * s); c.lineTo(lx + 7 * s, ly - 6 * s); c.lineTo(lx + 4 * s, ly + 2 * s); c.lineTo(lx - 4 * s, ly + 2 * s); c.closePath(); c.fill();
+  },
+});
+
+defineLight('neon', {
+  emitLight(e) {
+    const t = e.t, seed = this.seed || 0, X = e.X(this), y = (this.y != null ? this.y : 0.5) * e.H;
+    let flick = (Math.sin(t * 5 + seed) > -0.95) ? (0.88 + 0.12 * Math.sin(t * 13 + seed)) : 0.5;
+    if (this.ignite) {
+      const covering = e.flow && (e.flow.transState === 'in' || e.flow.transState === 'card');
+      if (!covering) { const st = e.sceneT(); flick = st < 0.4 ? 0.04 : (st < 1.9 ? (Math.sin(st * 34) > -0.1 ? flick : 0.12) : flick); if (st >= 0.4 && !e.flags._ign) { e.flags._ign = true; Audio2.neonZap(); } }
+      else flick = 0.04;
+    }
+    this._flick = flick; this._X = X; this._y = y;
+    const lx = X + this.w / 2 + (this.arrow ? this.h * 0.45 : 0), ly = y + this.h / 2;
+    e.addLight({ x: lx, y: ly, col: hexRgb(this.color), r: Math.max(this.w, this.h) * 1.8, I: 0.9 * flick, ew: this.w * 0.55, eh: this.h * 0.55 });
+  },
+  draw(e) { neonFixture(e.ctx, this._X, this._y, this.w, this.h, this.color, this.label, this._flick, this.arrow); },
+});
+
+defineLight('bulb', {
+  emitLight(e) {
+    const t = e.t, X = e.X(this), y = (this.y != null ? this.y : 0.5) * e.H;
+    const flick = this.flicker ? (Math.sin(t * 30 + (this.seed || 0)) > -0.9 ? 1 : 0.4) * (0.85 + 0.15 * Math.sin(t * 7)) : 1;
+    this._flick = flick; this._X = X; this._y = y;
+    e.addLight({ x: X, y, col: '255,244,210', r: 150, I: 0.6 * flick, ew: 5, eh: 5 });
+  },
+  draw(e) {
+    const c = e.ctx, x = this._X, y = this._y, fl = (this.intensity || 1) * this._flick;
+    c.strokeStyle = e.palette.ink; c.lineWidth = 1; c.beginPath(); c.moveTo(x, y - 95); c.lineTo(x, y); c.stroke();
+    const g = c.createRadialGradient(x, y, 0, x, y, 120); g.addColorStop(0, `rgba(255,244,210,${0.22 * fl})`); g.addColorStop(1, 'rgba(255,244,210,0)');
+    c.fillStyle = g; c.beginPath(); c.arc(x, y, 120, 0, 7); c.fill();
+    c.fillStyle = `rgba(255,246,220,${fl})`; c.shadowColor = '#fff'; c.shadowBlur = 16; c.beginPath(); c.arc(x, y, 3.5, 0, 7); c.fill(); c.shadowBlur = 0;
+  },
+});
+
+defineLight('glow', {
+  emitLight(e) {
+    const X = e.X(this), y = (this.y != null ? this.y : 0.5) * e.H, I = 0.5 * (this.intensity || 1);
+    e.addLight({ x: X, y, col: cssRgb(this.color), r: this.r, I, ew: this.r * 0.3, eh: this.r * 0.3 });
+  },
+});
+
+function neonFixture(c, x, y, w, h, color, label, fl, arrow) {
+  c.save(); c.strokeStyle = color; c.lineWidth = 3; c.shadowColor = color; c.shadowBlur = 18 * fl;
+  c.globalAlpha = 0.35 + 0.65 * fl; c.lineJoin = 'round'; c.lineCap = 'round';
+  if (arrow) {
+    const pw = h * 0.9;
+    c.beginPath(); c.moveTo(x, y); c.lineTo(x + w, y); c.lineTo(x + w + pw, y + h / 2); c.lineTo(x + w, y + h); c.lineTo(x, y + h); c.closePath(); c.stroke();
+    c.fillStyle = color; c.font = `bold ${Math.floor(h * 0.56)}px "Courier New",monospace`; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText(label, x + w / 2, y + h / 2 + 1);
+    c.restore(); c.shadowBlur = 0; c.globalAlpha = 1; return;
+  }
+  c.strokeRect(x, y, w, h);
+  c.fillStyle = color; c.textAlign = 'center'; c.textBaseline = 'middle';
+  const n = Math.max(1, label.length);
+  if (h > w * 1.5) {
+    const fs = Math.min(w * 0.66, (h - 8) / n); c.font = `bold ${fs}px "Courier New",monospace`;
+    for (let i = 0; i < n; i++) c.fillText(label[i], x + w / 2, y + (i + 0.5) * h / n);
+  } else {
+    const fs = Math.min(h * 0.6, (w - 10) / n * 1.7); c.font = `bold ${fs}px "Courier New",monospace`;
+    c.fillText(label, x + w / 2, y + h / 2 + 1);
+  }
+  c.restore(); c.shadowBlur = 0; c.globalAlpha = 1;
+}
+
+};
+__mod["src/library/actors/people.js"] = function(__exports, __req){
+// PEOPLE — the noir cast. Motion is read from scene timing (e.lineIdx / e.beat) + per-actor
+// params. Every figure now uses the one shared directional ground shadow (v1 mixed blobs,
+// directional shadows, and none). The detective's lit cigarette registers as a small warm light.
+const { defineActor } = __req("src/objects/registry.js");
+const { PALETTE, ANIM } = __req("src/style/palette.js");
+const { TWO_PI, lerp, smooth01 } = __req("src/engine/math.js");
+const { rimSign, bodyGrad, shadowPool, ember, cigSmoke, drawFedora, drawPistol, muzzleFlash } = __req("src/library/shared.js");
+
+// shared detective pose (so emitLight and draw agree without storing state)
+function trenchPose(e, p) {
+  const s = e.scaleOf(p), X = e.X(p), gy = e.gy + (p.dy || 0) * e.unit, t = e.t, sway = Math.sin(t * ANIM.swaySpeed) * 1.2;
+  const aim = p.raiseAt == null ? 1 : (e.lineIdx < p.raiseAt ? 0 : (e.lineIdx === p.raiseAt ? smooth01(e.beat() / 2.2) : 1));
+  const litCig = p.lightAt == null ? true : (e.lineIdx >= p.lightAt);
+  const flash = (p.lightAt != null && e.lineIdx === p.lightAt) ? Math.max(0, 1 - e.beat() / 0.8) : 0;
+  const hx = lerp(17 * s, 13 * s, aim), hy = lerp(-44 * s, -101 * s, aim);
+  return { s, X, gy, t, sway, aim, litCig, flash, hx, hy };
+}
+
+defineActor('trenchMan', function (e) {                       // detective: trench coat + fedora
+  const c = e.ctx, P = trenchPose(e, this), s = P.s, X = P.X, gy = P.gy, t = P.t, sway = P.sway;
+  const rim = rimSign(e, this), tint = e.litTint(X);
+  e.groundShadow(X + sway, 22 * s, 96 * s);
+  c.save(); c.translate(X + sway, gy);
+  c.fillStyle = '#050608'; c.fillRect(-13 * s, -32 * s, 11 * s, 32 * s); c.fillRect(3 * s, -32 * s, 11 * s, 32 * s);
+  c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-9 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(10 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.fill();
+  c.fillStyle = bodyGrad(c, 96, s, rim, tint);
+  c.beginPath(); c.moveTo(-22 * s, -36 * s); c.lineTo(-18 * s, -92 * s); c.lineTo(18 * s, -92 * s); c.lineTo(22 * s, -36 * s); c.quadraticCurveTo(0, -28 * s, -22 * s, -36 * s); c.closePath(); c.fill();
+  c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 1.5 * s; c.beginPath(); c.moveTo(2 * s, -90 * s); c.lineTo(5 * s, -38 * s); c.stroke();
+  c.fillStyle = '#0c0d10'; c.fillRect(-20 * s, -58 * s, 40 * s, 6 * s); c.fillStyle = '#26282e'; c.fillRect(-4 * s, -58 * s, 8 * s, 6 * s);
+  const aim = P.aim, litCig = P.litCig, flash = P.flash;
+  const ex = lerp(16 * s, 26 * s, aim), ey = lerp(-60 * s, -73 * s, aim), hx = P.hx, hy = P.hy;
+  c.lineCap = 'round'; c.lineJoin = 'round';
+  c.strokeStyle = '#2a2f37'; c.lineWidth = 8.5 * s;
+  c.beginPath(); c.moveTo(11 * s, -87 * s); c.lineTo(ex, ey); c.lineTo(hx, hy); c.stroke();
+  c.beginPath(); c.moveTo(-13 * s, -87 * s); c.lineTo(-21 * s, -50 * s); c.stroke();
+  c.strokeStyle = 'rgba(150,160,178,0.3)'; c.lineWidth = 1.4 * s; c.beginPath(); c.moveTo(12 * s, -90 * s); c.lineTo(ex, ey); c.stroke();
+  c.fillStyle = '#bcbab0'; c.beginPath(); c.arc(hx, hy, 2.9 * s, 0, TWO_PI); c.arc(-21 * s, -48 * s, 3.2 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = bodyGrad(c, 24, s, rim, tint);
+  c.beginPath(); c.moveTo(-26 * s, -90 * s); c.quadraticCurveTo(0, -104 * s, 26 * s, -90 * s); c.lineTo(18 * s, -84 * s); c.quadraticCurveTo(0, -94 * s, -18 * s, -84 * s); c.closePath(); c.fill();
+  c.fillStyle = PALETTE.ink; c.beginPath(); c.moveTo(-10 * s, -96 * s); c.lineTo(-2 * s, -107 * s); c.lineTo(-1 * s, -92 * s); c.closePath(); c.moveTo(10 * s, -96 * s); c.lineTo(2 * s, -107 * s); c.lineTo(1 * s, -92 * s); c.closePath(); c.fill();
+  c.fillStyle = '#15161a'; c.fillRect(-6 * s, -104 * s, 12 * s, 10 * s);
+  c.fillStyle = '#1a1b20'; c.beginPath(); c.arc(0, -112 * s, 10 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = PALETTE.ink; c.beginPath(); c.arc(0, -112 * s, 10 * s, Math.PI * 1.15, Math.PI * 1.95); c.fill();
+  drawFedora(c, 0, -120 * s, 13 * s, rim);
+  if (aim > 0.5) {
+    c.save(); c.translate(hx, hy); c.fillStyle = '#d8d2c4'; c.fillRect(2 * s, -1 * s, 7 * s, 2 * s); c.restore();
+    if (litCig) { cigSmoke(c, hx + 9 * s, hy, s, t); ember(c, hx + 9 * s, hy, s, t); }
+    if (flash > 0) { c.save(); c.globalCompositeOperation = 'lighter'; const fg = c.createRadialGradient(hx + 6 * s, hy, 0, hx + 6 * s, hy, 46 * s); fg.addColorStop(0, `rgba(255,170,80,${0.55 * flash})`); fg.addColorStop(1, 'rgba(255,170,80,0)'); c.fillStyle = fg; c.beginPath(); c.arc(hx + 6 * s, hy, 46 * s, 0, TWO_PI); c.fill(); c.restore(); }
+  }
+  c.restore();
+}, {
+  emitLight(e) {
+    const P = trenchPose(e, this);
+    if (P.aim > 0.5 && P.litCig) {
+      const cwx = P.X + P.sway + P.hx + 9 * P.s, cwy = P.gy + P.hy, I = 0.3 + P.flash * 0.6;
+      e.addLight({ x: cwx, y: cwy, col: '255,150,60', r: 84 * P.s, I: I * 0.7, ew: 4 * P.s, eh: 4 * P.s });
+    }
+  },
+});
+
+defineActor('thug', function (e) {                            // the heavy: broad, flat cap, big fists
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, rim = rimSign(e, this);
+  e.groundShadow(X, 30 * s, 86 * s);
+  c.save(); c.translate(X, gy);
+  c.fillStyle = '#050608'; c.fillRect(-18 * s, -36 * s, 15 * s, 36 * s); c.fillRect(3 * s, -36 * s, 15 * s, 36 * s);
+  c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-11 * s, -1 * s, 12 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(12 * s, -1 * s, 12 * s, 4 * s, 0, 0, TWO_PI); c.fill();
+  c.fillStyle = bodyGrad(c, 82, s, rim);
+  c.beginPath(); c.moveTo(-30 * s, -36 * s); c.lineTo(-34 * s, -78 * s); c.quadraticCurveTo(0, -96 * s, 34 * s, -78 * s); c.lineTo(30 * s, -36 * s); c.quadraticCurveTo(0, -28 * s, -30 * s, -36 * s); c.closePath(); c.fill();
+  c.fillStyle = '#cfcdc3'; c.beginPath(); c.moveTo(-6 * s, -82 * s); c.lineTo(6 * s, -82 * s); c.lineTo(3 * s, -54 * s); c.lineTo(-3 * s, -54 * s); c.closePath(); c.fill();
+  c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(-2.5 * s, -80 * s); c.lineTo(2.5 * s, -80 * s); c.lineTo(1.5 * s, -56 * s); c.lineTo(-1.5 * s, -56 * s); c.closePath(); c.fill();
+  c.fillStyle = bodyGrad(c, 36, s, rim); c.beginPath(); c.moveTo(-12 * s, -84 * s); c.lineTo(-6 * s, -82 * s); c.lineTo(-7 * s, -52 * s); c.lineTo(-16 * s, -56 * s); c.closePath(); c.moveTo(12 * s, -84 * s); c.lineTo(6 * s, -82 * s); c.lineTo(7 * s, -52 * s); c.lineTo(16 * s, -56 * s); c.closePath(); c.fill();
+  c.fillStyle = PALETTE.ink; c.fillRect(-34 * s, -80 * s, 9 * s, 42 * s); c.fillRect(25 * s, -80 * s, 9 * s, 42 * s);
+  c.beginPath(); c.arc(-30 * s, -36 * s, 7 * s, 0, TWO_PI); c.arc(30 * s, -36 * s, 7 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = '#1a1b20'; c.beginPath(); c.arc(0, -90 * s, 11 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = PALETTE.ink; c.beginPath(); c.arc(0, -90 * s, 11 * s, Math.PI * 1.1, Math.PI * 2.0); c.fill();
+  c.beginPath(); c.arc(0, -98 * s, 11 * s, Math.PI, 0); c.fill(); c.beginPath(); c.ellipse(-9 * s, -98 * s, 9 * s, 3 * s, 0, 0, TWO_PI); c.fill();
+  c.restore();
+});
+
+defineActor('boss', function (e) {                            // mob boss: pinstripe suit, fedora, cigar
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, t = e.t, rim = rimSign(e, this);
+  e.groundShadow(X, 24 * s, 92 * s);
+  c.save(); c.translate(X, gy);
+  c.fillStyle = '#050608'; c.fillRect(-13 * s, -32 * s, 11 * s, 32 * s); c.fillRect(3 * s, -32 * s, 11 * s, 32 * s);
+  c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-9 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(10 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.fill();
+  c.fillStyle = bodyGrad(c, 92, s, rim);
+  c.beginPath(); c.moveTo(-24 * s, -34 * s); c.lineTo(-20 * s, -88 * s); c.quadraticCurveTo(0, -100 * s, 20 * s, -88 * s); c.lineTo(24 * s, -34 * s); c.quadraticCurveTo(0, -28 * s, -24 * s, -34 * s); c.closePath(); c.fill();
+  c.strokeStyle = 'rgba(150,160,180,0.16)'; c.lineWidth = 1; for (let i = -3; i <= 3; i++) { c.beginPath(); c.moveTo(i * 6 * s, -88 * s); c.lineTo(i * 6 * s + i * 1.2 * s, -34 * s); c.stroke(); }
+  c.fillStyle = '#cfcdc3'; c.beginPath(); c.moveTo(-5 * s, -88 * s); c.lineTo(5 * s, -88 * s); c.lineTo(3 * s, -60 * s); c.lineTo(-3 * s, -60 * s); c.closePath(); c.fill();
+  c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(-2.5 * s, -86 * s); c.lineTo(2.5 * s, -86 * s); c.lineTo(1.4 * s, -58 * s); c.lineTo(-1.4 * s, -58 * s); c.closePath(); c.fill();
+  c.fillStyle = '#15161a'; c.fillRect(-5 * s, -100 * s, 10 * s, 10 * s);
+  c.fillStyle = '#1a1b20'; c.beginPath(); c.arc(0, -108 * s, 9 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = PALETTE.ink; c.beginPath(); c.arc(0, -108 * s, 9 * s, Math.PI * 1.1, Math.PI * 2.0); c.fill();
+  drawFedora(c, 0, -116 * s, 12 * s, rim);
+  c.fillStyle = '#3a2a1c'; c.fillRect(6 * s, -104 * s, 13 * s, 3 * s);
+  cigSmoke(c, 19 * s, -104 * s, s, t);
+  c.save(); c.fillStyle = 'rgba(255,80,30,0.95)'; c.shadowColor = PALETTE.ember; c.shadowBlur = 12; c.beginPath(); c.arc(19 * s, -102.5 * s, 2.4 * s, 0, TWO_PI); c.fill(); c.restore();
+  c.restore();
+});
+
+defineActor('gunman', function (e) {                          // shooter, arm extended, muzzle flash on 'muzzle'
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, rim = rimSign(e, this), tint = e.litTint(X), flash = e.flags.muzzle || 0;
+  e.groundShadow(X, 20 * s, 90 * s);
+  c.save(); c.translate(X, gy); if (this.flip) c.scale(-1, 1);
+  c.fillStyle = '#050608'; c.fillRect(-12 * s, -32 * s, 10 * s, 32 * s); c.fillRect(4 * s, -32 * s, 10 * s, 32 * s);
+  c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-8 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(11 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.fill();
+  c.fillStyle = bodyGrad(c, 88, s, rim, tint);
+  c.beginPath(); c.moveTo(-20 * s, -34 * s); c.lineTo(-16 * s, -86 * s); c.quadraticCurveTo(0, -98 * s, 16 * s, -86 * s); c.lineTo(20 * s, -34 * s); c.quadraticCurveTo(0, -28 * s, -20 * s, -34 * s); c.closePath(); c.fill();
+  c.fillStyle = '#1a1b20'; c.beginPath(); c.arc(0, -104 * s, 9 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = PALETTE.ink; c.beginPath(); c.arc(0, -104 * s, 9 * s, Math.PI * 1.1, Math.PI * 2.0); c.fill();
+  drawFedora(c, 0, -112 * s, 11 * s, rim);
+  const aim = (this.raiseAt != null) ? (e.lineIdx < this.raiseAt ? 0 : (e.lineIdx === this.raiseAt ? smooth01(e.beat() / 2.4) : 1)) : 1;
+  const sx = 6 * s, sy = -86 * s, hx = lerp(13 * s, 34 * s, aim), hy = lerp(-52 * s, -82 * s, aim), ang = Math.atan2(hy - sy, hx - sx);
+  c.strokeStyle = PALETTE.ink; c.lineWidth = 8 * s; c.lineCap = 'round'; c.beginPath(); c.moveTo(sx, sy); c.lineTo(hx, hy); c.stroke();
+  c.save(); c.translate(hx, hy); c.rotate(ang); drawPistol(c, 0, 0, s); c.restore();
+  if (flash > 0 && aim > 0.82) muzzleFlash(c, hx + Math.cos(ang) * 18 * s, hy + Math.sin(ang) * 18 * s, s, flash);
+  c.restore();
+});
+
+defineActor('womanInRed', function (e) {                      // femme fatale — the colour that bleeds
+  const c = e.ctx, s = e.scaleOf(this), X = e.walkX(this), gy = e.gy + (this.dy || 0) * e.unit, t = e.t, walk = Math.sin(t * ANIM.walkSpeed);
+  if (this.walk) { const i = Math.min(e.lineIdx, this.walk.length - 1), prev = i > 0 ? this.walk[i - 1] : this.walk[0]; e.walkSound(prev !== this.walk[i] && e.beat() < (this.walkDur || 3.4) - 0.2); }
+  let reflA = 1;
+  if (this.passX != null) { const manX = this.passX * e.W + e.scene.camera.look * (this.par == null ? 0.5 : this.par); reflA = smooth01((Math.abs(X - manX) - 20 * s) / (40 * s)); }
+  e.groundShadow(X, 13 * s, 84 * s);
+  c.save(); c.translate(X, gy);
+  if (reflA > 0.01) { c.globalAlpha = 0.4 * reflA; const grd = c.createLinearGradient(0, 0, 0, 46 * s); grd.addColorStop(0, 'rgba(200,0,20,0.5)'); grd.addColorStop(1, 'rgba(200,0,20,0)'); c.fillStyle = grd; c.fillRect(-14 * s, 0, 28 * s, 48 * s); c.globalAlpha = 1; }
+  c.fillStyle = PALETTE.bone; c.save(); c.translate(walk * 2 * s, 0); c.beginPath(); c.moveTo(-2 * s, -32 * s); c.lineTo(2 * s, -32 * s); c.lineTo(3 * s, -2 * s); c.lineTo(-1 * s, -2 * s); c.closePath(); c.fill(); c.restore();
+  c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(1 * s, -2 * s); c.lineTo(7 * s, 0); c.lineTo(1 * s, 1 * s); c.closePath(); c.fill();
+  const dg = c.createLinearGradient(-12 * s, 0, 12 * s, 0); dg.addColorStop(0, '#8e0009'); dg.addColorStop(0.5, '#e2101a'); dg.addColorStop(1, '#9e000c');
+  c.fillStyle = dg; c.shadowColor = 'rgba(210,0,24,0.5)'; c.shadowBlur = 18 * s;
+  c.beginPath(); c.moveTo(-7 * s, -58 * s); c.quadraticCurveTo(-12 * s, -40 * s, -6 * s, -34 * s); c.quadraticCurveTo(-16 * s, -18 * s, -12 * s + walk * 2 * s, 0); c.quadraticCurveTo(0, 6 * s, 12 * s + walk * 2 * s, 0); c.quadraticCurveTo(16 * s, -18 * s, 6 * s, -34 * s); c.quadraticCurveTo(12 * s, -40 * s, 7 * s, -58 * s); c.closePath(); c.fill();
+  c.beginPath(); c.moveTo(-7 * s, -58 * s); c.quadraticCurveTo(-8 * s, -70 * s, -5 * s, -76 * s); c.lineTo(5 * s, -76 * s); c.quadraticCurveTo(8 * s, -70 * s, 7 * s, -58 * s); c.closePath(); c.fill();
+  c.shadowBlur = 0;
+  c.fillStyle = PALETTE.bone; c.beginPath(); c.moveTo(-5 * s, -76 * s); c.quadraticCurveTo(-12 * s, -72 * s, -10 * s, -50 * s); c.lineTo(-7 * s, -50 * s); c.quadraticCurveTo(-8 * s, -70 * s, -3 * s, -74 * s); c.closePath(); c.fill();
+  c.beginPath(); c.arc(0, -84 * s, 6.5 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = '#070708'; c.beginPath(); c.arc(0, -86 * s, 8 * s, Math.PI * 0.9, Math.PI * 2.2); c.fill();
+  c.beginPath(); c.moveTo(6 * s, -88 * s); c.quadraticCurveTo(12 * s, -78 * s, 7 * s, -66 * s); c.quadraticCurveTo(4 * s, -74 * s, 4 * s, -84 * s); c.closePath(); c.fill();
+  c.fillStyle = PALETTE.redHot; c.beginPath(); c.ellipse(-1 * s, -81 * s, 2.2 * s, 1.1 * s, 0, 0, TWO_PI); c.fill();
+  c.restore();
+});
+
+defineActor('dealer', function (e) {                          // croupier behind the table (the felt covers his lower half)
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, rim = rimSign(e, this);
+  c.save(); c.translate(X, gy);
+  c.fillStyle = bodyGrad(c, 70, s, rim);
+  c.beginPath(); c.moveTo(-19 * s, 0); c.lineTo(-17 * s, -52 * s); c.quadraticCurveTo(-22 * s, -64 * s, -12 * s, -68 * s); c.quadraticCurveTo(0, -76 * s, 12 * s, -68 * s); c.quadraticCurveTo(22 * s, -64 * s, 17 * s, -52 * s); c.lineTo(19 * s, 0); c.closePath(); c.fill();
+  c.fillStyle = '#cdcbc1'; c.beginPath(); c.moveTo(-4 * s, -66 * s); c.lineTo(4 * s, -66 * s); c.lineTo(3 * s, -30 * s); c.lineTo(-3 * s, -30 * s); c.closePath(); c.fill();
+  c.fillStyle = '#0c0e13'; c.beginPath(); c.moveTo(-12 * s, -68 * s); c.lineTo(-4 * s, -66 * s); c.lineTo(-3 * s, -30 * s); c.lineTo(-13 * s, -36 * s); c.closePath(); c.moveTo(12 * s, -68 * s); c.lineTo(4 * s, -66 * s); c.lineTo(3 * s, -30 * s); c.lineTo(13 * s, -36 * s); c.closePath(); c.fill();
+  c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(-4.5 * s, -67 * s); c.lineTo(0, -64 * s); c.lineTo(-4.5 * s, -61 * s); c.closePath(); c.moveTo(4.5 * s, -67 * s); c.lineTo(0, -64 * s); c.lineTo(4.5 * s, -61 * s); c.closePath(); c.fill();
+  c.fillStyle = '#7a0008'; c.fillRect(-1.2 * s, -65.5 * s, 2.4 * s, 3 * s);
+  c.strokeStyle = '#101319'; c.lineWidth = 7 * s; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(-13 * s, -56 * s); c.lineTo(-22 * s, -30 * s); c.moveTo(13 * s, -56 * s); c.lineTo(22 * s, -30 * s); c.stroke();
+  c.fillStyle = '#bdbbb0'; c.beginPath(); c.arc(-23 * s, -28 * s, 3.5 * s, 0, TWO_PI); c.arc(23 * s, -28 * s, 3.5 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = '#1a1b20'; c.beginPath(); c.arc(0, -80 * s, 8 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = PALETTE.ink; c.beginPath(); c.arc(0, -82 * s, 8 * s, Math.PI, 0); c.fill();
+  c.fillStyle = 'rgba(170,135,45,0.6)'; c.beginPath(); c.ellipse(0, -79 * s, 9.5 * s, 3 * s, 0, 0, Math.PI); c.fill();
+  c.restore();
+}, { castsShadow: false });
+
+defineActor('singer', function (e) {                          // lounge singer at the mic, in a spotlight
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, gown = this.red ? '#cf0a16' : '#cdc9bf';
+  c.save(); c.translate(X, gy);
+  const sl = c.createRadialGradient(0, -60 * s, 0, 0, -60 * s, 84 * s); sl.addColorStop(0, 'rgba(255,250,230,0.12)'); sl.addColorStop(1, 'rgba(255,250,230,0)'); c.fillStyle = sl; c.beginPath(); c.arc(0, -60 * s, 84 * s, 0, TWO_PI); c.fill();
+  shadowPool(c, 0, 4 * s, 22 * s, 6 * s);
+  c.fillStyle = gown; c.shadowColor = this.red ? 'rgba(210,0,24,0.4)' : 'rgba(0,0,0,0)'; c.shadowBlur = this.red ? 14 * s : 0;
+  c.beginPath(); c.moveTo(-6 * s, -66 * s); c.quadraticCurveTo(-10 * s, -30 * s, -16 * s, 0); c.quadraticCurveTo(0, 5 * s, 16 * s, 0); c.quadraticCurveTo(10 * s, -30 * s, 6 * s, -66 * s); c.closePath(); c.fill();
+  c.beginPath(); c.moveTo(-6 * s, -66 * s); c.quadraticCurveTo(-7 * s, -78 * s, -4 * s, -84 * s); c.lineTo(4 * s, -84 * s); c.quadraticCurveTo(7 * s, -78 * s, 6 * s, -66 * s); c.closePath(); c.fill(); c.shadowBlur = 0;
+  c.strokeStyle = gown; c.lineWidth = 5 * s; c.lineCap = 'round'; c.beginPath(); c.moveTo(4 * s, -80 * s); c.lineTo(16 * s, -92 * s); c.stroke();
+  c.fillStyle = PALETTE.bone; c.beginPath(); c.arc(16 * s, -92 * s, 3.5 * s, 0, TWO_PI); c.fill();
+  c.beginPath(); c.arc(0, -92 * s, 6.5 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = '#070708'; c.beginPath(); c.arc(0, -94 * s, 8 * s, Math.PI * 0.85, Math.PI * 2.25); c.fill();
+  c.fillStyle = PALETTE.redHot; c.beginPath(); c.ellipse(0, -89 * s, 2.2 * s, 1.1 * s, 0, 0, TWO_PI); c.fill();
+  c.strokeStyle = PALETTE.ink; c.lineWidth = 2.5 * s; c.beginPath(); c.moveTo(21 * s, -86 * s); c.lineTo(21 * s, 0); c.stroke();
+  c.fillStyle = '#1a1d22'; c.beginPath(); c.ellipse(20 * s, -90 * s, 4 * s, 5 * s, 0, 0, TWO_PI); c.fill();
+  c.strokeStyle = 'rgba(200,210,225,0.4)'; c.lineWidth = 1; c.beginPath(); c.ellipse(20 * s, -90 * s, 4 * s, 5 * s, 0, 0, TWO_PI); c.stroke();
+  c.restore();
+});
+
+defineActor('womanInBlack', function (e) {                    // the Sable Dame — black gown, pale skin, red lips
+  const c = e.ctx, s = e.scaleOf(this), X = e.walkX(this), gy = e.gy + (this.dy || 0) * e.unit, t = e.t, walk = Math.sin(t * ANIM.walkSpeed) * (this.walk ? 1 : 0.5);
+  if (this.walk) { const i = Math.min(e.lineIdx, this.walk.length - 1), prev = i > 0 ? this.walk[i - 1] : this.walk[0]; e.walkSound(prev !== this.walk[i] && e.beat() < (this.walkDur || 3.4) - 0.2); }
+  e.groundShadow(X, 13 * s, 84 * s);
+  c.save(); c.translate(X, gy);
+  c.globalAlpha = 0.2; const grd = c.createLinearGradient(0, 0, 0, 40 * s); grd.addColorStop(0, 'rgba(150,160,180,0.4)'); grd.addColorStop(1, 'rgba(150,160,180,0)'); c.fillStyle = grd; c.fillRect(-12 * s, 0, 24 * s, 42 * s); c.globalAlpha = 1;
+  c.fillStyle = PALETTE.bone; c.save(); c.translate(walk * 2 * s, 0); c.beginPath(); c.moveTo(-2 * s, -32 * s); c.lineTo(2 * s, -32 * s); c.lineTo(3 * s, -2 * s); c.lineTo(-1 * s, -2 * s); c.closePath(); c.fill(); c.restore();
+  c.fillStyle = '#0a0b0e'; c.beginPath(); c.moveTo(1 * s, -2 * s); c.lineTo(7 * s, 0); c.lineTo(1 * s, 1 * s); c.closePath(); c.fill();
+  const dg = c.createLinearGradient(-12 * s, 0, 12 * s, 0); dg.addColorStop(0, '#070809'); dg.addColorStop(0.46, '#23272f'); dg.addColorStop(0.6, '#14171c'); dg.addColorStop(1, '#070809');
+  c.fillStyle = dg; c.shadowColor = 'rgba(0,0,0,0.6)'; c.shadowBlur = 12 * s;
+  c.beginPath(); c.moveTo(-7 * s, -58 * s); c.quadraticCurveTo(-12 * s, -40 * s, -6 * s, -34 * s); c.quadraticCurveTo(-16 * s, -18 * s, -12 * s + walk * 2 * s, 0); c.quadraticCurveTo(0, 6 * s, 12 * s + walk * 2 * s, 0); c.quadraticCurveTo(16 * s, -18 * s, 6 * s, -34 * s); c.quadraticCurveTo(12 * s, -40 * s, 7 * s, -58 * s); c.closePath(); c.fill();
+  c.beginPath(); c.moveTo(-7 * s, -58 * s); c.quadraticCurveTo(-8 * s, -70 * s, -5 * s, -76 * s); c.lineTo(5 * s, -76 * s); c.quadraticCurveTo(8 * s, -70 * s, 7 * s, -58 * s); c.closePath(); c.fill();
+  c.shadowBlur = 0;
+  c.fillStyle = PALETTE.bone;
+  c.beginPath(); c.moveTo(-5 * s, -76 * s); c.quadraticCurveTo(0, -71 * s, 5 * s, -76 * s); c.lineTo(4 * s, -72 * s); c.quadraticCurveTo(0, -68 * s, -4 * s, -72 * s); c.closePath(); c.fill();
+  c.beginPath(); c.moveTo(-5 * s, -76 * s); c.quadraticCurveTo(-12 * s, -72 * s, -10 * s, -50 * s); c.lineTo(-7 * s, -50 * s); c.quadraticCurveTo(-8 * s, -70 * s, -3 * s, -74 * s); c.closePath(); c.fill();
+  c.beginPath(); c.arc(0, -84 * s, 6.5 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = '#050506'; c.beginPath(); c.arc(0, -86 * s, 8 * s, Math.PI * 0.85, Math.PI * 2.25); c.fill();
+  c.beginPath(); c.moveTo(6.5 * s, -88 * s); c.quadraticCurveTo(13 * s, -76 * s, 8 * s, -62 * s); c.quadraticCurveTo(4 * s, -72 * s, 4 * s, -84 * s); c.closePath(); c.fill();
+  c.beginPath(); c.moveTo(-6.5 * s, -88 * s); c.quadraticCurveTo(-12 * s, -78 * s, -8 * s, -66 * s); c.quadraticCurveTo(-4 * s, -74 * s, -4 * s, -84 * s); c.closePath(); c.fill();
+  c.fillStyle = PALETTE.redHot; c.beginPath(); c.ellipse(0, -81 * s, 2.2 * s, 1.1 * s, 0, 0, TWO_PI); c.fill();
+  c.restore();
+});
+
+};
+__mod["src/library/shared.js"] = function(__exports, __req){
+// SHARED LIBRARY PRIMITIVES — reusable sub-drawings the cast & props build on: cigarette
+// ember + smoke, a snap-brim fedora, a pistol, a muzzle flash. Re-exports the material
+// helpers so library files import their shading from one place.
+const { TWO_PI } = __req("src/engine/math.js");
+const { PALETTE, ANIM } = __req("src/style/palette.js");
+{ const __m = __req("src/style/materials.js"); __exports.rimSign = __m.rimSign; __exports.bodyGrad = __m.bodyGrad; __exports.shadowPool = __m.shadowPool; }
+
+function ember(c, x, y, s, t) { const em = 0.6 + 0.4 * Math.sin(t * ANIM.emberSpeed); c.save(); c.fillStyle = `rgba(255,60,30,${0.7 + 0.3 * em})`; c.shadowColor = PALETTE.ember; c.shadowBlur = 10 * em; c.beginPath(); c.arc(x, y, 1.9 * s, 0, TWO_PI); c.fill(); c.restore(); }
+
+function cigSmoke(c, x, y, s, t) {
+  c.save(); c.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 6; i++) { const life = (t * 0.4 + i * 0.16) % 1, yy = y - life * 42 * s, xx = x + Math.sin(t * 1.2 + i) * 4 * s * life, r = (1.4 + life * 5) * s, a = 0.11 * (1 - life); c.fillStyle = `rgba(210,214,224,${a})`; c.beginPath(); c.arc(xx, yy, r, 0, TWO_PI); c.fill(); }
+  c.restore();
+}
+
+function drawFedora(c, cx, cy, r, rim) {
+  c.save(); c.translate(cx, cy);
+  c.fillStyle = PALETTE.ink;
+  c.beginPath(); c.ellipse(0, r * 0.06, r * 1.62, r * 0.32, 0, 0, TWO_PI); c.fill();
+  c.beginPath();
+  c.moveTo(-r * 0.8, -r * 0.04);
+  c.quadraticCurveTo(-r * 0.86, -r * 0.82, -r * 0.4, -r * 0.9);
+  c.quadraticCurveTo(-r * 0.16, -r * 1.0, 0, -r * 0.82);
+  c.quadraticCurveTo(r * 0.16, -r * 1.0, r * 0.4, -r * 0.9);
+  c.quadraticCurveTo(r * 0.86, -r * 0.82, r * 0.8, -r * 0.04);
+  c.closePath(); c.fill();
+  c.fillStyle = '#10121a'; c.fillRect(-r * 0.8, -r * 0.16, r * 1.6, r * 0.16);
+  c.strokeStyle = 'rgba(200,210,230,0.28)'; c.lineWidth = 1;
+  c.beginPath(); c.moveTo(rim * r * 0.7, -r * 0.86); c.quadraticCurveTo(rim * r * 0.86, -r * 0.5, rim * r * 0.78, -r * 0.08); c.stroke();
+  c.restore();
+}
+
+function drawPistol(c, x, y, s) {
+  c.save(); c.translate(x, y); c.fillStyle = '#101216';
+  c.fillRect(0, -3 * s, 17 * s, 5 * s); c.fillRect(-2 * s, -3 * s, 5 * s, 12 * s);
+  c.fillStyle = '#1a1d22'; c.fillRect(2 * s, 2 * s, 4 * s, 5 * s);
+  c.strokeStyle = 'rgba(200,210,225,0.55)'; c.lineWidth = 1; c.beginPath(); c.moveTo(0, -3 * s); c.lineTo(17 * s, -3 * s); c.stroke();
+  c.restore();
+}
+
+function muzzleFlash(c, x, y, s, f) {
+  c.save(); c.translate(x, y); c.globalAlpha = f; c.fillStyle = PALETTE.amber; c.shadowColor = '#ff3000'; c.shadowBlur = 30;
+  c.beginPath(); for (let i = 0; i < 10; i++) { const a = i / 10 * TWO_PI, r = (i % 2 ? 6 : 18) * s * (0.6 + f); c.lineTo(Math.cos(a) * r, Math.sin(a) * r); } c.closePath(); c.fill();
+  c.fillStyle = '#fff'; c.beginPath(); c.arc(0, 0, 5 * s * f, 0, TWO_PI); c.fill(); c.restore();
+}
+
+__exports.ember = ember;
+__exports.cigSmoke = cigSmoke;
+__exports.drawFedora = drawFedora;
+__exports.drawPistol = drawPistol;
+__exports.muzzleFlash = muzzleFlash;
+};
+__mod["src/style/materials.js"] = function(__exports, __req){
+// MATERIALS — shared surface shading so every object looks cut from the same cloth.
+// Change a material here and the whole cast restyles. `e` is the frame (for light queries).
+const { TWO_PI } = __req("src/engine/math.js");
+
+// which edge catches the light: toward the weighted CENTRE of nearby lights (not a single
+// dominant pick), with a dead zone + hysteresis so a flickering neon or a flaring cigarette
+// can't snap the lit edge from side to side (that was the "flickering man" artifact).
+function rimSign(e, node) {
+  const X = e.X(node);
+  let wx = 0, wsum = 0;
+  for (const L of e.lights) { const w = L.I * (1 - Math.abs(X - L.x) / (L.r * 1.1)); if (w > 0) { wx += L.x * w; wsum += w; } }
+  const lx = wsum > 0.05 ? wx / wsum : e.keyLight.x * e.W, margin = 0.06 * e.W;
+  let sign = node._rim || (lx < X ? -1 : 1);
+  if (lx < X - margin) sign = -1; else if (lx > X + margin) sign = 1;
+  return node._rim = sign;
+}
+
+// horizontal "form" light: a lit edge on the light side, tinted by that light's colour
+function bodyGrad(c, h, s, rim, tint) {
+  rim = rim || 1;
+  const g = c.createLinearGradient(rim * 34 * s, 0, -rim * 34 * s, 0);
+  let lit = '#3a4049';
+  if (tint) { const m = 0.5; lit = `rgb(${Math.round(58 + (tint[0] - 58) * m)},${Math.round(64 + (tint[1] - 64) * m)},${Math.round(73 + (tint[2] - 73) * m)})`; }
+  g.addColorStop(0, lit); g.addColorStop(0.42, '#181b21'); g.addColorStop(1, '#080909');
+  return g;
+}
+
+// a plain soft contact blob (props that do not warrant a full directional shadow)
+function shadowPool(c, x, y, rx, ry) { c.save(); c.globalAlpha = 0.32; c.fillStyle = '#000'; c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, TWO_PI); c.fill(); c.restore(); }
+
+__exports.rimSign = rimSign;
+__exports.bodyGrad = bodyGrad;
+__exports.shadowPool = shadowPool;
+};
+__mod["src/library/actors/animals.js"] = function(__exports, __req){
+// ANIMALS — an alley cat with a glowing eye, and crows that lift off in slow motion.
+const { defineActor } = __req("src/objects/registry.js");
+const { PALETTE } = __req("src/style/palette.js");
+const { TWO_PI, clamp01, smooth01 } = __req("src/engine/math.js");
+
+defineActor('cat', function (e) {
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, t = e.t;
+  c.save(); c.translate(X, gy); if (this.flip) c.scale(-1, 1);
+  c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(0, -5 * s, 12 * s, 5 * s, 0, 0, TWO_PI); c.fill();
+  c.fillRect(-11 * s, -6 * s, 2.5 * s, 6 * s); c.fillRect(8 * s, -6 * s, 2.5 * s, 6 * s);
+  c.beginPath(); c.arc(11 * s, -12 * s, 4 * s, 0, TWO_PI); c.fill();
+  c.beginPath(); c.moveTo(8 * s, -15 * s); c.lineTo(9 * s, -20 * s); c.lineTo(11 * s, -15 * s); c.closePath(); c.moveTo(11 * s, -15 * s); c.lineTo(13 * s, -20 * s); c.lineTo(14 * s, -15 * s); c.closePath(); c.fill();
+  c.strokeStyle = PALETTE.ink; c.lineWidth = 2.5 * s; c.lineCap = 'round'; c.beginPath(); c.moveTo(-11 * s, -6 * s); c.quadraticCurveTo(-20 * s, -10 * s + Math.sin(t * 2) * 3 * s, -16 * s, -18 * s); c.stroke();
+  c.fillStyle = PALETTE.amber; c.shadowColor = PALETTE.amber; c.shadowBlur = 4; c.beginPath(); c.arc(12.5 * s, -12 * s, 1 * s, 0, TWO_PI); c.fill(); c.shadowBlur = 0;
+  c.restore();
+}, { castsShadow: false });
+
+defineActor('crow', function (e) {                            // faces right; flies off in slow motion on flyAt
+  const c = e.ctx, t = e.t, sc = (this.scale || 1);
+  let fly = 0;
+  if (this.flyAt != null && e.lineIdx >= this.flyAt) fly = clamp01((smooth01(e.beat() / 11) - (this.delay || 0)) / (1 - (this.delay || 0)));
+  if (fly >= 0.99) return;
+  const X = e.X(this) + fly * e.W * 0.5, y = this.y * e.H - fly * e.H * 0.6, flying = fly > 0.02;
+  const w = Math.sin(t * (flying ? 2.4 : 1.0)) * 0.5 + 0.5, wingTipY = -2 - (flying ? 13 : 4) * w, tail = Math.sin(t * 1.6) * 2.2;
+  c.save(); c.translate(X, y); c.scale(-sc, sc); c.globalAlpha = 1 - fly; c.fillStyle = PALETTE.ink;
+  c.beginPath(); c.ellipse(0, 0, 7, 4, 0, 0, TWO_PI); c.fill();
+  c.beginPath(); c.arc(-6, -3, 3, 0, TWO_PI); c.fill(); c.fillRect(-10, -3, 4, 1.4);
+  c.beginPath(); c.moveTo(5, -1); c.quadraticCurveTo(11, 1 + tail, 14, 2 + tail); c.lineTo(5, 2); c.closePath(); c.fill();
+  c.beginPath(); c.moveTo(2, -1); c.quadraticCurveTo(8, wingTipY * 0.6, 13, wingTipY); c.quadraticCurveTo(8, 1, 3, 1.5); c.closePath(); c.fill();
+  if (!flying) c.fillRect(1, 4, 1.4, 5);
+  c.restore(); c.globalAlpha = 1;
+}, { castsShadow: false });
+
+};
+__mod["src/library/movers/vehicles.js"] = function(__exports, __req){
+// VEHICLES — the red car. It can glide on a `walk` path (pulling away when the light turns
+// green) and registers its head + tail lamps as lights (drawn by the lighting pass).
+const { defineMover } = __req("src/objects/registry.js");
+const { PALETTE } = __req("src/style/palette.js");
+const { TWO_PI } = __req("src/engine/math.js");
+
+defineMover('redCar', function (e) {
+  const c = e.ctx, s = e.scaleOf(this), X = e.walkX(this), gy = e.gy + (this.dy || 0) * e.unit;
+  const P = pts => { c.beginPath(); c.moveTo(pts[0][0] * s, pts[0][1] * s); for (let i = 1; i < pts.length; i++) c.lineTo(pts[i][0] * s, pts[i][1] * s); c.closePath(); };
+  c.save(); c.translate(X, gy); c.scale(this.flip ? 1 : -1, 1);   // authored front-left; default faces RIGHT (its travel direction)
+
+  // soft contact shadow on the wet floor: a feathered ellipse hugging the ground (no hard slab).
+  // The coloured wet glow comes from the head/tail lamps via the lighting pass, not a red box.
+  c.save(); c.translate(0, 1 * s); c.scale(1, 0.16);
+  const sh = c.createRadialGradient(0, 0, 0, 0, 0, 88 * s); sh.addColorStop(0, 'rgba(0,0,0,0.55)'); sh.addColorStop(0.55, 'rgba(0,0,0,0.3)'); sh.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = sh; c.beginPath(); c.arc(0, 0, 88 * s, 0, TWO_PI); c.fill(); c.restore();
+
+  // chrome bumpers (dim steel), front-left + rear-right, behind the body
+  for (const [x0, x1] of [[-82, -66], [66, 82]]) { const sg = c.createLinearGradient(0, -16 * s, 0, -7 * s); sg.addColorStop(0, '#454a52'); sg.addColorStop(1, '#1b1f25'); c.fillStyle = sg; c.fillRect(x0 * s, -16 * s, (x1 - x0) * s, 9 * s); }
+
+  // BODY — a boxy 1980s American sedan, front to the LEFT. Deep oxblood: dark + noir, on the red motif.
+  const body = [[-78, -9], [-78, -21], [-72, -31], [-30, -34], [-26, -34], [-13, -54], [-7, -55], [29, -55], [41, -37], [71, -35], [76, -34], [78, -23], [78, -9]];
+  const bg = c.createLinearGradient(0, -55 * s, 0, -9 * s); bg.addColorStop(0, '#54111b'); bg.addColorStop(0.5, '#3a0c14'); bg.addColorStop(1, '#22070e');
+  c.fillStyle = bg; P(body); c.fill();
+  // beltline crease (a hard chrome trim line, the 80s look)
+  c.strokeStyle = 'rgba(158,52,66,0.5)'; c.lineWidth = 1.4 * s; c.beginPath(); c.moveTo(-76 * s, -35 * s); c.lineTo(77 * s, -36 * s); c.stroke();
+
+  // black-tinted glass greenhouse (dim), with a B-pillar splitting front + rear windows
+  c.fillStyle = '#0a0c12'; P([[-22, -35], [-12, -52], [27, -52], [38, -37]]); c.fill();
+  c.fillStyle = 'rgba(125,145,175,0.08)'; P([[-12, -51], [-1, -51], [-13, -37], [-20, -37]]); c.fill();   // faint reflection streak
+  c.fillStyle = '#1c0a0f'; c.fillRect(6 * s, -52 * s, 3.5 * s, 17 * s);                                      // B-pillar
+
+  // door seams + handles
+  c.strokeStyle = 'rgba(0,0,0,0.5)'; c.lineWidth = 1 * s; c.beginPath(); c.moveTo(-30 * s, -34 * s); c.lineTo(-30 * s, -9 * s); c.moveTo(8 * s, -35 * s); c.lineTo(8 * s, -9 * s); c.moveTo(40 * s, -37 * s); c.lineTo(40 * s, -9 * s); c.stroke();
+  c.fillStyle = 'rgba(165,170,180,0.45)'; c.fillRect(-22 * s, -31 * s, 7 * s, 1.6 * s); c.fillRect(18 * s, -32 * s, 7 * s, 1.6 * s);
+
+  // FRONT (left): grille + sealed-beam headlight
+  c.fillStyle = '#0c0e12'; c.fillRect(-78 * s, -30 * s, 7 * s, 14 * s);
+  c.strokeStyle = 'rgba(92,98,110,0.5)'; c.lineWidth = 1; for (let i = 0; i < 3; i++) { c.beginPath(); c.moveTo((-77 + i * 2.4) * s, -30 * s); c.lineTo((-77 + i * 2.4) * s, -16 * s); c.stroke(); }
+  c.fillStyle = '#ffe7ad'; c.fillRect(-71 * s, -30 * s, 5 * s, 7 * s);
+
+  // REAR (right): red tail light
+  c.fillStyle = 'rgba(255,46,42,0.95)'; c.shadowColor = PALETTE.ember; c.shadowBlur = 10; c.fillRect(72 * s, -31 * s, 5 * s, 10 * s); c.shadowBlur = 0;
+
+  // wheels: on top, sitting on the ground, with squared 80s wheel arches
+  for (const wx of [-44, 46]) {
+    c.strokeStyle = '#1c0a0f'; c.lineWidth = 2.4 * s; c.beginPath(); c.moveTo((wx - 14) * s, -24 * s); c.lineTo((wx - 14) * s, -12 * s); c.lineTo((wx + 14) * s, -12 * s); c.lineTo((wx + 14) * s, -24 * s); c.stroke();
+    c.fillStyle = '#101216'; c.beginPath(); c.arc(wx * s, -12 * s, 12 * s, 0, TWO_PI); c.fill();   // bottom sits on the ground (y 0)
+    c.fillStyle = '#2c313a'; c.beginPath(); c.arc(wx * s, -12 * s, 5.5 * s, 0, TWO_PI); c.fill();
+    c.fillStyle = '#0a0b0e'; c.beginPath(); c.arc(wx * s, -12 * s, 2 * s, 0, TWO_PI); c.fill();
+  }
+  c.restore();
+}, {
+  castsShadow: false,
+  emitLight(e) {
+    const s = e.scaleOf(this), X = e.walkX(this), gy = e.gy + (this.dy || 0) * e.unit, ly = gy - 9 * s, dir = this.flip ? -1 : 1;
+    e.addLight({ x: X + dir * 78 * s, y: ly, col: '255,238,196', r: 150 * s, I: 0.5, ew: 10 * s, eh: 7 * s });   // headlight (front)
+    e.addLight({ x: X - dir * 74 * s, y: ly, col: '255,40,30', r: 90 * s, I: 0.42, ew: 8 * s, eh: 6 * s });        // tail (rear)
+  },
+});
+
+};
+__mod["src/library/props/casino.js"] = function(__exports, __req){
+// CASINO PROPS — card table, slots, roulette, drink, cash.
+const { defineProp } = __req("src/objects/registry.js");
+const { PALETTE } = __req("src/style/palette.js");
+const { TWO_PI } = __req("src/engine/math.js");
+const { shadowPool } = __req("src/library/shared.js");
+
+defineProp('cardTable', function (e) {
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, top = gy - 46 * s, w = 132 * s, h = 42 * s;
+  shadowPool(c, X, gy + 4 * s, w * 0.58, 10 * s);
+  c.fillStyle = '#070708'; c.fillRect(X - w * 0.5, top, w, 48 * s);
+  const felt = c.createRadialGradient(X, top, 4 * s, X, top, w * 0.5); felt.addColorStop(0, '#1c2a22'); felt.addColorStop(1, '#0c130f');
+  c.fillStyle = felt; c.beginPath(); c.ellipse(X, top, w * 0.5, h * 0.5, 0, 0, TWO_PI); c.fill();
+  c.strokeStyle = 'rgba(200,210,225,0.18)'; c.lineWidth = 2; c.beginPath(); c.ellipse(X, top, w * 0.5, h * 0.5, 0, 0, TWO_PI); c.stroke();
+  c.fillStyle = '#e8e6dc'; for (let i = 0; i < 4; i++) { c.save(); c.translate(X - 30 * s + i * 14 * s, top - 2 * s); c.rotate(-0.3 + i * 0.18); c.fillRect(-6 * s, -9 * s, 12 * s, 18 * s); c.strokeStyle = '#b22'; c.lineWidth = 1; if (i % 2) { c.fillStyle = '#b22'; c.beginPath(); c.arc(0, 0, 1.6 * s, 0, TWO_PI); c.fill(); c.fillStyle = '#e8e6dc'; } c.restore(); }
+  c.fillStyle = '#e8e6dc'; for (const dx of [-10, 6]) { c.save(); c.translate(X + 16 * s + dx * s, top + 2 * s); c.fillRect(-3 * s, -3 * s, 6 * s, 6 * s); c.fillStyle = '#b00010'; c.beginPath(); c.arc(0, 0, 1 * s, 0, TWO_PI); c.fill(); c.fillStyle = '#e8e6dc'; c.restore(); }
+  const hot = this.glow !== false;
+  for (let i = 0; i < 5; i++) { c.fillStyle = (hot && i === 4) ? PALETTE.redHot : (i % 2 ? '#cfcfcf' : '#2a2a2a'); c.beginPath(); c.ellipse(X + 42 * s, top - 2 * s - i * 3 * s, 7 * s, 3 * s, 0, 0, TWO_PI); c.fill(); }
+  if (hot) { c.save(); c.shadowColor = PALETTE.redHot; c.shadowBlur = 12; c.fillStyle = PALETTE.redHot; c.beginPath(); c.ellipse(X + 42 * s, top - 14 * s, 7 * s, 3 * s, 0, 0, TWO_PI); c.fill(); c.restore(); }
+});
+
+defineProp('slotMachine', function (e) {
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, w = 46 * s, h = 86 * s;
+  c.save(); c.translate(X, gy);
+  shadowPool(c, 0, 4 * s, w * 0.7, 7 * s);
+  const cab = c.createLinearGradient(-w / 2, 0, w / 2, 0); cab.addColorStop(0, '#0c0e12'); cab.addColorStop(0.5, '#1b1f25'); cab.addColorStop(1, '#0c0e12');
+  c.fillStyle = cab; c.fillRect(-w / 2, -h, w, h);
+  c.beginPath(); c.moveTo(-w / 2, -h); c.quadraticCurveTo(0, -h - 16 * s, w / 2, -h); c.closePath(); c.fill();
+  c.save(); c.shadowColor = PALETTE.redHot; c.shadowBlur = 12; c.fillStyle = PALETTE.redHot; c.fillRect(-w / 2 + 4 * s, -h - 6 * s, w - 8 * s, 5 * s); c.restore();
+  c.fillStyle = '#05060a'; c.fillRect(-w / 2 + 6 * s, -h + 14 * s, w - 12 * s, 26 * s);
+  const syms = ['$', '7', '$'];
+  for (let i = 0; i < 3; i++) { const rx = -w / 2 + 6 * s + (i + 0.5) * (w - 12 * s) / 3; c.fillStyle = '#e8e6dc'; c.fillRect(rx - 5 * s, -h + 16 * s, 10 * s, 22 * s); c.fillStyle = i === 1 ? PALETTE.redHot : '#1a1a1a'; c.font = `bold ${10 * s}px "Courier New",monospace`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(syms[i], rx, -h + 27 * s); }
+  c.fillStyle = '#05060a'; c.fillRect(-10 * s, -h + 50 * s, 20 * s, 3 * s);
+  c.fillStyle = '#0a0c10'; c.fillRect(-w / 2 + 6 * s, -18 * s, w - 12 * s, 14 * s);
+  c.save(); c.globalAlpha = 0.85; c.fillStyle = PALETTE.amber; c.shadowColor = PALETTE.amber; c.shadowBlur = 8; c.beginPath(); c.arc(-6 * s, -11 * s, 2 * s, 0, TWO_PI); c.arc(2 * s, -11 * s, 2 * s, 0, TWO_PI); c.fill(); c.restore();
+  c.strokeStyle = '#3a3f47'; c.lineWidth = 3 * s; c.beginPath(); c.moveTo(w / 2, -h + 22 * s); c.lineTo(w / 2 + 10 * s, -h + 10 * s); c.stroke();
+  c.fillStyle = PALETTE.redHot; c.shadowColor = PALETTE.redHot; c.shadowBlur = 8; c.beginPath(); c.arc(w / 2 + 10 * s, -h + 10 * s, 4 * s, 0, TWO_PI); c.fill(); c.shadowBlur = 0;
+  c.restore();
+});
+
+defineProp('rouletteWheel', function (e) {
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), y = (this.y != null ? this.y * e.H : e.gy - 2 * e.unit), t = e.t, R = 30 * s;
+  c.save(); c.translate(X, y); c.scale(1, 0.5); c.rotate(t * 0.4);
+  for (let i = 0; i < 18; i++) { const a0 = i / 18 * TWO_PI, a1 = (i + 1) / 18 * TWO_PI; c.fillStyle = i % 2 ? '#b00010' : '#0a0a0a'; c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, R, a0, a1); c.closePath(); c.fill(); }
+  c.fillStyle = '#1a1d22'; c.beginPath(); c.arc(0, 0, R * 0.45, 0, TWO_PI); c.fill();
+  c.fillStyle = '#c9b27a'; c.beginPath(); c.arc(0, 0, R * 0.12, 0, TWO_PI); c.fill();
+  c.fillStyle = '#f0f0f0'; c.beginPath(); c.arc(R * 0.8 * Math.cos(-t * 1.3), R * 0.8 * Math.sin(-t * 1.3), 2.4 * s, 0, TWO_PI); c.fill();
+  c.restore();
+  c.save(); c.translate(X, y); c.scale(1, 0.5); c.strokeStyle = '#2a2e35'; c.lineWidth = 4 * s; c.beginPath(); c.arc(0, 0, R + 2 * s, 0, TWO_PI); c.stroke(); c.restore();
+});
+
+defineProp('drink', function (e) {                            // this.kind: 'martini' | 'whiskey'
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), y = (this.y != null ? this.y * e.H : e.gy - 2 * e.unit);
+  c.save(); c.translate(X, y);
+  if (this.kind === 'martini') {
+    c.strokeStyle = 'rgba(210,220,235,0.7)'; c.lineWidth = 1.5 * s; c.fillStyle = 'rgba(200,215,235,0.12)';
+    c.beginPath(); c.moveTo(-10 * s, -20 * s); c.lineTo(10 * s, -20 * s); c.lineTo(0, -8 * s); c.closePath(); c.fill(); c.stroke();
+    c.fillStyle = PALETTE.amber; c.globalAlpha = 0.8; c.beginPath(); c.moveTo(-7 * s, -17 * s); c.lineTo(7 * s, -17 * s); c.lineTo(0, -9 * s); c.closePath(); c.fill(); c.globalAlpha = 1;
+    c.strokeStyle = 'rgba(210,220,235,0.7)'; c.beginPath(); c.moveTo(0, -8 * s); c.lineTo(0, 0); c.moveTo(-6 * s, 0); c.lineTo(6 * s, 0); c.stroke();
+    c.fillStyle = PALETTE.redHot; c.beginPath(); c.arc(2 * s, -12 * s, 1.6 * s, 0, TWO_PI); c.fill();
+  } else {
+    c.fillStyle = 'rgba(200,215,235,0.1)'; c.strokeStyle = 'rgba(210,220,235,0.6)'; c.lineWidth = 1.5 * s;
+    c.fillRect(-7 * s, -14 * s, 14 * s, 14 * s); c.strokeRect(-7 * s, -14 * s, 14 * s, 14 * s);
+    c.save(); c.fillStyle = PALETTE.amber; c.globalAlpha = 0.85; c.shadowColor = PALETTE.amber; c.shadowBlur = 8; c.fillRect(-6 * s, -7 * s, 12 * s, 6 * s); c.restore();
+    c.fillStyle = 'rgba(230,235,245,0.5)'; c.fillRect(-3 * s, -6 * s, 3 * s, 3 * s);
+  }
+  c.restore();
+});
+
+defineProp('cash', function (e) {
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), y = (this.y != null ? this.y * e.H : e.gy - 2 * e.unit);
+  c.save(); c.translate(X, y);
+  for (let i = 0; i < 4; i++) { c.fillStyle = i % 2 ? '#3c4a3a' : '#46553f'; c.fillRect(-14 * s, -i * 3 * s, 28 * s, 8 * s); c.strokeStyle = 'rgba(0,0,0,0.45)'; c.lineWidth = 1; c.strokeRect(-14 * s, -i * 3 * s, 28 * s, 8 * s); c.fillStyle = 'rgba(210,215,200,0.45)'; c.beginPath(); c.arc(0, -i * 3 * s + 4 * s, 2 * s, 0, TWO_PI); c.fill(); }
+  c.fillStyle = PALETTE.redHot; c.fillRect(-14 * s, -9 * s, 28 * s, 2.6 * s);
+  c.restore();
+});
+
+};
+__mod["src/library/props/weapons.js"] = function(__exports, __req){
+// WEAPON PROPS — a switchblade, a gun on a surface, a Thompson SMG.
+const { defineProp } = __req("src/objects/registry.js");
+const { PALETTE } = __req("src/style/palette.js");
+const { TWO_PI } = __req("src/engine/math.js");
+const { drawPistol } = __req("src/library/shared.js");
+
+defineProp('knife', function (e) {                            // this.bloody for a red drip
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), y = (this.y != null ? this.y * e.H : e.gy - 4 * e.unit), L = 34 * s;
+  c.save(); c.translate(X, y); c.rotate(this.angle || 0);
+  const bg = c.createLinearGradient(0, -4 * s, 0, 4 * s); bg.addColorStop(0, '#e9edf3'); bg.addColorStop(0.5, '#9aa3b0'); bg.addColorStop(1, '#3a4049');
+  c.fillStyle = bg; c.beginPath(); c.moveTo(0, -4 * s); c.lineTo(L, -1.2 * s); c.lineTo(L + 6 * s, 0); c.lineTo(L, 1.2 * s); c.lineTo(0, 4 * s); c.closePath(); c.fill();
+  c.strokeStyle = 'rgba(255,255,255,0.8)'; c.lineWidth = 1; c.beginPath(); c.moveTo(0, -3 * s); c.lineTo(L, -1 * s); c.stroke();
+  c.fillStyle = '#1a1d22'; c.fillRect(-3 * s, -7 * s, 5 * s, 14 * s);
+  c.fillStyle = PALETTE.ink; c.fillRect(-22 * s, -4 * s, 19 * s, 8 * s);
+  c.strokeStyle = 'rgba(120,128,140,0.4)'; c.lineWidth = 1; for (let i = 0; i < 4; i++) { c.beginPath(); c.moveTo(-20 * s + i * 5 * s, -4 * s); c.lineTo(-18 * s + i * 5 * s, 4 * s); c.stroke(); }
+  c.fillStyle = '#22262c'; c.beginPath(); c.arc(-22 * s, 0, 3.5 * s, 0, TWO_PI); c.fill();
+  if (this.bloody) { c.save(); c.fillStyle = '#c00010'; c.shadowColor = 'rgba(150,0,12,0.6)'; c.shadowBlur = 6; c.beginPath(); c.moveTo(L * 0.55, 3 * s); c.quadraticCurveTo(L * 0.55 + 1.4 * s, 9 * s, L * 0.55, 13 * s); c.quadraticCurveTo(L * 0.55 - 1.4 * s, 9 * s, L * 0.55, 3 * s); c.fill(); c.restore(); }
+  c.restore();
+});
+
+defineProp('pistol', function (e) {
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), y = (this.y != null ? this.y * e.H : e.gy - 3 * e.unit);
+  c.save(); c.translate(X, y); c.rotate(this.angle || 0); if (this.flip) c.scale(-1, 1); drawPistol(c, 0, 0, s * 1.7); c.restore();
+});
+
+defineProp('tommyGun', function (e) {
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), y = (this.y != null ? this.y * e.H : e.gy - 22 * e.unit);
+  c.save(); c.translate(X, y); c.rotate(this.angle || 0); if (this.flip) c.scale(-1, 1);
+  c.fillStyle = '#15181d'; c.fillRect(0, -3 * s, 46 * s, 6 * s);
+  c.strokeStyle = '#0a0c10'; c.lineWidth = 1; for (let i = 0; i < 8; i++) { c.beginPath(); c.moveTo(6 * s + i * 4 * s, -3 * s); c.lineTo(6 * s + i * 4 * s, 3 * s); c.stroke(); }
+  c.fillStyle = '#15181d'; c.fillRect(40 * s, -6 * s, 22 * s, 12 * s);
+  c.beginPath(); c.arc(50 * s, 8 * s, 10 * s, 0, TWO_PI); c.fill();
+  c.strokeStyle = 'rgba(150,160,175,0.4)'; c.lineWidth = 1; c.beginPath(); c.arc(50 * s, 8 * s, 7 * s, 0, TWO_PI); c.stroke();
+  c.fillStyle = '#2a1c12'; c.beginPath(); c.moveTo(62 * s, -5 * s); c.lineTo(80 * s, -9 * s); c.lineTo(82 * s, -2 * s); c.lineTo(64 * s, 3 * s); c.closePath(); c.fill();
+  c.fillRect(20 * s, 4 * s, 6 * s, 12 * s);
+  c.strokeStyle = 'rgba(200,210,225,0.4)'; c.lineWidth = 1; c.beginPath(); c.moveTo(0, -3 * s); c.lineTo(46 * s, -3 * s); c.stroke();
+  c.restore();
+});
+
+};
+__mod["src/library/props/street.js"] = function(__exports, __req){
+// STREET PROPS — the city furniture. barrelFire and trafficLight also emit light (registered
+// in emitLight, drawn by the lighting pass); the rest are unlit set pieces.
+const { defineProp } = __req("src/objects/registry.js");
+const { PALETTE } = __req("src/style/palette.js");
+const { TWO_PI } = __req("src/engine/math.js");
+const { shadowPool } = __req("src/library/shared.js");
+
+defineProp('barrelFire', function (e) {                       // a drum fire in the alley
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, t = e.t;
+  c.save(); c.translate(X, gy);
+  const fg = c.createRadialGradient(0, -46 * s, 0, 0, -46 * s, 64 * s); fg.addColorStop(0, 'rgba(255,140,30,0.35)'); fg.addColorStop(1, 'rgba(255,90,20,0)'); c.fillStyle = fg; c.beginPath(); c.arc(0, -46 * s, 64 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = '#15181d'; c.fillRect(-16 * s, -44 * s, 32 * s, 44 * s);
+  c.strokeStyle = '#0a0c10'; c.lineWidth = 2; c.beginPath(); c.moveTo(-16 * s, -30 * s); c.lineTo(16 * s, -30 * s); c.moveTo(-16 * s, -14 * s); c.lineTo(16 * s, -14 * s); c.stroke();
+  c.fillStyle = '#05060a'; c.beginPath(); c.ellipse(0, -44 * s, 16 * s, 4 * s, 0, 0, TWO_PI); c.fill();
+  for (let i = 0; i < 6; i++) { const fx = (i - 2.5) * 5 * s, fh = (18 + Math.sin(t * 8 + i) * 8) * s; c.fillStyle = i % 2 ? '#ff7a18' : '#ffd400'; c.globalAlpha = 0.85; c.beginPath(); c.moveTo(fx - 4 * s, -44 * s); c.quadraticCurveTo(fx, -44 * s - fh, fx + 4 * s, -44 * s); c.closePath(); c.fill(); }
+  c.globalAlpha = 1;
+  for (let i = 0; i < 5; i++) { const life = (t * 0.6 + i * 0.2) % 1; c.globalAlpha = 1 - life; c.fillStyle = '#ffb030'; c.fillRect(Math.sin(i * 3 + t) * 14 * s, -44 * s - life * 50 * s, 1.5 * s, 1.5 * s); }
+  c.globalAlpha = 1; c.restore();
+}, {
+  emitLight(e) {
+    const s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, t = e.t;
+    const fl = 0.7 + 0.3 * Math.sin(t * 7) + 0.1 * Math.sin(t * 19), I = 0.55 * fl, fy = gy - 46 * s;
+    e.addLight({ x: X, y: fy, col: '255,140,40', r: 170 * s, I, ew: 15 * s, eh: 20 * s });
+  },
+});
+
+defineProp('trafficLight', function (e) {                     // turns green on greenAt; a coloured light source
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit;
+  const green = (this.greenAt != null && e.lineIdx >= this.greenAt);
+  c.save(); c.translate(X, gy);
+  c.fillStyle = '#191c22'; c.fillRect(-2.5 * s, -150 * s, 5 * s, 150 * s);                 // pole: visible steel (not near-black, which vanished against the buildings)
+  c.fillStyle = 'rgba(150,160,175,0.18)'; c.fillRect(-2.5 * s, -150 * s, 1.6 * s, 150 * s); // edge highlight for form
+  c.fillStyle = '#23272f'; c.fillRect(-11 * s, -202 * s, 22 * s, 54 * s);                  // housing
+  c.strokeStyle = 'rgba(0,0,0,0.5)'; c.lineWidth = 1; c.strokeRect(-11 * s, -202 * s, 22 * s, 54 * s);
+  const lamp = (yy, on, col) => { c.fillStyle = on ? col : 'rgba(70,70,74,0.5)'; if (on) { c.shadowColor = col; c.shadowBlur = 16 * s; } c.beginPath(); c.arc(0, yy * s, 5 * s, 0, TWO_PI); c.fill(); c.shadowBlur = 0; };
+  lamp(-190, !green, '#ff2a2a'); lamp(-175, false, '#ffd400'); lamp(-160, green, '#36d36e');
+  c.restore();
+}, {
+  emitLight(e) {
+    const s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit;
+    const green = (this.greenAt != null && e.lineIdx >= this.greenAt);
+    const ly = gy - (green ? 160 : 190) * s, col = green ? '54,211,110' : '255,42,42', r = 150 * (this.scale || 1);
+    e.addLight({ x: X, y: ly, col, r, I: 0.6, ew: 5 * s, eh: 5 * s });
+  },
+});
+
+defineProp('fireHydrant', function (e) {
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit;
+  c.save(); c.translate(X, gy); shadowPool(c, 0, 2 * s, 12 * s, 3 * s);
+  c.fillStyle = '#16191e'; c.fillRect(-6 * s, -22 * s, 12 * s, 22 * s); c.beginPath(); c.arc(0, -22 * s, 7 * s, Math.PI, 0); c.fill();
+  c.fillRect(-9 * s, -16 * s, 3 * s, 5 * s); c.fillRect(6 * s, -16 * s, 3 * s, 5 * s);
+  c.fillStyle = '#0a0c10'; c.beginPath(); c.arc(0, -26 * s, 2.5 * s, 0, TWO_PI); c.fill();
+  c.strokeStyle = 'rgba(200,210,225,0.3)'; c.lineWidth = 1; c.beginPath(); c.moveTo(-5 * s, -20 * s); c.lineTo(-5 * s, -2 * s); c.stroke();
+  c.restore();
+});
+
+defineProp('payphone', function (e) {
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit;
+  c.save(); c.translate(X, gy);
+  c.fillStyle = '#15181d'; c.fillRect(-12 * s, -60 * s, 24 * s, 46 * s);
+  c.fillStyle = '#05060a'; c.fillRect(-9 * s, -56 * s, 18 * s, 18 * s);
+  c.strokeStyle = 'rgba(200,210,225,0.25)'; c.lineWidth = 1; for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) c.strokeRect(-7 * s + i * 5 * s, -34 * s + j * 5 * s, 3 * s, 3 * s);
+  c.strokeStyle = '#0a0c10'; c.lineWidth = 4 * s; c.beginPath(); c.moveTo(-12 * s, -50 * s); c.quadraticCurveTo(-20 * s, -40 * s, -14 * s, -28 * s); c.stroke();
+  c.fillStyle = '#1a1d22'; c.beginPath(); c.arc(-12 * s, -50 * s, 3 * s, 0, TWO_PI); c.arc(-14 * s, -28 * s, 3 * s, 0, TWO_PI); c.fill();
+  c.restore();
+});
+
+defineProp('streetSign', function (e) {
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit;
+  c.save(); c.translate(X, gy);
+  c.fillStyle = PALETTE.ink; c.fillRect(-1.5 * s, -120 * s, 3 * s, 120 * s);
+  c.save(); c.translate(0, -116 * s); c.fillStyle = '#1c2a22'; c.fillRect(-30 * s, -7 * s, 60 * s, 12 * s);
+  c.fillStyle = 'rgba(220,230,225,0.85)'; c.font = `bold ${7 * s}px "Courier New",monospace`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(this.label || 'SIN ST', 0, -1 * s); c.restore();
+  c.restore();
+});
+
+defineProp('waterTower', function (e) {
+  const c = e.ctx, s = e.unit * (this.scale || 1), X = e.X(this), b = e.gy; c.fillStyle = PALETTE.ink;
+  c.beginPath(); c.moveTo(X - 22 * s, b); c.lineTo(X - 16 * s, b - 60 * s); c.lineTo(X - 12 * s, b); c.closePath(); c.moveTo(X + 22 * s, b); c.lineTo(X + 16 * s, b - 60 * s); c.lineTo(X + 12 * s, b); c.fill();
+  c.fillRect(X - 24 * s, b - 88 * s, 48 * s, 30 * s); c.beginPath(); c.moveTo(X - 24 * s, b - 88 * s); c.lineTo(X, b - 108 * s); c.lineTo(X + 24 * s, b - 88 * s); c.closePath(); c.fill();
+});
+
+defineProp('dumpster', function (e) {
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), g = e.gy, bw = 30 * s, bh = 46 * s;
+  c.save();
+  c.fillStyle = '#1c2027'; c.fillRect(X - bw / 2, g - bh, bw, bh);
+  c.fillStyle = '#272c35'; c.fillRect(X - bw / 2 - 3 * s, g - bh - 3 * s, bw + 6 * s, 3.5 * s);
+  c.strokeStyle = 'rgba(0,0,0,0.55)'; c.lineWidth = 1.5; c.strokeRect(X - bw / 2, g - bh, bw, bh);
+  c.beginPath(); for (let i = 1; i < 4; i++) { c.moveTo(X - bw / 2 + i * bw / 4, g - bh); c.lineTo(X - bw / 2 + i * bw / 4, g); } c.stroke();
+  c.restore();
+});
+
+defineProp('manhole', function (e) {
+  const c = e.ctx, s = e.unit * (this.scale || 1), cx = e.X(this), cy = (this.y != null ? this.y * e.H : e.gy + (e.H - e.gy) * 0.42), sq = 0.42;
+  c.save(); c.translate(cx, cy);
+  c.fillStyle = '#0a0c10'; c.beginPath(); c.ellipse(0, 1.5 * s, 32 * s, 32 * s * sq, 0, 0, TWO_PI); c.fill();
+  c.fillStyle = '#22262e'; c.beginPath(); c.ellipse(0, 0, 29 * s, 29 * s * sq, 0, 0, TWO_PI); c.fill();
+  c.fillStyle = '#14171c'; c.beginPath(); c.ellipse(0, 0, 25 * s, 25 * s * sq, 0, 0, TWO_PI); c.fill();
+  c.strokeStyle = 'rgba(0,0,0,0.55)'; c.lineWidth = 1.3 * s;
+  for (let r = 7; r <= 22; r += 7) { c.beginPath(); c.ellipse(0, 0, r * s, r * s * sq, 0, 0, TWO_PI); c.stroke(); }
+  for (let a = 0; a < 8; a++) { const cc = Math.cos(a * Math.PI / 4), sn = Math.sin(a * Math.PI / 4) * sq; c.beginPath(); c.moveTo(cc * 5 * s, sn * 5 * s); c.lineTo(cc * 23 * s, sn * 23 * s); c.stroke(); }
+  c.fillStyle = '#000'; c.beginPath(); c.ellipse(0, 0, 3 * s, 1.6 * s, 0, 0, TWO_PI); c.fill();
+  c.restore();
+});
+
+defineProp('coffee', function (e) {                           // a mug of coffee, steam rising (the cage)
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), y = (this.y != null ? this.y * e.H : e.gy) + (this.dy || 0) * e.unit, t = e.t;
+  c.save(); c.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 4; i++) { const life = (t * 0.5 + i * 0.25) % 1, yy = y - 13 * s - life * 24 * s, a = 0.10 * (1 - life); c.fillStyle = `rgba(220,222,228,${a})`; c.beginPath(); c.arc(X + Math.sin(t * 1.3 + i) * 3 * s, yy, (1.4 + life * 3) * s, 0, TWO_PI); c.fill(); }
+  c.restore();
+  c.fillStyle = '#16181d'; c.beginPath(); c.moveTo(X - 7 * s, y - 12 * s); c.lineTo(X + 7 * s, y - 12 * s); c.lineTo(X + 6 * s, y); c.lineTo(X - 6 * s, y); c.closePath(); c.fill();
+  c.strokeStyle = '#2a2e36'; c.lineWidth = 1.4 * s; c.beginPath(); c.arc(X + 8 * s, y - 7 * s, 4 * s, -1.2, 1.2); c.stroke();
+  c.fillStyle = '#0a0806'; c.beginPath(); c.ellipse(X, y - 12 * s, 6.5 * s, 1.8 * s, 0, 0, TWO_PI); c.fill();
+  c.fillStyle = 'rgba(120,90,60,0.25)'; c.beginPath(); c.ellipse(X - 1.5 * s, y - 12.4 * s, 2.6 * s, 0.8 * s, 0, 0, TWO_PI); c.fill();
+});
+
+};
+__mod["src/library/effects/blood.js"] = function(__exports, __req){
+// BLOOD & AFTERMATH — the body, the splat, a chalk outline, and blood crawling to the drain.
+// Usually revealed by a line's `blood` flag (onFlag: 'blood').
+const { defineEffect } = __req("src/objects/registry.js");
+const { PALETTE } = __req("src/style/palette.js");
+const { TWO_PI, rand32, lerp, smooth01 } = __req("src/engine/math.js");
+
+defineEffect('bodyOnGround', function (e) {
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, fp = this.flip ? -1 : 1;
+  c.save(); c.fillStyle = '#9e000e'; c.shadowColor = 'rgba(150,0,12,0.5)'; c.shadowBlur = 10;
+  c.beginPath(); c.ellipse(X + fp * 30 * s, gy + 2 * s, 34 * s, 9 * s, 0, 0, TWO_PI); c.fill(); c.shadowBlur = 0;
+  c.fillStyle = PALETTE.ink; c.save(); c.translate(X, gy); c.scale(fp, 1);
+  c.beginPath(); c.ellipse(-6 * s, -7 * s, 26 * s, 9 * s, 0, 0, TWO_PI); c.fill();
+  c.beginPath(); c.arc(-30 * s, -9 * s, 8 * s, 0, TWO_PI); c.fill();
+  c.beginPath(); c.ellipse(-48 * s, -3 * s, 9 * s, 3 * s, 0, 0, TWO_PI); c.fill(); c.fillRect(-52 * s, -10 * s, 8 * s, 6 * s);
+  c.fillRect(14 * s, -11 * s, 24 * s, 6 * s); c.fillRect(14 * s, -3 * s, 22 * s, 6 * s);
+  c.restore(); c.restore();
+});
+
+defineEffect('chalkOutline', function (e) {
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit;
+  c.save(); c.translate(X, gy); c.scale(1, 0.42); c.strokeStyle = 'rgba(232,234,240,0.7)'; c.lineWidth = 2 * s; c.lineJoin = 'round';
+  c.beginPath(); c.arc(-28 * s, 0, 8 * s, 0, TWO_PI); c.stroke();
+  c.beginPath(); c.moveTo(-20 * s, -6 * s); c.quadraticCurveTo(0, -14 * s, 20 * s, -22 * s); c.moveTo(-20 * s, 4 * s); c.quadraticCurveTo(0, 10 * s, 24 * s, 4 * s); c.moveTo(-18 * s, 0); c.quadraticCurveTo(10 * s, 2 * s, 30 * s, 16 * s); c.stroke();
+  c.restore();
+});
+
+defineEffect('bloodSplat', function (e) {
+  const c = e.ctx, s = e.unit * (this.scale || 1) / 1.4, X = e.X(this), y = (this.y != null ? this.y : (e.gy / e.H + 0.02)) * e.H, rng = rand32(this.seed || 999);
+  c.save(); c.fillStyle = '#b00010'; c.shadowColor = 'rgba(150,0,12,0.5)'; c.shadowBlur = 8;
+  c.beginPath(); c.ellipse(X, y, 14 * s, 5 * s, 0, 0, TWO_PI); c.fill();
+  for (let i = 0; i < 16; i++) { const a = rng() * TWO_PI, d = (10 + rng() * 44) * s, r = (1 + rng() * 4) * s; c.beginPath(); c.arc(X + Math.cos(a) * d, y + Math.sin(a) * d * 0.5, r, 0, TWO_PI); c.fill(); }
+  c.shadowBlur = 0; c.restore();
+});
+
+defineEffect('bloodDrain', function (e) {                     // crawls to the drain from drainAt onward
+  if (!e.flags.blood) return;
+  const drainAt = this.drainAt != null ? this.drainAt : 0;
+  if (e.lineIdx < drainAt) return;
+  const amt = e.lineIdx > drainAt ? 1 : smooth01(e.beat() / 5);
+  const c = e.ctx, par = e.scene.camera.look * (this.par == null ? 0.5 : this.par);
+  const x = this.x * e.W + par, y = e.gy + 12;
+  const dx = (this.drainX != null ? this.drainX : 0.5) * e.W + par, dy = (this.drainY != null ? this.drainY * e.H : e.gy + (e.H - e.gy) * 0.42);
+  const cx2 = (x + dx) / 2, cy2 = Math.max(y, dy) + 16, reach = Math.min(1, amt), N = 46;
+  c.save();
+  c.fillStyle = 'rgba(116,0,12,0.82)'; c.beginPath(); c.ellipse(x, y, 14 + 12 * amt, 5 + 4 * amt, 0, 0, TWO_PI); c.fill();
+  for (let i = 0; i <= N; i++) {
+    const u = i / N; if (u > reach) break;
+    const bx = (1 - u) * (1 - u) * x + 2 * (1 - u) * u * cx2 + u * u * dx, by = (1 - u) * (1 - u) * y + 2 * (1 - u) * u * cy2 + u * u * dy;
+    const wob = Math.sin(u * 8 + e.t * 1.3) * (1 + u * 2.4), r = lerp(5.2, 1.8, u);
+    c.fillStyle = `rgba(${Math.round(lerp(120, 200, u))},${Math.round(lerp(0, 60, u))},${Math.round(lerp(12, 72, u))},${lerp(0.85, 0.4, u)})`;
+    c.beginPath(); c.ellipse(bx + wob, by, r, r * 0.78, 0, 0, TWO_PI); c.fill();
+  }
+  if (reach > 0.8) { c.fillStyle = 'rgba(170,30,50,0.42)'; c.beginPath(); c.ellipse(dx, dy, 11, 4.4, 0, 0, TWO_PI); c.fill(); }
+  c.restore();
+});
+
+};
+__mod["src/library/effects/atmosphere.js"] = function(__exports, __req){
+// ATMOSPHERE — drifting steam, a sweeping rooftop searchlight, and a tabloid that blows in.
+const { defineEffect } = __req("src/objects/registry.js");
+const { smooth01, lerp } = __req("src/engine/math.js");
+
+defineEffect('steam', function (e) {
+  const c = e.ctx, X = e.X(this), gy = (this.y != null ? this.y * e.H : e.gy), t = e.t, seed = this.seed || 0;
+  c.save(); c.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 5; i++) { const life = ((t * 0.25 + i * 0.2 + seed) % 1), y = gy - life * 150, r = 8 + life * 46, a = 0.10 * (1 - life); c.fillStyle = `rgba(200,210,225,${a})`; c.beginPath(); c.arc(X + Math.sin(t + i + seed) * 14, y, r, 0, Math.PI * 2); c.fill(); }
+  c.restore();
+});
+
+// a distant searchlight beam sweeping the sky. It lives in the BACK layer (behind the backdrop),
+// so it never lands on the rooftop floor, and it is just the beam: no glow, no floor reflection.
+defineEffect('searchlight', function (e) {
+  const c = e.ctx, t = e.t, ang = Math.sin(t * 0.4) * 0.5;
+  c.save(); c.translate((this.x || 0.5) * e.W, e.H); c.rotate(ang); c.globalCompositeOperation = 'lighter';
+  const lg = c.createLinearGradient(0, 0, 0, -e.H); lg.addColorStop(0, 'rgba(190,200,220,0.10)'); lg.addColorStop(1, 'rgba(190,200,220,0)');
+  c.fillStyle = lg; c.beginPath(); c.moveTo(0, 0); c.lineTo(-70, -e.H); c.lineTo(70, -e.H); c.closePath(); c.fill(); c.restore();
+}, { layer: 'back' });
+
+defineEffect('newspaper', function (e) {                      // blows in from the left, tumbles, settles
+  const c = e.ctx, st = e.sceneT(), pP = smooth01(st / 4.5), tumbling = pP < 0.97;
+  const k = e.scaleOf(this) * 0.6;   // scale with the viewport like every other asset (0.6 keeps the reference-desktop size); was fixed px, so it stayed big on mobile
+  const restX = (this.restX != null ? this.restX : 0.2) * e.W;
+  const px = lerp(-50 * k, restX, pP), py = tumbling ? (e.gy - 6 * k - Math.abs(Math.sin(st * 3)) * 50 * k * (1 - pP)) : (e.gy + 16 * k), rot = tumbling ? Math.sin(st * 5) : 0.1;
+  const w = 72, h = 48;
+  c.save(); c.translate(px, py); c.rotate(rot); c.scale(k, k);
+  c.fillStyle = 'rgba(228,225,214,0.92)'; c.fillRect(-w / 2, -h / 2, w, h);
+  c.strokeStyle = 'rgba(0,0,0,0.55)'; c.lineWidth = 1; c.strokeRect(-w / 2, -h / 2, w, h);
+  c.fillStyle = '#0b0b0b'; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
+  c.font = '700 4.5px "Times New Roman",serif'; c.fillText('THE BASIN HERALD', 0, -h / 2 + 8);
+  c.strokeStyle = 'rgba(0,0,0,0.5)'; c.beginPath(); c.moveTo(-w / 2 + 5, -h / 2 + 11); c.lineTo(w / 2 - 5, -h / 2 + 11); c.stroke();
+  c.font = '900 7px "Arial Black",Impact,sans-serif'; c.fillText('ANOTHER ONE', 0, -h / 2 + 22); c.fillText('IN THE RAIN', 0, -h / 2 + 31);
+  c.strokeStyle = 'rgba(0,0,0,0.28)'; c.lineWidth = 0.6;
+  for (let i = 0; i < 4; i++) { const yy = -h / 2 + 37 + i * 2; c.beginPath(); c.moveTo(-w / 2 + 6, yy); c.lineTo(w / 2 - 6, yy); c.stroke(); }
+  c.restore();
+});
+
+};
+__mod["stories/manifest.js"] = function(__exports, __req){
+// STORY MANIFEST — the tales on the intro picker, lazy-loaded on selection. Add a story:
+// create stories/<id>/story.js (export default {...}) and add an entry here. No engine change.
+const STORIES = [
+  { id: 'hallucination', name: 'STORY 0', tagline: 'A HALLUCINATION', load: () => Promise.resolve(__req("stories/hallucination/story.js")).then(m => m.default) },
+  { id: 'danny-cole', name: 'STORY 1', tagline: 'THE LAST DEAL OF DANNY COLE', load: () => Promise.resolve(__req("stories/danny-cole/story.js")).then(m => m.default) },
+  { id: 'sable-dame', name: 'STORY 2', tagline: 'THE SABLE DAME', load: () => Promise.resolve(__req("stories/sable-dame/story.js")).then(m => m.default) },
+];
+
+__exports.STORIES = STORIES;
+};
+__mod["stories/hallucination/story.js"] = function(__exports, __req){
+/* INKFALL — STORY: the original three-scene hallucination (pure data; no engine code).
+   A story = { title, subtitle, blurb, audio?, scenes: [...] }. See stories/SCHEMA.md.
+   Cast entries name a library object by `type`; lights name a light by `type`. */
+__exports.default = {
+  title: 'INKFALL',
+  subtitle: 'A HALLUCINATION OF SIN CITY',
+  blurb: 'It always rains in Basin City. The whole town is black and white, except the things that bleed. Tap through the long, wet night.',
+  audio: {
+    music: 'piano_noir.wav', musicVol: 0.62, rain: 'rain.mp3', rainVol: 0.16,
+    sfx: {
+      gunshot: { src: 'gunshot.mp3', vol: 0.95, n: 3 },
+      shell: { src: 'shell.mp3', vol: 0.5, n: 4 },
+      hammer: { src: 'hammer.mp3', vol: 0.9, n: 2 },
+      footstep: { src: 'footstep.mp3', vol: 0.5 },
+      lidopen: { src: 'lidopen.mp3', vol: 0.8 },
+      flint: { src: 'flint.mp3', vol: 0.8 },
+      neon: { src: 'neon_crackle.mp3', vol: 0.3 },
+      thunder: { src: 'thunder.mp3', vol: 0.5 },
+      whoosh: { src: 'whoosh.mp3', vol: 0.5 },
+    },
+  },
+  scenes: [
+
+    { // 1 · THE STREET
+      title: 'THE&nbsp;STREET', ground: 0.8, keyLight: { x: 0.30, y: 0.5 }, ambience: 'amb_street.mp3', ambienceVol: 0.4,
+      backdrop: {
+        type: 'skyline', seed: 1977,
+        layers: [
+          { depth: 0.25, top: 0.16, shade: '#0c0e13', minW: 60, maxW: 130, minH: 0.34, maxH: 0.62, win: 0.10 },
+          { depth: 0.55, top: 0.26, shade: '#070809', minW: 80, maxW: 170, minH: 0.40, maxH: 0.74, win: 0.16 },
+          { depth: 1.00, top: 0.38, shade: '#020203', minW: 110, maxW: 240, minH: 0.46, maxH: 0.92, win: 0.22 }
+        ],
+        reflect: [{ x: 0.12, color: '#ff0018' }, { x: 0.40, color: '#ff0018' }, { x: 0.66, color: '#ffd400' }]
+      },
+      lights: [
+        { type: 'lamp', x: 0.30, intensity: 1, flicker: true, par: 0.5 },
+        { type: 'neon', x: 0.10, y: 0.52, w: 92, h: 34, color: '#ff0018', label: 'BAR', seed: 1.3 },
+        { type: 'neon', x: 0.40, y: 0.48, w: 120, h: 30, color: '#ff0018', label: 'GIRLS', seed: 2.7, par: 0.4 },
+        { type: 'neon', x: 0.66, y: 0.40, w: 44, h: 120, color: '#ffd400', label: 'XXX', seed: 4.1 }
+      ],
+      cast: [
+        { type: 'steam', x: 0.52, seed: 0.3 },
+        { type: 'trafficLight', x: 0.90, scale: 0.9, par: 0.6, greenAt: 2 },
+        { type: 'redCar', x: 0.84, scale: 0.7, par: 0.5, walk: [0.84, 0.84, 1.45, 1.7], walkDur: 3.2 },
+        { type: 'womanInRed', x: 0.7, scale: 0.8, par: 0.4, walk: [0.72, 0.52, 0.30, -0.3], walkDur: 11, passX: 0.34 },
+        { type: 'trenchMan', x: 0.34, scale: 1, dy: 4, par: 0.5, raiseAt: 1, lightAt: 3 }
+      ],
+      script: [
+        { text: 'The night is wet and the city drinks it down.' },
+        { text: 'She walks past in a dress the colour of <b>fresh blood</b>.' },
+        { text: 'Neon hums a lullaby for the damned.' },
+        { text: 'I light a smoke and let the dark make the first move.', fx: ['lighter'] }
+      ]
+    },
+
+    { // 2 · THE ALLEY
+      title: 'THE&nbsp;ALLEY', ground: 0.8, keyLight: { x: 0.74, y: 0.3 }, moon: { x: 0.5, y: 0.11 },
+      backdrop: { type: 'alley', seed: 77123 },
+      lights: [
+        { type: 'neon', x: 0.72, y: 0.24, w: 64, h: 34, color: '#ff0018', label: 'EAT', seed: 5.2, par: 0.3, arrow: true, ignite: true }
+      ],
+      cast: [
+        { type: 'dumpster', x: 0.11, scale: 1, par: 0.4 },
+        { type: 'manhole', x: 0.6, scale: 1.1, par: 0.2 },
+        { type: 'steam', x: 0.6, seed: 0.9 },
+        { type: 'newspaper', x: 0, restX: 0.2, seed: 2.1 },
+        { type: 'gunman', x: 0.30, scale: 1, par: 0.5, raiseAt: 1 },
+        { type: 'bodyOnGround', x: 0.5, scale: 1, par: 0.5, onFlag: 'blood' },
+        { type: 'bloodSplat', x: 0.5, onFlag: 'blood', seed: 999 },
+        { type: 'bloodDrain', x: 0.5, drainX: 0.6, par: 0.2, onFlag: 'blood', drainAt: 3 }
+      ],
+      script: [
+        { text: 'The alley stinks of rain and old sins.' },
+        { text: 'A shape in the doorway. A <b>gun</b> that means it.', fx: ['hammer'] },
+        { text: 'Two shots. The bricks wear a fresh coat of <b>red</b>.', fx: ['muzzle', 'blood', 'lightning'] },
+        { text: 'Nobody heard a thing. Nobody ever does here.' }
+      ]
+    },
+
+    { // 3 · THE ROOFTOP
+      title: 'THE&nbsp;ROOFTOP', ground: 0.72, keyLight: { x: 0.6, y: 0.4 }, moon: { x: 0.78, y: 0.18 }, bloodRain: true, ambience: 'amb_rooftop.mp3', ambienceVol: 0.45,
+      backdrop: { type: 'rooftop', seed: 55512 },
+      lights: [],
+      cast: [
+        { type: 'searchlight', x: 0.5 },
+        { type: 'waterTower', x: 0.18, scale: 1, par: 0.4 },
+        { type: 'crow', x: 0.18, y: 0.43, scale: 1.5, par: 0.4, flyAt: 3, delay: 0.0 },
+        { type: 'crow', x: 0.36, y: 0.25, scale: 1.1, flyAt: 3, delay: 0.14 },
+        { type: 'crow', x: 0.67, y: 0.22, scale: 1.0, flyAt: 3, delay: 0.26 },
+        { type: 'steam', x: 0.74, seed: 0.5 },
+        { type: 'womanInRed', x: 0.6, scale: 0.85, par: 0.4 }
+      ],
+      script: [
+        { text: "Up here the city's just a field of dirty stars." },
+        { text: "Crows watch. They've seen worse. So have I." },
+        { text: 'She stands on the ledge, between two kinds of falling.' },
+        { text: "The rain'll wash it clean by morning. It always lies." }
+      ]
+    }
+
+  ]
+};
+
+};
+__mod["stories/danny-cole/story.js"] = function(__exports, __req){
+/* INKFALL — STORY: "The Last Deal of Danny Cole" (pure data; no engine code).
+   See stories/SCHEMA.md. Cast entries name a library object by `type`. Reveal/hide a cast
+   member with onFlag / hideOnFlag (set by a line's fx). <b>…</b> prints in blood red. */
+__exports.default = {
+  title: 'INKFALL',
+  subtitle: 'THE LAST DEAL OF DANNY COLE',
+  blurb: 'A small man with a big debt goes looking for easy money in the underground casinos of Basin City. The house always wins. Tap through his last bad night.',
+  audio: {
+    music: 'sad_jazz.wav', musicVol: 0.5, rain: 'rain.mp3', rainVol: 0.16,
+    sfx: {
+      gunshot: { src: 'gunshot.mp3', vol: 0.95, n: 3 },
+      shell: { src: 'shell.mp3', vol: 0.5, n: 4 },
+      hammer: { src: 'hammer.mp3', vol: 0.9, n: 2 },
+      footstep: { src: 'footstep.mp3', vol: 0.5 },
+      lidopen: { src: 'lidopen.mp3', vol: 0.8 },
+      flint: { src: 'flint.mp3', vol: 0.8 },
+      neon: { src: 'neon_crackle.mp3', vol: 0.3 },
+      thunder: { src: 'thunder.mp3', vol: 0.5 },
+      whoosh: { src: 'whoosh.mp3', vol: 0.5 },
+    },
+  },
+  scenes: [
+
+    { // 1 · THE ITCH
+      title: 'THE&nbsp;ITCH', ground: 0.8, keyLight: { x: 0.3, y: 0.5 },
+      backdrop: {
+        type: 'skyline', seed: 19880420,
+        layers: [
+          { depth: 0.25, top: 0.18, shade: '#0c0e13', minW: 60, maxW: 130, minH: 0.34, maxH: 0.62, win: 0.10 },
+          { depth: 0.55, top: 0.28, shade: '#070809', minW: 80, maxW: 170, minH: 0.40, maxH: 0.74, win: 0.16 },
+          { depth: 1.00, top: 0.40, shade: '#020203', minW: 110, maxW: 240, minH: 0.46, maxH: 0.92, win: 0.22 }
+        ],
+        reflect: [{ x: 0.16, color: '#ff0018' }, { x: 0.66, color: '#ffd400' }, { x: 0.44, color: '#ff0018' }]
+      },
+      lights: [
+        { type: 'lamp', x: 0.30, intensity: 1, flicker: true, par: 0.5 },
+        { type: 'neon', x: 0.10, y: 0.40, w: 130, h: 34, color: '#ff0018', label: 'CASINO', seed: 1.3 },
+        { type: 'neon', x: 0.70, y: 0.28, w: 44, h: 118, color: '#ffd400', label: 'LUCK', seed: 4.1 }
+      ],
+      cast: [
+        { type: 'steam', x: 0.52, seed: 0.3 },
+        { type: 'barrelFire', x: 0.07, scale: 0.85, par: 0.5 },
+        { type: 'cat', x: 0.92, flip: true, par: 0.5 },
+        { type: 'redCar', x: 0.86, scale: 0.7, par: 0.5 },
+        { type: 'womanInRed', x: 0.62, scale: 0.8, par: 0.4 },
+        { type: 'trenchMan', x: 0.34, scale: 1, dy: 4, par: 0.5 }
+      ],
+      script: [
+        { text: 'Danny Cole had two suits, one good lung, and a dream the size of a debt.' },
+        { text: 'Get rich or get gone. In Basin City that’s the same bus.' },
+        { text: 'The neon promised him everything. Neon’s a liar with a pretty mouth.' },
+        { text: 'Tonight he’d play the deep tables — the ones <b>under</b> the city.' }
+      ]
+    },
+
+    { // 2 · THE TABLE
+      title: 'THE&nbsp;TABLE', ground: 0.82, keyLight: { x: 0.5, y: 0.3 },
+      backdrop: { type: 'room', wall: '#06070b', wallTop: '#0b0d12', door: 0.64 },
+      lights: [
+        { type: 'bulb', x: 0.45, y: 0.30, intensity: 1, flicker: true, par: 0.2 },
+        { type: 'neon', x: 0.14, y: 0.20, w: 120, h: 30, color: '#ff0018', label: 'FORTUNE', seed: 2.2, par: 0.2 }
+      ],
+      cast: [
+        { type: 'rouletteWheel', x: 0.20, y: 0.74, scale: 0.8, par: 0.2 },
+        { type: 'slotMachine', x: 0.07, scale: 0.85, par: 0.2 },
+        { type: 'slotMachine', x: 0.93, scale: 0.85, par: 0.2 },
+        { type: 'dealer', x: 0.45, scale: 0.95 },
+        { type: 'cardTable', x: 0.45, scale: 1.05 },
+        { type: 'cash', x: 0.52, y: 0.79, scale: 0.85 },
+        { type: 'drink', x: 0.63, y: 0.80, kind: 'whiskey', scale: 0.9 },
+        { type: 'trenchMan', x: 0.76, scale: 1, par: 0.2 }
+      ],
+      script: [
+        { text: 'Down past the meat locker, the air goes blue with smoke and worse.' },
+        { text: 'Green felt. <b>Red</b> chips. A dealer who smiles like a closing door.' },
+        { text: 'He bets the rent. Then the car. Then his father’s watch.' },
+        { text: 'The cards turn cold. The house just breathes in, slow.' }
+      ]
+    },
+
+    { // 3 · THE LOSS
+      title: 'THE&nbsp;LOSS', ground: 0.82, keyLight: { x: 0.5, y: 0.3 },
+      backdrop: { type: 'room', wall: '#05060a', wallTop: '#090b10', door: 0.62 },
+      lights: [
+        { type: 'bulb', x: 0.45, y: 0.30, intensity: 0.8, flicker: true, par: 0.2 }
+      ],
+      cast: [
+        { type: 'slotMachine', x: 0.08, scale: 0.85, par: 0.2 },
+        { type: 'dealer', x: 0.45, scale: 0.95 },
+        { type: 'cardTable', x: 0.45, scale: 1.05, glow: false },
+        { type: 'trenchMan', x: 0.74, scale: 0.97, par: 0.2 },
+        { type: 'boss', x: 0.92, scale: 0.95, par: 0.2 }
+      ],
+      script: [
+        { text: 'Cleaned out. Pockets full of lint and a marker he can’t cover.' },
+        { text: 'The boss gives him till dawn. The boss is being <b>generous</b>.' },
+        { text: 'No system beats a debt with your name carved in it.' },
+        { text: 'Danny walks out owing more than he’s worth. Which isn’t much.' }
+      ]
+    },
+
+    { // 4 · THE ACCIDENT
+      title: 'THE&nbsp;ACCIDENT', ground: 0.8, keyLight: { x: 0.5, y: 0.3 },
+      backdrop: { type: 'alley', seed: 44021 },
+      lights: [
+        { type: 'bulb', x: 0.5, y: 0.3, intensity: 1, flicker: true, par: 0.3 },
+        { type: 'neon', x: 0.47, y: 0.42, w: 52, h: 22, color: '#ff0018', label: 'EAT', seed: 3.3, par: 0.3 }
+      ],
+      cast: [
+        { type: 'steam', x: 0.40, seed: 0.9 },
+        { type: 'barrelFire', x: 0.88, scale: 0.85, par: 0.5 },
+        { type: 'fireHydrant', x: 0.06, par: 0.5 },
+        { type: 'cat', x: 0.14, par: 0.5 },
+        { type: 'newspaper', x: 0, seed: 2.1 },
+        { type: 'gunman', x: 0.34, scale: 1, par: 0.5, hideOnFlag: 'blood' },
+        { type: 'knife', x: 0.40, y: 0.84, angle: 0.2, bloody: true, onFlag: 'blood' },
+        { type: 'bodyOnGround', x: 0.34, scale: 1, par: 0.5, onFlag: 'blood' },
+        { type: 'bloodSplat', x: 0.40, onFlag: 'blood', seed: 7 },
+        { type: 'trenchMan', x: 0.72, scale: 1, par: 0.5 }
+      ],
+      script: [
+        { text: 'A collector trails him into the alley. Knuckles, bad teeth, worse intentions.' },
+        { text: 'They go for the same gun. It only answers to one of them.', fx: ['muzzle', 'blood', 'lightning'] },
+        { text: 'The collector folds like a cheap hand. Danny didn’t mean it. Doesn’t matter.' },
+        { text: 'He’s not a gambler anymore. He’s a <b>killer</b> with nowhere left to run.' }
+      ]
+    },
+
+    { // 5 · THE RECKONING
+      title: 'THE&nbsp;RECKONING', ground: 0.8, keyLight: { x: 0.7, y: 0.4 },
+      backdrop: {
+        type: 'skyline', seed: 90218,
+        layers: [
+          { depth: 0.3, top: 0.20, shade: '#0c0e13', minW: 60, maxW: 140, minH: 0.34, maxH: 0.66, win: 0.10 },
+          { depth: 0.6, top: 0.30, shade: '#070809', minW: 90, maxW: 180, minH: 0.40, maxH: 0.78, win: 0.14 },
+          { depth: 1.0, top: 0.42, shade: '#020203', minW: 120, maxW: 250, minH: 0.46, maxH: 0.94, win: 0.18 }
+        ],
+        reflect: [{ x: 0.30, color: '#ff0018' }, { x: 0.74, color: '#ff0018' }]
+      },
+      lights: [
+        { type: 'lamp', x: 0.50, intensity: 1, flicker: true, par: 0.5 },
+        { type: 'neon', x: 0.78, y: 0.30, w: 90, h: 30, color: '#ff0018', label: 'DEAD END', seed: 5.5 }
+      ],
+      cast: [
+        { type: 'steam', x: 0.55, seed: 1.1 },
+        { type: 'gunman', x: 0.66, scale: 1, par: 0.5 },
+        { type: 'thug', x: 0.84, scale: 1, par: 0.5 },
+        { type: 'boss', x: 0.97, scale: 0.92, par: 0.5 },
+        { type: 'trenchMan', x: 0.30, scale: 1, par: 0.5, hideOnFlag: 'blood' },
+        { type: 'bodyOnGround', x: 0.30, scale: 1, par: 0.5, flip: true, onFlag: 'blood' },
+        { type: 'bloodSplat', x: 0.34, onFlag: 'blood', seed: 13 }
+      ],
+      script: [
+        { text: 'Word travels fast when a made man stops breathing.' },
+        { text: 'They find him where the rain pools deepest. Three coats, three guns.' },
+        { text: 'He opens his mouth to deal one last time.', fx: ['muzzle'] },
+        { text: 'The guns answer first. The gutter drinks him down.', fx: ['muzzle', 'blood', 'lightning'] },
+        { text: 'Basin City balances its books by morning. Danny Cole doesn’t even leave a stain.' }
+      ]
+    }
+
+  ]
+};
+
+};
+__mod["stories/sable-dame/story.js"] = function(__exports, __req){
+/* INKFALL — STORY: "The Sable Dame" (pure data; no engine code). See stories/SCHEMA.md.
+   A homicide detective, a woman in black, and a murder that opens and shuts too easily.
+   Cast entries name a library object by `type`; <b>…</b> prints in blood red. */
+__exports.default = {
+  title: 'INKFALL',
+  subtitle: 'THE SABLE DAME',
+  blurb: 'A union baron dies clean in his tower and the woman in black says she did it. Homicide detective Butch Deckard works it like she is innocent — and falls. Two files, one river, one truth he will never tell.',
+  audio: {
+    music: 'piano_noir.wav', musicVol: 0.62, rain: 'rain.mp3', rainVol: 0.16,
+    sfx: {
+      gunshot: { src: 'gunshot.mp3', vol: 0.95, n: 3 },
+      shell: { src: 'shell.mp3', vol: 0.5, n: 4 },
+      hammer: { src: 'hammer.mp3', vol: 0.9, n: 2 },
+      footstep: { src: 'footstep.mp3', vol: 0.5 },
+      lidopen: { src: 'lidopen.mp3', vol: 0.8 },
+      flint: { src: 'flint.mp3', vol: 0.8 },
+      neon: { src: 'neon_crackle.mp3', vol: 0.3 },
+      thunder: { src: 'thunder.mp3', vol: 0.5 },
+      whoosh: { src: 'whoosh.mp3', vol: 0.5 },
+    },
+  },
+  scenes: [
+
+    { // 1 · THE CALL
+      title: 'THE&nbsp;CALL', ground: 0.8, keyLight: { x: 0.30, y: 0.5 }, ambience: 'amb_street.mp3', ambienceVol: 0.4,
+      backdrop: {
+        type: 'skyline', seed: 2049,
+        layers: [
+          { depth: 0.25, top: 0.12, shade: '#0c0e13', minW: 60, maxW: 130, minH: 0.42, maxH: 0.72, win: 0.10 },
+          { depth: 0.55, top: 0.20, shade: '#070809', minW: 80, maxW: 170, minH: 0.48, maxH: 0.86, win: 0.16 },
+          { depth: 1.00, top: 0.28, shade: '#020203', minW: 120, maxW: 260, minH: 0.58, maxH: 0.98, win: 0.20 }
+        ],
+        reflect: [{ x: 0.5, color: '#9fb4d6' }, { x: 0.2, color: '#ff0018' }]
+      },
+      lights: [
+        { type: 'lamp', x: 0.30, intensity: 1, flicker: true, par: 0.5 },
+        { type: 'neon', x: 0.62, y: 0.14, w: 52, h: 150, color: '#9fb4d6', label: 'VANE', seed: 3.0 }
+      ],
+      cast: [
+        { type: 'steam', x: 0.5, seed: 0.3 },
+        { type: 'redCar', x: 0.86, scale: 0.7, par: 0.5 },
+        { type: 'trenchMan', x: 0.34, scale: 1, dy: 4, par: 0.5, lightAt: 3 }
+      ],
+      script: [
+        { text: 'Rain in Basin City doesn’t fall. It hunts.' },
+        { text: 'Two a.m. Penthouse, Vane Tower. One stiff.' },
+        { text: '<b>Tobias Vane</b> built half the skyline on union money and broken kneecaps.' },
+        { text: 'Now he’s a stain on imported marble. Somebody balanced the books.', fx: ['lighter'] }
+      ]
+    },
+
+    { // 2 · THE PENTHOUSE
+      title: 'THE&nbsp;PENTHOUSE', ground: 0.82, keyLight: { x: 0.7, y: 0.3 },
+      backdrop: { type: 'penthouse', seed: 4040 },
+      lights: [
+        { type: 'glow', x: 0.5, y: 0.34, r: 260, color: 'rgba(150,170,205,ALPHA)', intensity: 0.5 }
+      ],
+      cast: [
+        { type: 'bodyOnGround', x: 0.62, scale: 1, par: 0.4 },
+        { type: 'bloodSplat', x: 0.62, seed: 7 },
+        { type: 'pistol', x: 0.5, y: 0.86, par: 0.4 },
+        { type: 'womanInBlack', x: 0.16, scale: 0.85, par: 0.4 }
+      ],
+      script: [
+        { text: 'One bullet. Right where the spine meets the skull. Professional.' },
+        { text: 'The gun still in the room, dropped like a hot coal. Amateur panic.' },
+        { text: 'She sat in the corner — a black dress the colour of the space between streetlights.' },
+        { text: '<b>Vera Sable.</b> “I was his.” In this town, that covered it.', fx: ['lightning'] }
+      ]
+    },
+
+    { // 3 · THE CAGE
+      title: 'THE&nbsp;CAGE', ground: 0.82, keyLight: { x: 0.5, y: 0.3 },
+      backdrop: { type: 'room', wall: '#06070b', wallTop: '#0b0d12', door: 0.9 },
+      lights: [
+        { type: 'bulb', x: 0.5, y: 0.26, intensity: 0.9, flicker: true, par: 0.2 }
+      ],
+      cast: [
+        { type: 'trenchMan', x: 0.34, scale: 0.95, par: 0.3 },
+        { type: 'coffee', x: 0.5, y: 0.8, scale: 1 },
+        { type: 'womanInBlack', x: 0.66, scale: 0.9, par: 0.3 }
+      ],
+      script: [
+        { text: 'I should’ve handed her to the prosecutors. Instead I bought her coffee.' },
+        { text: '“Did you do it?” “Would it change anything if I said no?”' },
+        { text: '“Then no.” The one true thing in a week of lies. A splinter.' },
+        { text: 'I worked it like she was innocent. Told myself it was thoroughness.' }
+      ]
+    },
+
+    { // 4 · THE PARTNER
+      title: 'THE&nbsp;PARTNER', ground: 0.82, keyLight: { x: 0.4, y: 0.3 },
+      backdrop: { type: 'room', wall: '#05060a', wallTop: '#090b10', door: 0.12 },
+      lights: [
+        { type: 'bulb', x: 0.42, y: 0.26, intensity: 0.8, flicker: true, par: 0.2 }
+      ],
+      cast: [
+        { type: 'trenchMan', x: 0.32, scale: 0.95, par: 0.3 },
+        { type: 'thug', x: 0.7, scale: 1, par: 0.3 }
+      ],
+      script: [
+        { text: 'Vane was about to <b>talk</b>. Names. Ledgers. The whole rotten architecture.' },
+        { text: 'That made powerful men want him quiet — and cops want it closed fast.' },
+        { text: 'My partner. <b>Hollis Renn.</b> Twenty years, a smile too wide for two a.m.' },
+        { text: 'I kept pulling the thread. The more I pulled, the more Hollis was on the end of it.' }
+      ]
+    },
+
+    { // 5 · THE PULSE
+      title: 'THE&nbsp;PULSE', ground: 0.82, keyLight: { x: 0.55, y: 0.35 },
+      backdrop: { type: 'room', wall: '#070608', wallTop: '#0c0a0e' },
+      lights: [
+        { type: 'neon', x: 0.16, y: 0.18, w: 116, h: 34, color: '#ff0018', label: 'HOTEL', seed: 2.2, par: 0.2 }
+      ],
+      cast: [
+        { type: 'womanInBlack', x: 0.56, scale: 0.96, par: 0.3 },
+        { type: 'trenchMan', x: 0.40, scale: 0.98, par: 0.3 }
+      ],
+      script: [
+        { text: '“Who are you protecting?” “Knowing gets you a bullet in this town.”' },
+        { text: 'Rain and gardenias and a fear so old it forgot how to be anything else.' },
+        { text: 'She kissed me instead. God help me, I let her.' },
+        { text: '“<b>I did it, Butch.</b> Vane killed my sister. I learned where the spine meets the skull.”', fx: ['muzzle', 'lightning'] },
+        { text: 'Except — Vera Sable had no sister on any record. Not one.' }
+      ]
+    },
+
+    { // 6 · THE RIVER
+      title: 'THE&nbsp;RIVER', ground: 0.8, keyLight: { x: 0.5, y: 0.4 }, ambience: 'amb_rooftop.mp3', ambienceVol: 0.4,
+      backdrop: {
+        type: 'skyline', seed: 909,
+        layers: [
+          { depth: 0.3, top: 0.2, shade: '#0c0e13', minW: 60, maxW: 140, minH: 0.34, maxH: 0.66, win: 0.10 },
+          { depth: 0.6, top: 0.3, shade: '#070809', minW: 90, maxW: 180, minH: 0.40, maxH: 0.78, win: 0.14 },
+          { depth: 1.0, top: 0.42, shade: '#020203', minW: 120, maxW: 250, minH: 0.46, maxH: 0.94, win: 0.16 }
+        ],
+        reflect: [{ x: 0.5, color: '#9fb4d6' }, { x: 0.3, color: '#ff0018' }]
+      },
+      lights: [
+        { type: 'lamp', x: 0.7, intensity: 1, flicker: true, par: 0.5 }
+      ],
+      cast: [
+        { type: 'steam', x: 0.4, seed: 1.1 },
+        { type: 'trenchMan', x: 0.5, scale: 1, par: 0.5 }
+      ],
+      script: [
+        { text: 'Two files in my coat. One hanged Renn and freed her. One hanged her.' },
+        { text: 'I stood on the Vane Tower steps a long time. Soaked through to the skin.' },
+        { text: 'I dropped one in the river. Ink running black into black, gone before it hit the dark.', fx: ['lightning'] },
+        { text: 'I’m not going to tell you which one I kept.' },
+        { text: 'A year later: a postcard. No return address. “<b>Thank you, detective.</b>”' }
+      ]
+    }
+
+  ]
+};
+
+};
+__mod["src/engine/input.js"] = function(__exports, __req){
+// INPUT — touch first: tap = advance, drag = camera look, hold = call down lightning. Synthetic
+// mouse events that trail a real touch are ignored.
+function bindInput(cv, { isReady, onTap, onDrag, onHold }) {
+  let down = 0, lastX = 0, moved = 0, hold = null, lastTouch = 0;
+  const dn = x => { if (!isReady()) return; lastX = x; moved = 0; down = performance.now(); hold = setTimeout(onHold, 360); };
+  const mv = x => { if (!isReady() || !down) return; const dx = x - lastX; lastX = x; moved += Math.abs(dx); onDrag(dx); if (moved > 12 && hold) { clearTimeout(hold); hold = null; } };
+  const up = () => { if (!isReady()) return; if (hold) { clearTimeout(hold); hold = null; } if (moved < 12 && performance.now() - down < 360) onTap(); down = 0; };
+  const ghost = () => performance.now() - lastTouch < 700;
+  cv.addEventListener('touchstart', e => { lastTouch = performance.now(); dn(e.touches[0].clientX); }, { passive: true });
+  cv.addEventListener('touchmove', e => { lastTouch = performance.now(); mv(e.touches[0].clientX); }, { passive: true });
+  cv.addEventListener('touchend', () => { lastTouch = performance.now(); up(); }, { passive: true });
+  cv.addEventListener('touchcancel', () => { lastTouch = performance.now(); up(); }, { passive: true });
+  cv.addEventListener('mousedown', e => { if (ghost()) return; dn(e.clientX); });
+  addEventListener('mousemove', e => { if (ghost()) return; mv(e.clientX); });
+  addEventListener('mouseup', () => { if (ghost()) return; up(); });
+}
+
+__exports.bindInput = bindInput;
+};
+__req("src/boot.js");
+})();
+
+</script>
+</body>
+</html>
