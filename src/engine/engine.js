@@ -2,6 +2,7 @@
 // device-pixel sizing, and the requestAnimationFrame loop. It keeps the shared Frame's
 // scalars (size, time, contexts) live and hands a tick to the manager each frame.
 import { Frame } from './frame.js';
+import { ASPECT_MIN, ASPECT_MAX } from './viewport.js';
 
 export class Engine {
   constructor() {
@@ -11,6 +12,7 @@ export class Engine {
     this.frame = new Frame();
     this.drops = []; this.grain = null;     // rain particles + film-grain tile (persist across scenes)
     this.last = 0;
+    this.paused = false; this.pauseOffset = 0; this._pauseAt = 0;   // a play clock that the viewport gate can freeze
   }
 
   init() {
@@ -25,11 +27,20 @@ export class Engine {
     this.resize();
   }
 
+  // size the canvas to the landscape aspect band, centered, so the viewport's spare space becomes
+  // black bars: top and bottom on a too-tall screen, left and right on a too-wide one. Everything
+  // downstream reads W/H (the band), so the world never knows it is letterboxed.
   resize() {
     this.DPR = Math.min(window.devicePixelRatio || 1, 2);
-    this.W = innerWidth; this.H = innerHeight;
-    for (const cv of [this.cv, this.lightCv, this.snapCv]) { cv.width = Math.floor(this.W * this.DPR); cv.height = Math.floor(this.H * this.DPR); }
-    this.cv.style.width = this.W + 'px'; this.cv.style.height = this.H + 'px';
+    const vw = innerWidth, vh = innerHeight, ar = vw / vh;
+    let w = vw, h = vh;
+    if (ar < ASPECT_MIN) h = Math.round(vw / ASPECT_MIN);        // too tall: cap the height
+    else if (ar > ASPECT_MAX) w = Math.round(vh * ASPECT_MAX);   // too wide: cap the width
+    this.W = w; this.H = h;
+    for (const cv of [this.cv, this.lightCv, this.snapCv]) { cv.width = Math.floor(w * this.DPR); cv.height = Math.floor(h * this.DPR); }
+    this.cv.style.width = w + 'px'; this.cv.style.height = h + 'px';
+    this.cv.style.left = Math.floor((vw - w) / 2) + 'px';
+    this.cv.style.top = Math.floor((vh - h) / 2) + 'px';
     this.initRain();
     if (!this.grain) this.buildGrain();
     if (this.onResize) this.onResize();
@@ -65,9 +76,19 @@ export class Engine {
   // freeze the current on-screen frame so the next beat can crossfade out of it
   snapshot() { this.snapCtx.setTransform(1, 0, 0, 1, 0, 0); this.snapCtx.clearRect(0, 0, this.snapCv.width, this.snapCv.height); this.snapCtx.drawImage(this.cv, 0, 0); }
 
+  // freeze the play clock (used by the orientation gate). Time stops, so the story holds its frame
+  // and resumes without a jump when landscape returns.
+  pause() { if (this.paused) return; this.paused = true; this._pauseAt = performance.now(); }
+  resume() { if (!this.paused) return; this.paused = false; this.pauseOffset += performance.now() - this._pauseAt; }
+
   run(onTick) {
     this.last = performance.now();
-    const loop = now => { requestAnimationFrame(loop); onTick(this.syncFrame(now), now); };
+    const loop = now => {
+      requestAnimationFrame(loop);
+      if (this.paused) return;                 // hold the last frame, advance no time
+      const pt = now - this.pauseOffset;        // the play clock: wall time minus all paused spans
+      onTick(this.syncFrame(pt), pt);
+    };
     requestAnimationFrame(loop);
   }
 }

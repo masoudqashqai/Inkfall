@@ -2,6 +2,7 @@
 // builds the intro picker from the story manifest, lazy-loads the chosen story, and runs the
 // loop. The editor round-trips a story as JSON (stories are pure data).
 import { Engine } from './engine/engine.js';
+import { Viewport } from './engine/viewport.js';
 import { Manager } from './scene/manager.js';
 import { Audio2 } from './assets/audio.js';
 import { rand32, TWO_PI } from './engine/math.js';
@@ -9,13 +10,21 @@ import './library/index.js';
 import { STORIES } from '../stories/manifest.js';
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 41 · dark slow piano noir'
+const BUILD = 'v2 build 42 · landscape frame + rotate gate'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 
 const engine = new Engine(); engine.init();
 const manager = new Manager(engine);
 manager.attachDom({ cap: el('caption'), tag: el('scenetag'), tap: el('tapnote'), nav: el('scenenav') });
+
+// keep the story in a landscape frame: go fullscreen + ask for landscape on a phone/tablet, hold
+// the start behind a "rotate your screen" prompt while portrait, and letterbox everywhere else.
+const viewport = new Viewport(engine);
+viewport.attach({ overlay: el('rotate'), skip: el('rotate-skip') });
+viewport.onStart = () => manager.requestStart();
+viewport.onPause = () => Audio2.suspend();     // full story pause behind the prompt: clock + sound
+viewport.onResume = () => Audio2.resumeAll();
 
 // input → manager
 import { bindInput } from './engine/input.js';
@@ -62,7 +71,7 @@ function beginPlay() {
   el('mute').classList.add('show');
   el('shoot').classList.add('show');
   Audio2.start();
-  manager.requestStart();
+  viewport.beginStory();   // goes immersive, then starts the story once the screen is landscape
 }
 el('enter').addEventListener('click', beginPlay);
 

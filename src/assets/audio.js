@@ -9,7 +9,7 @@
 // A story with no audio block is silent, so sounds never bleed between stories.
 export const Audio2 = (() => {
   const A = 'assets/audio/';
-  let on = true, started = false, cfg = null;
+  let on = true, started = false, cfg = null, suspended = false;
   let music = null, rain = null, amb = null;
   const pools = {}, loops = {};
 
@@ -76,6 +76,21 @@ export const Audio2 = (() => {
       a.volume = tgt; if (a.paused) a.play().catch(() => {});
     } else if (a && !a.paused) ramp(a, 0, 0.4);   // animation ended: fade out + pause
   }
+  // full pause for the orientation gate: hold every sound where it is. The persistent loops
+  // (music, rain, ambience, active animation loops) remember they were playing so resumeAll can
+  // bring them back. One-shots are just silenced, they are transient and re-fire on their own.
+  function suspend() {
+    if (suspended) return; suspended = true;
+    const keep = [music, rain, amb]; for (const k in loops) keep.push(loops[k]);
+    for (const a of keep) { if (a && !a.paused) { a._wasPlaying = true; try { a.pause(); } catch (e) {} } }
+    for (const k in pools) for (const a of pools[k].pool) { try { a.pause(); } catch (e) {} }
+  }
+  function resumeAll() {
+    if (!suspended) return; suspended = false;
+    if (!on || !started) return;
+    const keep = [music, rain, amb]; for (const k in loops) keep.push(loops[k]);
+    for (const a of keep) { if (a && a._wasPlaying) { a._wasPlaying = false; a.play().catch(() => {}); } }
+  }
   function toggle() {
     on = !on;
     [music, rain, amb].forEach(a => { if (a) { a.volume = on ? a._v : 0; if (on) resume(a); else stop(a); } });
@@ -83,7 +98,7 @@ export const Audio2 = (() => {
     return on;
   }
   return {
-    setStory, start, scene, play, setLoop, stopLoops, duck, toggle, isOn: () => on,
+    setStory, start, scene, play, setLoop, stopLoops, duck, toggle, suspend, resumeAll, isOn: () => on,
     gun: () => play('gunshot', 1, 0.97 + Math.random() * 0.06),
     gunCock: () => play('hammer'),
     shellClink: () => play('shell', 0.8 + Math.random() * 0.3, 0.95 + Math.random() * 0.1),
