@@ -10,7 +10,24 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Special+Elite&display=swap" rel="stylesheet">
 <style>
-:root { color-scheme: dark; }
+:root { color-scheme: dark;
+  /* HUD grid: one square cell is the button height (and a small icon-only button's width).
+     Wider buttons span whole cells plus the gaps between them, so everything lines up. */
+  --hud-cell: clamp(36px, 6.4vmin, 42px);
+  --hud-gap: 6px;
+  --hud-w1: var(--hud-cell);                                          /* small:  1 cell, icon only */
+  --hud-w2: calc(var(--hud-cell) * 2 + var(--hud-gap));              /* medium: 2 cells, icon + text */
+  --hud-w3: calc(var(--hud-cell) * 3 + var(--hud-gap) * 2);         /* large:  3 cells, text (or icon + text) */
+}
+/* shared HUD button: every control is one cell tall, the size class sets the width */
+.hud-btn { height: var(--hud-cell); font-family: inherit; cursor: pointer; line-height: 1;
+  background: rgba(0,0,0,0.55); color: #d8d4c8; border: 1px solid rgba(255,255,255,0.28);
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5em;
+  letter-spacing: 0.14em; font-size: clamp(11px, 2.1vmin, 14px); }
+.hud-btn:hover, .hud-btn:active { border-color: #e10010; color: #fff; }
+.hud-sm { width: var(--hud-w1); padding: 0; font-size: clamp(15px, 3.1vmin, 19px); }
+.hud-md { width: var(--hud-w2); }
+.hud-lg { width: var(--hud-w3); }
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
 html, body { height: 100%; overflow: hidden; background: #000; font-family: "Courier New", monospace; }
 #c { position: fixed; left: 0; top: 0; display: block; touch-action: none; }
@@ -34,14 +51,8 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
   letter-spacing: 0.1em; font-family: "Courier New", monospace; }
 #editbtn, #mute, #shoot { font-variant-emoji: text; }   /* keep the HUD glyphs monochrome (noir), never colour emoji */
 #topbar { position: fixed; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); z-index: 25;
-  display: flex; align-items: stretch; gap: 6px; }
-#topbar button { font-family: inherit; cursor: pointer; background: rgba(0,0,0,0.55); color: #d8d4c8;
-  border: 1px solid rgba(255,255,255,0.28); display: inline-flex; align-items: center; justify-content: center; }
-#topbar button:hover, #topbar button:active { border-color: #e10010; color: #fff; }
-#editbtn { font-size: clamp(11px, 2.2vmin, 14px); letter-spacing: 0.16em; padding: 0 clamp(13px, 2.6vmin, 18px);
-  height: clamp(38px, 7vmin, 46px); }
-#mute, #shoot { display: none; font-size: clamp(15px, 3.4vmin, 21px); line-height: 1;
-  width: clamp(38px, 7vmin, 46px); height: clamp(38px, 7vmin, 46px); }
+  display: flex; align-items: stretch; gap: var(--hud-gap); }
+#mute, #shoot { display: none; }                        /* the poster + sound icons appear once a story starts */
 #mute.show, #shoot.show { display: inline-flex; }
 #poster { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center;
   flex-direction: column; background: rgba(0,0,0,0.92); }
@@ -52,13 +63,37 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
   border: 1px solid #fff; font-family: inherit; font-size: clamp(14px, 3.4vw, 16px); letter-spacing: 0.16em; text-decoration: none; }
 #poster a:hover { background: #e10010; border-color: #e10010; }
 #poster button:hover { background: #fff; color: #000; }
-#scenenav { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(max(16px, env(safe-area-inset-bottom)) + 16px);
-  z-index: 25; display: none; gap: 8px; flex-wrap: wrap; justify-content: center; width: min(94vw, 760px); }
+/* act selector (shown on THE END): a vertical column on the right, clear of the narration box.
+   Every act button is one standard "large" width so the list reads as a clean stack. */
+#scenenav { position: fixed; right: max(12px, env(safe-area-inset-right)); top: 50%; transform: translateY(-50%);
+  z-index: 25; display: none; flex-direction: column; align-items: stretch; gap: var(--hud-gap);
+  width: max-content; max-height: 86vh; overflow-y: auto; text-align: center; }
 #scenenav.show { display: flex; }
-#scenenav button { font-family: inherit; font-size: clamp(11px, 2.2vmin, 14px); letter-spacing: 0.12em; font-weight: 700; cursor: pointer;
-  color: #c9c4b6; background: rgba(8,8,10,0.62); border: 1px solid rgba(216,212,200,0.3); padding: 10px 14px; line-height: 1.25; }
+#scenenav::before { content: "REVIEW ACT"; font-family: "Oswald", sans-serif; color: rgba(236,230,214,0.5);
+  font-size: clamp(10px, 1.9vmin, 13px); letter-spacing: 0.3em; font-weight: 600; margin-bottom: 2px; }
+/* every act button stretches to the column width (the widest title) with the 3 cell width as a
+   floor, so the buttons are all exactly equal and each stays one cell tall on a single line */
+#scenenav button { min-width: var(--hud-w3); height: var(--hud-cell); white-space: nowrap; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; font-family: inherit; padding: 0 12px;
+  font-size: clamp(11px, 2.1vmin, 14px); letter-spacing: 0.12em; font-weight: 700;
+  color: #c9c4b6; background: rgba(8,8,10,0.62); border: 1px solid rgba(216,212,200,0.3); }
 #scenenav button:hover { color: #fff; border-color: rgba(255,255,255,0.6); }
 #scenenav button.cur { color: #fff; border-color: #e10010; box-shadow: 0 0 12px rgba(225,0,16,0.45); }
+/* story menu: the small popup shown when the STORY button is tapped */
+#storymenu { position: fixed; inset: 0; z-index: 45; display: none; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.88); padding: 24px; }
+#storymenu.show { display: flex; }
+#storymenu .sm-panel { display: flex; flex-direction: column; gap: 12px; width: min(92vw, 360px);
+  background: rgba(8,8,10,0.92); border: 1px solid rgba(216,212,200,0.3); padding: clamp(20px, 5vw, 30px); }
+#storymenu .sm-head { color: #e10010; letter-spacing: 0.3em; font-weight: 700; text-align: center;
+  font-family: "Oswald", sans-serif; font-size: clamp(15px, 4vw, 18px); margin-bottom: 6px; }
+#storymenu button { cursor: pointer; font-family: "Oswald", sans-serif; font-weight: 600; letter-spacing: 0.16em;
+  font-size: clamp(14px, 3.6vw, 16px); padding: 15px 18px; background: transparent; color: #f2eee2;
+  border: 1px solid rgba(236,230,214,0.45); transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease; }
+#storymenu button:hover, #storymenu button:active { border-color: #fff; color: #fff; background: rgba(236,230,214,0.06); }
+#storymenu #sm-edit { background: #e10010; border-color: #e10010; color: #fff; }
+#storymenu #sm-edit:hover { background: #c2000e; }
+#storymenu #sm-cancel { color: rgba(236,230,214,0.6); border-color: transparent; padding: 8px; letter-spacing: 0.22em; font-size: clamp(12px, 3vw, 13px); }
 #editor { position: fixed; inset: 0; z-index: 40; display: none; flex-direction: column; gap: 10px;
   background: rgba(6,7,10,0.97); padding: max(16px, env(safe-area-inset-top)) 16px 16px; }
 #editor .ed-head { color: #e10010; letter-spacing: 0.3em; font-weight: 700; font-size: clamp(14px, 3.6vw, 16px); }
@@ -96,11 +131,10 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
   border: 1px solid #fff; font-size: clamp(16px, 3vmin, 23px); letter-spacing: 0.26em; font-weight: 600; transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease; }
 #enter:hover, #enter:active { background: #e10010; border-color: #e10010; }
 
-/* short viewports (landscape phones, small desktop windows): tuck the caption down and lift the
-   scene nav clear of it (the font already scales with height via vmin) */
+/* short viewports (landscape phones, small desktop windows): tuck the caption down a touch
+   (the font already scales with height via vmin) */
 @media (max-height: 560px) {
   #caption { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 8px); }
-  #scenenav { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 88px); }
 }
 /* wide desktops: a touch larger so it reads from a distance, still within the standard scale */
 @media (min-width: 1100px) {
@@ -148,9 +182,9 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
 
 <div id="build"></div>
 <div id="topbar">
-  <button id="shoot" title="save a poster of this frame">❏</button>
-  <button id="mute" title="sound">♪</button>
-  <button id="editbtn">✎ STORY</button>
+  <button id="shoot" class="hud-btn hud-sm" title="save a poster of this frame">❏</button>
+  <button id="mute" class="hud-btn hud-sm" title="sound">♪</button>
+  <button id="editbtn" class="hud-btn hud-md">✎ STORY</button>
 </div>
 <div id="scenenav"></div>
 
@@ -165,6 +199,14 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
   <div class="poster-row">
     <a id="posterdl" download="inkfall.png">SAVE</a>
     <button id="posterclose">BACK TO THE RAIN</button>
+  </div>
+</div>
+<div id="storymenu">
+  <div class="sm-panel">
+    <div class="sm-head">STORY</div>
+    <button id="sm-back">BACK TO START MENU</button>
+    <button id="sm-edit">EDIT STORY</button>
+    <button id="sm-cancel">CANCEL</button>
   </div>
 </div>
 <div id="editor">
@@ -308,7 +350,22 @@ el('posterclose').addEventListener('click', () => el('poster').classList.remove(
 // ---- story editor (pure-data JSON) ----
 const editor = el('editor'), edText = el('ed-text'), edErr = el('ed-err');
 const noCache = (k, v) => (k && k[0] === '_') ? undefined : v;
-el('editbtn').addEventListener('click', () => { edText.value = JSON.stringify(manager.story, noCache, 2); edErr.textContent = ''; editor.style.display = 'flex'; });
+// the STORY button opens a small menu: go back to the start screen, or open the JSON editor
+const storymenu = el('storymenu');
+const openEditor = () => { edText.value = JSON.stringify(manager.story, noCache, 2); edErr.textContent = ''; editor.style.display = 'flex'; };
+function goToStartMenu() {
+  storymenu.classList.remove('show'); editor.style.display = 'none'; el('poster').classList.remove('show');
+  el('caption').style.display = 'none'; el('tapnote').style.display = 'none';
+  el('mute').classList.remove('show'); el('shoot').classList.remove('show'); el('scenenav').classList.remove('show');
+  Audio2.setStory(manager.story && manager.story.audio);   // stop the playing audio, reset to the unstarted state
+  viewport.reset(); manager.reset();                        // drop back to act one, not started, so ENTER replays cleanly
+  const intro = el('intro'); intro.style.display = 'flex'; requestAnimationFrame(() => intro.style.opacity = '1');
+}
+el('editbtn').addEventListener('click', () => storymenu.classList.add('show'));
+el('sm-cancel').addEventListener('click', () => storymenu.classList.remove('show'));
+storymenu.addEventListener('click', e => { if (e.target === storymenu) storymenu.classList.remove('show'); });
+el('sm-back').addEventListener('click', goToStartMenu);
+el('sm-edit').addEventListener('click', () => { storymenu.classList.remove('show'); openEditor(); });
 el('ed-close').addEventListener('click', () => editor.style.display = 'none');
 el('ed-reset').addEventListener('click', () => { edText.value = JSON.stringify(defaultStory, noCache, 2); edErr.textContent = 'Default story loaded into the editor — press PLAY to run it.'; });
 el('ed-play').addEventListener('click', () => {
@@ -742,6 +799,12 @@ class Viewport {
     if (skip) skip.addEventListener('click', () => { this.skipped = true; this.evaluate(); });
   }
 
+  // return to the pre-ENTER state so the gate runs again on the next start (used by "back to start menu")
+  reset() {
+    this.experienceStarted = false; this.storyStarted = false; this.skipped = false;
+    this.hideOverlay(); this.engine.resume();
+  }
+
   // called when ENTER is pressed: go immersive, then decide whether to start now or prompt first
   async beginStory() {
     this.experienceStarted = true;
@@ -845,6 +908,10 @@ class Manager {
   }
 
   requestStart() { this._startReq = true; }
+
+  // tear down a run and return to the unstarted state (used by "back to start menu"), so a fresh
+  // ENTER replays the story from act one instead of needing a page reload
+  reset() { this.started = false; this._startReq = false; this.loadStory(this.story); }
 
   tick(e) {
     e.scene = this.current;

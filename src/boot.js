@@ -125,7 +125,22 @@ el('posterclose').addEventListener('click', () => el('poster').classList.remove(
 // ---- story editor (pure-data JSON) ----
 const editor = el('editor'), edText = el('ed-text'), edErr = el('ed-err');
 const noCache = (k, v) => (k && k[0] === '_') ? undefined : v;
-el('editbtn').addEventListener('click', () => { edText.value = JSON.stringify(manager.story, noCache, 2); edErr.textContent = ''; editor.style.display = 'flex'; });
+// the STORY button opens a small menu: go back to the start screen, or open the JSON editor
+const storymenu = el('storymenu');
+const openEditor = () => { edText.value = JSON.stringify(manager.story, noCache, 2); edErr.textContent = ''; editor.style.display = 'flex'; };
+function goToStartMenu() {
+  storymenu.classList.remove('show'); editor.style.display = 'none'; el('poster').classList.remove('show');
+  el('caption').style.display = 'none'; el('tapnote').style.display = 'none';
+  el('mute').classList.remove('show'); el('shoot').classList.remove('show'); el('scenenav').classList.remove('show');
+  Audio2.setStory(manager.story && manager.story.audio);   // stop the playing audio, reset to the unstarted state
+  viewport.reset(); manager.reset();                        // drop back to act one, not started, so ENTER replays cleanly
+  const intro = el('intro'); intro.style.display = 'flex'; requestAnimationFrame(() => intro.style.opacity = '1');
+}
+el('editbtn').addEventListener('click', () => storymenu.classList.add('show'));
+el('sm-cancel').addEventListener('click', () => storymenu.classList.remove('show'));
+storymenu.addEventListener('click', e => { if (e.target === storymenu) storymenu.classList.remove('show'); });
+el('sm-back').addEventListener('click', goToStartMenu);
+el('sm-edit').addEventListener('click', () => { storymenu.classList.remove('show'); openEditor(); });
 el('ed-close').addEventListener('click', () => editor.style.display = 'none');
 el('ed-reset').addEventListener('click', () => { edText.value = JSON.stringify(defaultStory, noCache, 2); edErr.textContent = 'Default story loaded into the editor — press PLAY to run it.'; });
 el('ed-play').addEventListener('click', () => {

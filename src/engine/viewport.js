@@ -43,6 +43,12 @@ export class Viewport {
     if (skip) skip.addEventListener('click', () => { this.skipped = true; this.evaluate(); });
   }
 
+  // return to the pre-ENTER state so the gate runs again on the next start (used by "back to start menu")
+  reset() {
+    this.experienceStarted = false; this.storyStarted = false; this.skipped = false;
+    this.hideOverlay(); this.engine.resume();
+  }
+
   // called when ENTER is pressed: go immersive, then decide whether to start now or prompt first
   async beginStory() {
     this.experienceStarted = true;
