@@ -11,6 +11,42 @@
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Special+Elite&display=swap" rel="stylesheet">
 <style>
 :root { color-scheme: dark;
+  /* fonts: one role each */
+  --f-display: "Oswald", sans-serif;                      /* UI chrome: titles, labels, menus */
+  --f-type: "Special Elite", "Courier New", monospace;   /* the typed narration + scene tag */
+  --f-mono: "Courier New", monospace;                     /* buttons, build tag, editor */
+  /* palette */
+  --c-bg: #050505;                  /* opaque screens (intro, rotate prompt) */
+  --c-scrim: rgba(0,0,0,0.92);      /* modal wash (poster, story menu) */
+  --c-fg: #d8d4c8;                  /* bright HUD text + icons */
+  --c-fg-2: #c9c4b6;                /* button label */
+  --c-cream: #ece6d6;               /* intro body text */
+  --c-dim: rgba(236,230,214,0.6);   /* secondary labels */
+  --c-red: #e10010;                 /* accent */
+  --c-red-deep: #c20012;            /* typed-text accent (scene tag + caption bold) */
+  --c-paper: rgba(245,242,232,0.95);/* caption card */
+  --c-ink: #111;                    /* caption text */
+  --c-panel: rgba(8,8,10,0.62);     /* button fill */
+  --c-line: rgba(216,212,200,0.3);  /* button border */
+  --c-line-hi: rgba(255,255,255,0.6);/* button hover border */
+  /* type scale (vmin so it never balloons in a wide frame) */
+  --fs-title: clamp(54px, 14vmin, 130px);
+  --fs-head: clamp(15px, 3vmin, 18px);
+  --fs-sub: clamp(15px, 3vmin, 22px);
+  --fs-body: clamp(14px, 2.4vmin, 19px);
+  --fs-menu: clamp(13px, 2.2vmin, 15px);
+  --fs-caption: clamp(13px, 2.4vmin, 18px);
+  --fs-label: clamp(11px, 2vmin, 14px);
+  --fs-hud: clamp(10px, 2vmin, 13px);
+  --fs-icon: clamp(14px, 3vmin, 18px);
+  --fs-note: clamp(8px, 1.6vmin, 11px);
+  /* z-index ladder (low to high) */
+  --z-caption: 10;
+  --z-hud: 25;
+  --z-intro: 30;
+  --z-overlay: 40;
+  --z-build: 50;
+  --z-prompt: 70;
   /* HUD grid: one square cell is the button height (and a small icon-only button's width).
      Wider buttons span whole cells plus the gaps between them, so everything lines up. */
   --hud-cell: clamp(34px, 6vmin, 40px);
@@ -21,57 +57,61 @@
 }
 /* one noir button skin, shared by the HUD, the act list, the poster row and the story menu */
 .hud-btn, #scenenav button, #poster a, #poster button, #storymenu button {
-  cursor: pointer; font-family: inherit; color: #c9c4b6;
-  background: rgba(8,8,10,0.62); border: 1px solid rgba(216,212,200,0.3);
+  cursor: pointer; font-family: var(--f-mono); color: var(--c-fg-2);
+  background: var(--c-panel); border: 1px solid var(--c-line);
   transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease; }
 .hud-btn:hover, .hud-btn:active, #scenenav button:hover,
 #poster a:hover, #poster button:hover, #storymenu button:hover, #storymenu button:active {
-  color: #fff; border-color: rgba(255,255,255,0.6); }
+  color: #fff; border-color: var(--c-line-hi); }
 /* HUD button sizing: every control is one cell tall, the size class sets the width */
 .hud-btn { height: var(--hud-cell); line-height: 1; display: inline-flex; align-items: center;
-  justify-content: center; gap: 0.5em; letter-spacing: 0.14em; font-size: clamp(10px, 2vmin, 13px); }
-.hud-sm { width: var(--hud-w1); padding: 0; font-size: clamp(14px, 3vmin, 18px); }
+  justify-content: center; gap: 0.5em; letter-spacing: 0.14em; font-size: var(--fs-hud); }
+.hud-sm { width: var(--hud-w1); padding: 0; font-size: var(--fs-icon); }
 .hud-md { width: var(--hud-w2); }
 .hud-lg { width: var(--hud-w3); }
+/* shared modal overlay: a centered card on a dark wash (poster, story menu, rotate prompt) */
+.overlay { position: fixed; inset: 0; z-index: var(--z-overlay); display: none;
+  flex-direction: column; align-items: center; justify-content: center; padding: 24px;
+  background: var(--c-scrim); }
+.overlay.show { display: flex; }
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
 html, body { height: 100%; overflow: hidden; background: #000; font-family: "Courier New", monospace; }
 #c { position: fixed; left: 0; top: 0; display: block; touch-action: none; }
 /* the canvas is sized + centered by the engine to a landscape band, so the body's black shows
    through as letterbox bars (top/bottom on a tall screen, left/right on a wide one) */
-#scenetag { position: fixed; top: max(12px, env(safe-area-inset-top)); left: 14px; z-index: 10;
-  font-family: "Special Elite", "Courier New", monospace;
-  color: #d8d4c8; font-size: clamp(11px, 2vmin, 14px); letter-spacing: 0.25em; font-weight: 400; text-shadow: 2px 2px 0 #000;
+#scenetag { position: fixed; top: max(12px, env(safe-area-inset-top)); left: 14px; z-index: var(--z-caption);
+  font-family: var(--f-type);
+  color: var(--c-fg); font-size: var(--fs-label); letter-spacing: 0.25em; font-weight: 400; text-shadow: 2px 2px 0 #000;
   opacity: 0; transition: opacity 0.5s ease; }
-#scenetag b { color: #c20012; }
+#scenetag b { color: var(--c-red-deep); }
 #caption { position: fixed; left: 50%; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 10px); transform: translateX(-50%);
-  z-index: 10; width: min(90vw, 600px); background: rgba(245,242,232,0.95); color: #111;
+  z-index: var(--z-caption); width: min(90vw, 600px); background: var(--c-paper); color: var(--c-ink);
   border: 2px solid #000; box-shadow: 4px 4px 0 rgba(0,0,0,0.5);
   padding: clamp(9px, 1.7vmin, 13px) clamp(12px, 2.2vmin, 18px);
-  font-family: "Special Elite", "Courier New", monospace;
-  font-size: clamp(13px, 2.4vmin, 18px); line-height: 1.4; letter-spacing: 0.005em; transition: opacity 0.35s ease; }
-#caption b { color: #c20012; font-weight: 700; }
-#tapnote { position: fixed; left: 50%; bottom: 6px; transform: translateX(-50%); z-index: 10; white-space: nowrap;
-  color: #7c7c7c; font-size: clamp(8px, 1.6vmin, 11px); letter-spacing: 0.06em; }
-#build { position: fixed; left: 8px; bottom: 4px; z-index: 50; color: #3a3a3a; font-size: 9px;
-  letter-spacing: 0.1em; font-family: "Courier New", monospace; }
+  font-family: var(--f-type); display: none; opacity: 0;
+  font-size: var(--fs-caption); line-height: 1.4; letter-spacing: 0.005em; transition: opacity 0.35s ease; }
+#caption b { color: var(--c-red-deep); font-weight: 700; }
+#tapnote { position: fixed; left: 50%; bottom: 6px; transform: translateX(-50%); z-index: var(--z-caption); white-space: nowrap;
+  display: none; color: #7c7c7c; font-size: var(--fs-note); letter-spacing: 0.06em; }
+#build { position: fixed; left: 8px; bottom: 4px; z-index: var(--z-build); color: #3a3a3a; font-size: 9px;
+  letter-spacing: 0.1em; font-family: var(--f-mono); }
 #editbtn, #mute, #shoot { font-variant-emoji: text; }   /* keep the HUD glyphs monochrome (noir), never colour emoji */
-#topbar { position: fixed; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); z-index: 25;
+#topbar { position: fixed; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); z-index: var(--z-hud);
   display: flex; flex-direction: column; align-items: flex-end; gap: var(--hud-gap); }
 .hud-row { display: flex; gap: var(--hud-gap); }
-#mute, #shoot { display: none; }                        /* the poster + sound icons appear once a story starts */
-#mute.show, #shoot.show { display: inline-flex; }
 /* act selector: a REVIEW ACT toggle that drops the act list open right below the HUD buttons */
-#actsel { display: none; flex-direction: column; align-items: stretch; gap: var(--hud-gap); width: max-content; }
-#actsel.show { display: flex; }
+#actsel { flex-direction: column; align-items: stretch; gap: var(--hud-gap); width: max-content; }
 #actbtn { min-width: var(--hud-w3); }
 #actbtn::after { content: "\25BE"; font-size: 0.82em; transition: transform 0.3s ease; }   /* caret flips when open */
 #actbtn.open::after { transform: rotate(180deg); }
-#poster { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center;
-  flex-direction: column; background: rgba(0,0,0,0.92); }
-#poster.show { display: flex; }
+/* stage-driven HUD presence: the in-story controls + narration appear only while playing */
+#mute, #shoot, #actsel { display: none; }
+body[data-stage="playing"] #mute, body[data-stage="playing"] #shoot { display: inline-flex; }
+body[data-stage="playing"] #actsel { display: flex; }
+body[data-stage="playing"] #caption, body[data-stage="playing"] #tapnote { display: block; }
 #poster img { max-width: 88vw; max-height: 70vh; border: 1px solid rgba(216,212,200,0.4); box-shadow: 0 0 40px rgba(0,0,0,0.8); }
 #poster .poster-row { margin-top: 18px; display: flex; gap: 12px; }
-#poster a, #poster button { padding: 13px 28px; text-align: center; font-size: clamp(13px, 3.2vw, 15px); letter-spacing: 0.16em; text-decoration: none; }
+#poster a, #poster button { padding: 13px 28px; text-align: center; font-size: var(--fs-menu); letter-spacing: 0.16em; text-decoration: none; }
 /* the act list drops open below the toggle: a clipped column that grows downward, each button
    easing down in turn for a noir, rope ladder feel. Every button shares one width (the widest
    title, floored at the 3 cell size) and stays one cell tall on a single line. */
@@ -80,7 +120,7 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
 #scenenav.open { max-height: 70vh; overflow-y: auto; }
 #scenenav button { min-width: var(--hud-w3); height: var(--hud-cell); white-space: nowrap;
   display: flex; align-items: center; justify-content: center; padding: 0 12px;
-  font-size: clamp(10px, 2vmin, 13px); letter-spacing: 0.12em; font-weight: 700;
+  font-size: var(--fs-hud); letter-spacing: 0.12em; font-weight: 700;
   opacity: 0; transform: translateY(-10px);
   transition: opacity 0.3s ease, transform 0.35s cubic-bezier(0.22,0.61,0.36,1), color 0.2s ease, border-color 0.2s ease; }
 #scenenav.open button { opacity: 1; transform: translateY(0); }
@@ -92,51 +132,50 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
 #scenenav.open button:nth-child(6) { transition-delay: 0.29s; }
 #scenenav.open button:nth-child(7) { transition-delay: 0.34s; }
 #scenenav.open button:nth-child(8) { transition-delay: 0.39s; }
-#scenenav button.cur { color: #fff; border-color: #e10010; box-shadow: 0 0 12px rgba(225,0,16,0.45); }
-/* story menu: same treatment as the poster overlay (dark wash + shared button skin) */
-#storymenu { position: fixed; inset: 0; z-index: 45; display: none; align-items: center; justify-content: center;
-  flex-direction: column; background: rgba(0,0,0,0.92); padding: 24px; }
-#storymenu.show { display: flex; }
+#scenenav button.cur { color: #fff; border-color: var(--c-red); box-shadow: 0 0 12px rgba(225,0,16,0.45); }
+/* story menu: same treatment as the poster overlay (the .overlay primitive + shared button skin) */
 #storymenu .sm-panel { display: flex; flex-direction: column; gap: 12px; width: min(86vw, 340px); }
-#storymenu .sm-head { color: #e10010; letter-spacing: 0.3em; font-weight: 700; text-align: center;
-  font-family: "Oswald", sans-serif; font-size: clamp(15px, 4vw, 18px); margin-bottom: 6px; }
-#storymenu button { padding: 13px 28px; text-align: center; font-size: clamp(13px, 3.2vw, 15px); letter-spacing: 0.16em; }
-#editor { position: fixed; inset: 0; z-index: 40; display: none; flex-direction: column; gap: 10px;
+#storymenu .sm-head { color: var(--c-red); letter-spacing: 0.3em; font-weight: 700; text-align: center;
+  font-family: var(--f-display); font-size: var(--fs-head); margin-bottom: 6px; }
+#storymenu button { padding: 13px 28px; text-align: center; font-size: var(--fs-menu); letter-spacing: 0.16em; }
+#editor { position: fixed; inset: 0; z-index: var(--z-overlay); display: none; flex-direction: column; gap: 10px;
   background: rgba(6,7,10,0.97); padding: max(16px, env(safe-area-inset-top)) 16px 16px; }
-#editor .ed-head { color: #e10010; letter-spacing: 0.3em; font-weight: 700; font-size: clamp(14px, 3.6vw, 16px); }
-#editor .ed-help { color: #8a8a8a; font-size: clamp(11px, 2.7vw, 13px); line-height: 1.8; }
+#editor .ed-head { color: var(--c-red); letter-spacing: 0.3em; font-weight: 700; font-size: var(--fs-head); }
+#editor .ed-help { color: #8a8a8a; font-size: clamp(11px, 2vmin, 13px); line-height: 1.8; }
 #ed-text { flex: 1; width: 100%; resize: none; background: #0e1014; color: #d6e0c8; border: 1px solid #2a2e36;
-  font-family: "Courier New", monospace; font-size: clamp(13px, 3vw, 15px); line-height: 1.5; padding: 12px; }
-#ed-err { color: #ff6a6a; font-size: clamp(12px, 2.8vw, 14px); min-height: 16px; }
+  font-family: var(--f-mono); font-size: clamp(13px, 2.4vmin, 15px); line-height: 1.5; padding: 12px; }
+#ed-err { color: #ff6a6a; font-size: clamp(12px, 2.2vmin, 14px); min-height: 16px; }
 .ed-btns { display: flex; gap: 12px; flex-wrap: wrap; }
-.ed-btns button { flex: 1; min-width: 100px; padding: 16px; cursor: pointer; font-family: inherit; font-weight: 700;
-  letter-spacing: 0.18em; font-size: clamp(14px, 3.4vw, 16px); background: transparent; color: #fff; border: 1px solid #fff; }
-#ed-play { background: #e10010; border-color: #e10010; }
+.ed-btns button { flex: 1; min-width: 100px; padding: 16px; cursor: pointer; font-family: var(--f-mono); font-weight: 700;
+  letter-spacing: 0.18em; font-size: var(--fs-menu); background: transparent; color: #fff; border: 1px solid #fff; }
+#ed-play { background: var(--c-red); border-color: var(--c-red); }
 .ed-btns button:active { opacity: 0.7; }
-#intro { position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column; align-items: center;
+/* the start screen is always present but fades in/out by stage (no display swap, so the fade shows) */
+#intro { position: fixed; inset: 0; z-index: var(--z-intro); display: flex; flex-direction: column; align-items: center;
   justify-content: center; text-align: center; padding: 28px 22px; overflow-y: auto;
-  background: #050505; transition: opacity 0.8s ease; }
+  background: var(--c-bg); opacity: 0; pointer-events: none; transition: opacity 0.8s ease; }
+body[data-stage="menu"] #intro { opacity: 1; pointer-events: auto; }
 /* the start screen shares the HUD's vmin scale so it stays balanced in a wide frame instead of
    inflating off viewport width. Sizes and gaps scale with the smaller dimension, which also keeps
    it fitting on short landscape screens without a separate breakpoint. */
-#intro h1 { font-family: "Oswald", sans-serif; color: #fff; font-size: clamp(54px, 14vmin, 130px); letter-spacing: 0.04em; font-weight: 700;
+#intro h1 { font-family: var(--f-display); color: #fff; font-size: var(--fs-title); letter-spacing: 0.04em; font-weight: 700;
   line-height: 1.0; transform: skewX(-7deg); }
-#intro h1 .b { color: #e10010; }
-#intro p { font-family: "Oswald", sans-serif; color: #ece6d6; margin-top: clamp(10px, 2vmin, 18px); font-size: clamp(15px, 3vmin, 22px); letter-spacing: 0.26em; font-weight: 600; }
-#intro .sub { font-family: "Oswald", sans-serif; color: rgba(236,230,214,0.72); margin-top: clamp(8px, 1.6vmin, 14px); font-size: clamp(14px, 2.4vmin, 19px); letter-spacing: 0.02em;
+#intro h1 .b { color: var(--c-red); }
+#intro p { font-family: var(--f-display); color: var(--c-cream); margin-top: clamp(10px, 2vmin, 18px); font-size: var(--fs-sub); letter-spacing: 0.26em; font-weight: 600; }
+#intro .sub { font-family: var(--f-display); color: rgba(236,230,214,0.72); margin-top: clamp(8px, 1.6vmin, 14px); font-size: var(--fs-body); letter-spacing: 0.02em;
   font-weight: 400; max-width: 600px; line-height: 1.6; }
-#intro .pick-label { font-family: "Oswald", sans-serif; color: rgba(236,230,214,0.55); margin-top: clamp(18px, 4vmin, 36px); font-size: clamp(13px, 2.2vmin, 16px); letter-spacing: 0.34em; font-weight: 600; }
+#intro .pick-label { font-family: var(--f-display); color: rgba(236,230,214,0.55); margin-top: clamp(18px, 4vmin, 36px); font-size: var(--fs-label); letter-spacing: 0.34em; font-weight: 600; }
 #storypick { margin-top: clamp(12px, 2.4vmin, 18px); display: flex; gap: clamp(12px, 2vmin, 18px); flex-wrap: wrap; justify-content: center; }
-.storybtn { font-family: "Oswald", sans-serif; cursor: pointer; background: transparent; color: #f2eee2; border: 1px solid rgba(236,230,214,0.45);
-  font-size: clamp(16px, 3vmin, 22px); letter-spacing: 0.16em; font-weight: 600; padding: clamp(14px, 2.6vmin, 20px) clamp(20px, 4vmin, 32px); transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease; }
+.storybtn { font-family: var(--f-display); cursor: pointer; background: transparent; color: #f2eee2; border: 1px solid rgba(236,230,214,0.45);
+  font-size: var(--fs-sub); letter-spacing: 0.16em; font-weight: 600; padding: clamp(14px, 2.6vmin, 20px) clamp(20px, 4vmin, 32px); transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease; }
 .storybtn:hover { border-color: #fff; background: rgba(236,230,214,0.06); }
-.storybtn.cur { color: #fff; border-color: #e10010; }
-.storybtn small { display: block; color: rgba(236,230,214,0.6); font-size: clamp(12px, 2vmin, 15px); letter-spacing: 0.1em; margin-top: clamp(6px, 1.2vmin, 10px); font-weight: 400; }
+.storybtn.cur { color: #fff; border-color: var(--c-red); }
+.storybtn small { display: block; color: var(--c-dim); font-size: clamp(12px, 2vmin, 15px); letter-spacing: 0.1em; margin-top: clamp(6px, 1.2vmin, 10px); font-weight: 400; }
 .storybtn:hover small { color: rgba(236,230,214,0.88); }
 .storybtn.cur small { color: #ea5a5a; }
-#enter { font-family: "Oswald", sans-serif; margin-top: clamp(20px, 4vmin, 36px); padding: clamp(14px, 2.6vmin, 22px) clamp(36px, 8vmin, 64px); cursor: pointer; background: transparent; color: #fff;
-  border: 1px solid #fff; font-size: clamp(16px, 3vmin, 23px); letter-spacing: 0.26em; font-weight: 600; transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease; }
-#enter:hover, #enter:active { background: #e10010; border-color: #e10010; }
+#enter { font-family: var(--f-display); margin-top: clamp(20px, 4vmin, 36px); padding: clamp(14px, 2.6vmin, 22px) clamp(36px, 8vmin, 64px); cursor: pointer; background: transparent; color: #fff;
+  border: 1px solid #fff; font-size: var(--fs-sub); letter-spacing: 0.26em; font-weight: 600; transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease; }
+#enter:hover, #enter:active { background: var(--c-red); border-color: var(--c-red); }
 
 /* short viewports (landscape phones, small desktop windows): tuck the caption down a touch
    (the font already scales with height via vmin) */
@@ -148,23 +187,20 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
   #caption { font-size: 18px; width: min(52vw, 600px); }
 }
 
-/* rotate prompt: shown on a phone/tablet held in portrait, while the screen is asked to turn */
-#rotate { position: fixed; inset: 0; z-index: 70; display: none; flex-direction: column;
-  align-items: center; justify-content: center; gap: 32px; text-align: center; padding: 28px;
-  background: #050505; }
-#rotate.show { display: flex; }
-#rotate .rotate-text { font-family: "Oswald", sans-serif; color: #ece6d6; max-width: 420px;
-  font-size: clamp(18px, 6vw, 24px); letter-spacing: 0.16em; font-weight: 600; line-height: 1.6; }
-#rotate .rotate-skip { display: none; font-family: "Oswald", sans-serif; cursor: pointer;
+/* rotate prompt: the .overlay primitive, but opaque and on top of everything */
+#rotate { z-index: var(--z-prompt); background: var(--c-bg); gap: 32px; }
+#rotate .rotate-text { font-family: var(--f-display); color: var(--c-cream); max-width: 420px;
+  font-size: var(--fs-sub); letter-spacing: 0.16em; font-weight: 600; line-height: 1.6; }
+#rotate .rotate-skip { display: none; font-family: var(--f-display); cursor: pointer;
   background: transparent; color: rgba(236,230,214,0.85); border: 1px solid rgba(236,230,214,0.45);
-  font-size: clamp(13px, 3.6vw, 15px); letter-spacing: 0.22em; font-weight: 600; padding: 14px 28px; }
+  font-size: var(--fs-menu); letter-spacing: 0.22em; font-weight: 600; padding: 14px 28px; }
 #rotate .rotate-skip.show { display: inline-block; }
 #rotate .rotate-skip:hover, #rotate .rotate-skip:active { color: #fff; border-color: #fff; }
 /* a little phone that tips from portrait to landscape on a loop */
-.rotate-phone { width: 58px; height: 102px; border: 4px solid #d8d4c8; border-radius: 12px;
+.rotate-phone { width: 58px; height: 102px; border: 4px solid var(--c-fg); border-radius: 12px;
   position: relative; transform-origin: 50% 50%; animation: rotatehint 2.6s ease-in-out infinite; }
 .rotate-phone .rotate-cam { position: absolute; left: 50%; bottom: 7px; transform: translateX(-50%);
-  width: 14px; height: 14px; border: 2px solid #d8d4c8; border-radius: 50%; }
+  width: 14px; height: 14px; border: 2px solid var(--c-fg); border-radius: 50%; }
 @keyframes rotatehint {
   0%, 22% { transform: rotate(0deg); }
   55%, 88% { transform: rotate(-90deg); }
@@ -173,11 +209,11 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
 
 </style>
 </head>
-<body>
+<body data-stage="menu">
 <canvas id="c"></canvas>
 <div id="scenetag"></div>
-<div id="caption" style="display:none"></div>
-<div id="tapnote" style="display:none">TAP — NEXT&nbsp; ·&nbsp; DRAG — LOOK&nbsp; ·&nbsp; HOLD — LIGHTNING</div>
+<div id="caption"></div>
+<div id="tapnote">TAP — NEXT&nbsp; ·&nbsp; DRAG — LOOK&nbsp; ·&nbsp; HOLD — LIGHTNING</div>
 <div id="intro">
   <h1>INK<span class="b">FALL</span></h1>
   <p id="introsub">A NOIR STORY ENGINE</p>
@@ -200,20 +236,20 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
   </div>
 </div>
 
-<div id="rotate">
+<div id="rotate" class="overlay">
   <div class="rotate-phone" aria-hidden="true"><span class="rotate-cam"></span></div>
   <div class="rotate-text">For the best experience, rotate your screen</div>
   <button id="rotate-skip" class="rotate-skip">WATCH ANYWAY</button>
 </div>
 
-<div id="poster">
+<div id="poster" class="overlay">
   <img id="posterimg" alt="Inkfall poster" />
   <div class="poster-row">
     <a id="posterdl" download="inkfall.png">SAVE</a>
     <button id="posterclose">BACK TO THE RAIN</button>
   </div>
 </div>
-<div id="storymenu">
+<div id="storymenu" class="overlay">
   <div class="sm-panel">
     <div class="sm-head">STORY</div>
     <button id="sm-back">BACK TO START MENU</button>
@@ -306,14 +342,12 @@ async function selectStory(i) {
   document.querySelectorAll('.storybtn').forEach(b => b.classList.toggle('cur', +b.dataset.i === i));
 }
 
+// the HUD stage drives coarse visibility from CSS: "menu" shows the intro, "playing" shows the
+// in-story HUD + narration. Per-frame caption/tap fades stay in the manager.
+const setStage = s => { document.body.dataset.stage = s; };
+
 function beginPlay() {
-  const intro = el('intro');
-  intro.style.opacity = '0'; setTimeout(() => intro.style.display = 'none', 800);
-  el('caption').style.display = 'block';
-  el('tapnote').style.display = 'block';
-  el('mute').classList.add('show');
-  el('shoot').classList.add('show');
-  el('actsel').classList.add('show');
+  setStage('playing');     // CSS reveals the HUD + narration and fades the intro out
   Audio2.start();
   viewport.beginStory();   // goes immersive, then starts the story once the screen is landscape
 }
@@ -374,12 +408,10 @@ const storymenu = el('storymenu');
 const openEditor = () => { edText.value = JSON.stringify(manager.story, noCache, 2); edErr.textContent = ''; editor.style.display = 'flex'; };
 function goToStartMenu() {
   storymenu.classList.remove('show'); editor.style.display = 'none'; el('poster').classList.remove('show');
-  el('caption').style.display = 'none'; el('tapnote').style.display = 'none';
-  el('mute').classList.remove('show'); el('shoot').classList.remove('show');
-  el('actsel').classList.remove('show'); el('scenenav').classList.remove('open'); el('actbtn').classList.remove('open');
+  el('scenenav').classList.remove('open'); el('actbtn').classList.remove('open');
   Audio2.setStory(manager.story && manager.story.audio);   // stop the playing audio, reset to the unstarted state
   viewport.reset(); manager.reset();                        // drop back to act one, not started, so ENTER replays cleanly
-  const intro = el('intro'); intro.style.display = 'flex'; requestAnimationFrame(() => intro.style.opacity = '1');
+  setStage('menu');                                          // CSS fades the intro back in and hides the HUD
 }
 el('editbtn').addEventListener('click', () => storymenu.classList.add('show'));
 el('sm-cancel').addEventListener('click', () => storymenu.classList.remove('show'));
