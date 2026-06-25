@@ -40,6 +40,10 @@ export class Manager {
 
   requestStart() { this._startReq = true; }
 
+  // tear down a run and return to the unstarted state (used by "back to start menu"), so a fresh
+  // ENTER replays the story from act one instead of needing a page reload
+  reset() { this.started = false; this._startReq = false; this.loadStory(this.story); }
+
   tick(e) {
     e.scene = this.current;
     this.current.ensureGeometry(e);

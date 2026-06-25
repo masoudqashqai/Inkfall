@@ -1,4 +1,21 @@
-:root { color-scheme: dark; }
+:root { color-scheme: dark;
+  /* HUD grid: one square cell is the button height (and a small icon-only button's width).
+     Wider buttons span whole cells plus the gaps between them, so everything lines up. */
+  --hud-cell: clamp(36px, 6.4vmin, 42px);
+  --hud-gap: 6px;
+  --hud-w1: var(--hud-cell);                                          /* small:  1 cell, icon only */
+  --hud-w2: calc(var(--hud-cell) * 2 + var(--hud-gap));              /* medium: 2 cells, icon + text */
+  --hud-w3: calc(var(--hud-cell) * 3 + var(--hud-gap) * 2);         /* large:  3 cells, text (or icon + text) */
+}
+/* shared HUD button: every control is one cell tall, the size class sets the width */
+.hud-btn { height: var(--hud-cell); font-family: inherit; cursor: pointer; line-height: 1;
+  background: rgba(0,0,0,0.55); color: #d8d4c8; border: 1px solid rgba(255,255,255,0.28);
+  display: inline-flex; align-items: center; justify-content: center; gap: 0.5em;
+  letter-spacing: 0.14em; font-size: clamp(11px, 2.1vmin, 14px); }
+.hud-btn:hover, .hud-btn:active { border-color: #e10010; color: #fff; }
+.hud-sm { width: var(--hud-w1); padding: 0; font-size: clamp(15px, 3.1vmin, 19px); }
+.hud-md { width: var(--hud-w2); }
+.hud-lg { width: var(--hud-w3); }
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
 html, body { height: 100%; overflow: hidden; background: #000; font-family: "Courier New", monospace; }
 #c { position: fixed; left: 0; top: 0; display: block; touch-action: none; }
@@ -22,14 +39,8 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
   letter-spacing: 0.1em; font-family: "Courier New", monospace; }
 #editbtn, #mute, #shoot { font-variant-emoji: text; }   /* keep the HUD glyphs monochrome (noir), never colour emoji */
 #topbar { position: fixed; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); z-index: 25;
-  display: flex; align-items: stretch; gap: 6px; }
-#topbar button { font-family: inherit; cursor: pointer; background: rgba(0,0,0,0.55); color: #d8d4c8;
-  border: 1px solid rgba(255,255,255,0.28); display: inline-flex; align-items: center; justify-content: center; }
-#topbar button:hover, #topbar button:active { border-color: #e10010; color: #fff; }
-#editbtn { font-size: clamp(11px, 2.2vmin, 14px); letter-spacing: 0.16em; padding: 0 clamp(13px, 2.6vmin, 18px);
-  height: clamp(38px, 7vmin, 46px); }
-#mute, #shoot { display: none; font-size: clamp(15px, 3.4vmin, 21px); line-height: 1;
-  width: clamp(38px, 7vmin, 46px); height: clamp(38px, 7vmin, 46px); }
+  display: flex; align-items: stretch; gap: var(--hud-gap); }
+#mute, #shoot { display: none; }                        /* the poster + sound icons appear once a story starts */
 #mute.show, #shoot.show { display: inline-flex; }
 #poster { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center;
   flex-direction: column; background: rgba(0,0,0,0.92); }
@@ -40,13 +51,37 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
   border: 1px solid #fff; font-family: inherit; font-size: clamp(14px, 3.4vw, 16px); letter-spacing: 0.16em; text-decoration: none; }
 #poster a:hover { background: #e10010; border-color: #e10010; }
 #poster button:hover { background: #fff; color: #000; }
-#scenenav { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(max(16px, env(safe-area-inset-bottom)) + 16px);
-  z-index: 25; display: none; gap: 8px; flex-wrap: wrap; justify-content: center; width: min(94vw, 760px); }
+/* act selector (shown on THE END): a vertical column on the right, clear of the narration box.
+   Every act button is one standard "large" width so the list reads as a clean stack. */
+#scenenav { position: fixed; right: max(12px, env(safe-area-inset-right)); top: 50%; transform: translateY(-50%);
+  z-index: 25; display: none; flex-direction: column; align-items: stretch; gap: var(--hud-gap);
+  width: max-content; max-height: 86vh; overflow-y: auto; text-align: center; }
 #scenenav.show { display: flex; }
-#scenenav button { font-family: inherit; font-size: clamp(11px, 2.2vmin, 14px); letter-spacing: 0.12em; font-weight: 700; cursor: pointer;
-  color: #c9c4b6; background: rgba(8,8,10,0.62); border: 1px solid rgba(216,212,200,0.3); padding: 10px 14px; line-height: 1.25; }
+#scenenav::before { content: "REVIEW ACT"; font-family: "Oswald", sans-serif; color: rgba(236,230,214,0.5);
+  font-size: clamp(10px, 1.9vmin, 13px); letter-spacing: 0.3em; font-weight: 600; margin-bottom: 2px; }
+/* every act button stretches to the column width (the widest title) with the 3 cell width as a
+   floor, so the buttons are all exactly equal and each stays one cell tall on a single line */
+#scenenav button { min-width: var(--hud-w3); height: var(--hud-cell); white-space: nowrap; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; font-family: inherit; padding: 0 12px;
+  font-size: clamp(11px, 2.1vmin, 14px); letter-spacing: 0.12em; font-weight: 700;
+  color: #c9c4b6; background: rgba(8,8,10,0.62); border: 1px solid rgba(216,212,200,0.3); }
 #scenenav button:hover { color: #fff; border-color: rgba(255,255,255,0.6); }
 #scenenav button.cur { color: #fff; border-color: #e10010; box-shadow: 0 0 12px rgba(225,0,16,0.45); }
+/* story menu: the small popup shown when the STORY button is tapped */
+#storymenu { position: fixed; inset: 0; z-index: 45; display: none; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.88); padding: 24px; }
+#storymenu.show { display: flex; }
+#storymenu .sm-panel { display: flex; flex-direction: column; gap: 12px; width: min(92vw, 360px);
+  background: rgba(8,8,10,0.92); border: 1px solid rgba(216,212,200,0.3); padding: clamp(20px, 5vw, 30px); }
+#storymenu .sm-head { color: #e10010; letter-spacing: 0.3em; font-weight: 700; text-align: center;
+  font-family: "Oswald", sans-serif; font-size: clamp(15px, 4vw, 18px); margin-bottom: 6px; }
+#storymenu button { cursor: pointer; font-family: "Oswald", sans-serif; font-weight: 600; letter-spacing: 0.16em;
+  font-size: clamp(14px, 3.6vw, 16px); padding: 15px 18px; background: transparent; color: #f2eee2;
+  border: 1px solid rgba(236,230,214,0.45); transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease; }
+#storymenu button:hover, #storymenu button:active { border-color: #fff; color: #fff; background: rgba(236,230,214,0.06); }
+#storymenu #sm-edit { background: #e10010; border-color: #e10010; color: #fff; }
+#storymenu #sm-edit:hover { background: #c2000e; }
+#storymenu #sm-cancel { color: rgba(236,230,214,0.6); border-color: transparent; padding: 8px; letter-spacing: 0.22em; font-size: clamp(12px, 3vw, 13px); }
 #editor { position: fixed; inset: 0; z-index: 40; display: none; flex-direction: column; gap: 10px;
   background: rgba(6,7,10,0.97); padding: max(16px, env(safe-area-inset-top)) 16px 16px; }
 #editor .ed-head { color: #e10010; letter-spacing: 0.3em; font-weight: 700; font-size: clamp(14px, 3.6vw, 16px); }
@@ -84,11 +119,10 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
   border: 1px solid #fff; font-size: clamp(16px, 3vmin, 23px); letter-spacing: 0.26em; font-weight: 600; transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease; }
 #enter:hover, #enter:active { background: #e10010; border-color: #e10010; }
 
-/* short viewports (landscape phones, small desktop windows): tuck the caption down and lift the
-   scene nav clear of it (the font already scales with height via vmin) */
+/* short viewports (landscape phones, small desktop windows): tuck the caption down a touch
+   (the font already scales with height via vmin) */
 @media (max-height: 560px) {
   #caption { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 8px); }
-  #scenenav { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 88px); }
 }
 /* wide desktops: a touch larger so it reads from a distance, still within the standard scale */
 @media (min-width: 1100px) {
