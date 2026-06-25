@@ -7,9 +7,11 @@
 //      only shows when the browser ignores that signal. If the screen reverts to portrait mid story
 //      the prompt returns and the play clock pauses until landscape comes back. As a fallback the
 //      prompt offers "watch anyway", which plays letterboxed.
-export const ASPECT_MIN = 16 / 10;   // below this the screen is too tall: bars top and bottom
-export const ASPECT_MAX = 2.0;       // above this the screen is too wide: bars left and right
-const SKIP_DELAY = 4000;             // wait before the prompt offers the "watch anyway" fallback
+export const ASPECT_MIN = 16 / 10;       // below this the screen is too tall: bars top and bottom
+export const ASPECT_MAX = 2.0;           // desktop cap: bars left and right past this (true ultrawides)
+export const ASPECT_MAX_TOUCH = 2.4;     // phones/tablets reach wider: modern handsets are ~19.5:9 to
+                                         // 21:9 in landscape (2.17 to 2.33), so let them fill edge to edge
+const SKIP_DELAY = 4000;                 // wait before the prompt offers the "watch anyway" fallback
 
 // a device counts as rotatable if it is touch first and exposes the Screen Orientation API
 export function isRotatable() {
