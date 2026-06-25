@@ -160,7 +160,7 @@ function floorWash(e, L, st) {
   const c = e.light, h = Math.max(20, st.gy - L.y);          // the source's distance up off the floor
   const rx = L.r * 0.5 + h * 0.7, ry = (st.H - st.gy) * WASH.floorReach;
   c.save(); c.beginPath(); c.rect(L.x - rx, st.gy, rx * 2, st.H - st.gy); c.clip();
-  c.globalCompositeOperation = 'lighter'; c.globalAlpha = WASH.floorAlpha * L.glowI * (L.r / (L.r + h * 0.7));
+  c.globalCompositeOperation = 'lighter'; c.globalAlpha = WASH.floorAlpha * st.env.wash * L.glowI * (L.r / (L.r + h * 0.7));
   c.drawImage(softRadial(L.col), L.x - rx, st.gy - ry * 0.35, rx * 2, ry * 1.7); c.restore();
 }
 function wallWash(e, L, st) {
@@ -168,7 +168,7 @@ function wallWash(e, L, st) {
   const rx = L.r * 0.55 + d * 0.5, ry = (st.gy - w.top) * WASH.wallReach;
   const cy = Math.min(st.gy, Math.max(w.top, L.y));          // the pool centres where the light meets the wall
   c.save(); c.beginPath(); c.rect(L.x - rx, w.top, rx * 2, st.gy - w.top); c.clip();
-  c.globalCompositeOperation = 'lighter'; c.globalAlpha = WASH.wallAlpha * L.glowI * (L.r / (L.r + d * 0.6));
+  c.globalCompositeOperation = 'lighter'; c.globalAlpha = WASH.wallAlpha * st.env.wash * L.glowI * (L.r / (L.r + d * 0.6));
   // light runs DOWN the wall more than up it (it falls toward the floor), so the pool is weighted
   // below the source: drawn taller and shifted down rather than a symmetric disc.
   c.drawImage(softRadial(L.col), L.x - rx, cy - ry * 0.72, rx * 2, ry * 2.3); c.restore();

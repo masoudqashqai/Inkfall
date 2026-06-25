@@ -28,3 +28,14 @@ export const WASH = {
   wallAlpha: 0.22, wallReach: 0.7,      // wall pool brightness + how far up the wall it reaches
   ambientAlpha: 0.05,                    // a flat ambient lift on the lit buffer, tinted by AMBIENT
 };
+
+// ENV — the one place the system splits indoor from outdoor, the whole light/shadow/material model
+// reads it off the stage. The physics: OUTDOOR light falls into open dark (low fill, deep long hard
+// shadows, contained reach), INDOOR light bounces off walls/floor/ceiling and splashes (more fill,
+// softer lighter shorter shadows, broader reach, stronger surface washes). A future window scene
+// rides the indoor profile: the window is just another light (a soft beam + cool wash) on top of it.
+export const ENV = {
+  //         ambient  fill  reach  shadow  soft  length  wash
+  outdoor: { ambient: 0.16, fill: 0.20, reach: 1.8, shadow: 1.0, soft: 1.0, length: 1.0, wash: 1.0 },
+  indoor: { ambient: 0.30, fill: 0.34, reach: 2.5, shadow: 0.68, soft: 1.7, length: 0.8, wash: 1.5 },
+};

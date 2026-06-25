@@ -13,10 +13,10 @@
 // time-smoothed so flickering sources settle. bodyGrad() samples it across the body as a gradient
 // (the cloth); shade() applies the flat version to small surfaces (a shirt, bare skin). Front lights
 // (a held cigarette) are local glows, not form light, so they are excluded from the field.
-import { AMBIENT } from './shadows.js';
+import { AMBIENT, ENV } from './shadows.js';
 
 const BASE = [58, 64, 73];   // default cloth albedo (the old steel) for objects that name no colour
-const AMB = 0.22;            // ambient floor: the shadow-side brightness fraction; the rest is direct light
+let _fill = 0.22;            // ambient floor (shadow-side brightness): set per scene from the env profile (indoor lifts it)
 
 // the per-figure light field, set by rimSign for the paired bodyGrad/shade calls
 let _lit = 0;                // 0..1 how strongly the figure is lit (smoothed)
@@ -28,10 +28,11 @@ let _lcol = [1, 1, 1];       // dominant light hue on the lit side, normalised (
 export function rimSign(e, node) {
   const X = e.X(node);
   let wx = 0, wy = 0, wr = 0, wg = 0, wb = 0, wsum = 0;
-  // a light reaches objects within REACH x its radius. This is decoupled from the (tight) air glow,
-  // so a major source (a street lamp, a room bulb, the moon) lights the cast well beyond its bloom,
-  // falling off gradually. Bigger sources gain the most absolute reach, so the big ones carry.
-  const REACH = 1.8;
+  // a light reaches objects within REACH x its radius (decoupled from the tight air glow), and the
+  // shadow side falls to _fill x albedo. Both come from the env profile: indoor light reaches and
+  // fills more (it bounces and splashes), outdoor is contained and falls into the dark.
+  const env = ENV[e.scene.indoor ? 'indoor' : 'outdoor'];
+  const REACH = env.reach; _fill = env.fill;
   for (const L of e.lights) {
     if (L.front) continue;
     const w = L.I * (1 - Math.abs(X - L.x) / (L.r * REACH));
@@ -74,9 +75,9 @@ export function bodyGrad(c, h, s, rim, albedo) {
     const t = i / 6, u = 1 - 2 * t;                             // +1 lit edge .. -1 far edge
     const hl = (1 - obl) + obl * Math.max(0, 0.5 + 0.5 * u);     // half-Lambert wrap (smooth)
     const d = _lit * hl * hl;                                    // direct light at this band, soft terminator
-    const r = A[0] * (AMB * _amb[0] + (1 - AMB) * d * _lcol[0]);
-    const gg = A[1] * (AMB * _amb[1] + (1 - AMB) * d * _lcol[1]);
-    const b = A[2] * (AMB * _amb[2] + (1 - AMB) * d * _lcol[2]);
+    const r = A[0] * (_fill * _amb[0] + (1 - _fill) * d * _lcol[0]);
+    const gg = A[1] * (_fill * _amb[1] + (1 - _fill) * d * _lcol[1]);
+    const b = A[2] * (_fill * _amb[2] + (1 - _fill) * d * _lcol[2]);
     g.addColorStop(t, `rgb(${cl(r)},${cl(gg)},${cl(b)})`);
   }
   return g;
@@ -87,8 +88,8 @@ export function bodyGrad(c, h, s, rim, albedo) {
 // an unlit figure goes uniformly dark and lifts (and takes the light's hue) as light reaches it.
 export function shade(rgb) {
   const cl = v => v < 0 ? 0 : v > 255 ? 255 : Math.round(v), d = _lit;
-  const r = rgb[0] * (AMB * _amb[0] + (1 - AMB) * d * _lcol[0]);
-  const g = rgb[1] * (AMB * _amb[1] + (1 - AMB) * d * _lcol[1]);
-  const b = rgb[2] * (AMB * _amb[2] + (1 - AMB) * d * _lcol[2]);
+  const r = rgb[0] * (_fill * _amb[0] + (1 - _fill) * d * _lcol[0]);
+  const g = rgb[1] * (_fill * _amb[1] + (1 - _fill) * d * _lcol[1]);
+  const b = rgb[2] * (_fill * _amb[2] + (1 - _fill) * d * _lcol[2]);
   return `rgb(${cl(r)},${cl(g)},${cl(b)})`;
 }
