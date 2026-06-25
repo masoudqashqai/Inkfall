@@ -31,7 +31,9 @@ export function bodyGrad(c, h, s, rim, tint) {
   const gx = rim * 34 * s, gvy = -_vb * 20 * s;                  // tilt the lit edge toward the light's height
   const g = c.createLinearGradient(gx, gvy, -gx, -gvy);
   let lit = '#3a4049';
-  if (tint) { const m = 0.5; lit = `rgb(${Math.round(58 + (tint[0] - 58) * m)},${Math.round(64 + (tint[1] - 64) * m)},${Math.round(73 + (tint[2] - 73) * m)})`; }
+  // a gentle wash of the light's colour on the lit edge, NOT a repaint of the cloth. Kept low so a
+  // coloured light tints the coat rather than recolouring it, and the moon never blows it to white.
+  if (tint) { const m = 0.3; lit = `rgb(${Math.round(58 + (tint[0] - 58) * m)},${Math.round(64 + (tint[1] - 64) * m)},${Math.round(73 + (tint[2] - 73) * m)})`; }
   g.addColorStop(0, lit); g.addColorStop(0.42, '#181b21'); g.addColorStop(1, '#080909');
   return g;
 }

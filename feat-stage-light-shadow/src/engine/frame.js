@@ -52,7 +52,17 @@ export class Frame {
   // Objects describe a light once with addLight({...}); the lighting pass draws halo + refl.
   addLight(rec) { L.addLight(this, rec); }
   dominantLight(x) { return L.dominantLight(this, x); }
-  litTint(x) { return L.litTint(this, x); }
+  // the ambient tint at x. Pass the node to LOW-PASS it on the node over time, so a flickering neon
+  // tints the form steadily instead of strobing the cloth frame to frame.
+  litTint(x, node) {
+    const t = L.litTint(this, x);
+    if (!node) return t;
+    if (!t) { node._tint = null; return null; }
+    const p = node._tint;
+    if (!p) return node._tint = t;
+    const k = 0.1;
+    return node._tint = [p[0] + (t[0] - p[0]) * k, p[1] + (t[1] - p[1]) * k, p[2] + (t[2] - p[2]) * k];
+  }
   litColor(x, gr, gg, gb) { return L.litColor(this, x, gr, gg, gb); }
 }
 

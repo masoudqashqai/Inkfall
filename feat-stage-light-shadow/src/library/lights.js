@@ -10,12 +10,14 @@ defineLight('lamp', {
     const t = e.t, X = e.X(this), s = e.unit * (this.scale || 1);
     const flick = this.flicker ? (Math.sin(t * 30 + (this.seed || 0)) > -0.9 ? 1 : 0.4) * (0.85 + 0.15 * Math.sin(t * 7)) : 1;
     this._flick = flick; this._X = X; this._s = s;
-    // a hooded street lamp reads as a soft downward pool, not a hard shaft: the shaded glow (capped
-    // above the hood) plus the floor wash carry it. No volumetric beam here (that is for the distant
-    // searchlight, where a shaft in open sky belongs).
+    // the lamp throws a volumetric beam from the BULB down to the wet floor. No air glow: the halo
+    // sat around the hood above the bulb and read like the lid was glowing. The light sits exactly at
+    // the drawn bulb (x + 26, gy - 150), so the shaft starts at the lamp, not the lid. The floor wash
+    // gives the pool where it lands.
     e.addLight({
       x: X + 26 * s, y: e.gy - 150 * s, col: '255,250,225', r: 150 * (this.scale || 1), I: 0.5 * flick, ew: 6 * s, eh: 6 * s,
-      shade: true,                                            // the hood caps the glow: it spills downward only
+      glow: false,
+      beam: { dir: 0, len: 150 * s, farW: 70 * s, I: flick },
     });
   },
   draw(e) {

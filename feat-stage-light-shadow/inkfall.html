@@ -168,7 +168,7 @@ __req("src/library/index.js");
 const { STORIES } = __req("stories/manifest.js");
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 46 · shadows fall on the cast too'
+const BUILD = 'v2 build 47 · calmer tint, lamp beam, tighter glow'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 
@@ -431,7 +431,17 @@ class Frame {
   // Objects describe a light once with addLight({...}); the lighting pass draws halo + refl.
   addLight(rec) { L.addLight(this, rec); }
   dominantLight(x) { return L.dominantLight(this, x); }
-  litTint(x) { return L.litTint(this, x); }
+  // the ambient tint at x. Pass the node to LOW-PASS it on the node over time, so a flickering neon
+  // tints the form steadily instead of strobing the cloth frame to frame.
+  litTint(x, node) {
+    const t = L.litTint(this, x);
+    if (!node) return t;
+    if (!t) { node._tint = null; return null; }
+    const p = node._tint;
+    if (!p) return node._tint = t;
+    const k = 0.1;
+    return node._tint = [p[0] + (t[0] - p[0]) * k, p[1] + (t[1] - p[1]) * k, p[2] + (t[2] - p[2]) * k];
+  }
   litColor(x, gr, gg, gb) { return L.litColor(this, x, gr, gg, gb); }
 }
 
@@ -580,11 +590,11 @@ function surfaceGlow(e, L) {
   c.drawImage(softRadial(L.col), L.x - rx, L.y - ry, rx * 2, ry * 2); c.restore();
 }
 
-// soft atmospheric bloom — the "glow in the air". Kept fairly tight so it concentrates around the
-// source instead of washing across the whole frame (a ring light, the moon, keeps its wider radius).
+// soft atmospheric bloom — the "glow in the air". Kept tight so it concentrates around the source
+// instead of washing across the frame (a ring light, the moon, keeps its wider radius).
 function airGlow(e, L) {
-  const R = L.glowR * (L.ring ? 1 : 0.72), c = e.light;
-  c.save(); clipShade(c, L, e); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.17 * L.glowI;
+  const R = L.glowR * (L.ring ? 1 : 0.55), c = e.light;
+  c.save(); clipShade(c, L, e); c.globalCompositeOperation = 'lighter'; c.globalAlpha = 0.2 * L.glowI;
   c.drawImage(L.ring ? softRing(L.col) : softRadial(L.col), L.x - R, L.y - R, R * 2, R * 2); c.restore();
 }
 
@@ -2100,12 +2110,14 @@ defineLight('lamp', {
     const t = e.t, X = e.X(this), s = e.unit * (this.scale || 1);
     const flick = this.flicker ? (Math.sin(t * 30 + (this.seed || 0)) > -0.9 ? 1 : 0.4) * (0.85 + 0.15 * Math.sin(t * 7)) : 1;
     this._flick = flick; this._X = X; this._s = s;
-    // a hooded street lamp reads as a soft downward pool, not a hard shaft: the shaded glow (capped
-    // above the hood) plus the floor wash carry it. No volumetric beam here (that is for the distant
-    // searchlight, where a shaft in open sky belongs).
+    // the lamp throws a volumetric beam from the BULB down to the wet floor. No air glow: the halo
+    // sat around the hood above the bulb and read like the lid was glowing. The light sits exactly at
+    // the drawn bulb (x + 26, gy - 150), so the shaft starts at the lamp, not the lid. The floor wash
+    // gives the pool where it lands.
     e.addLight({
       x: X + 26 * s, y: e.gy - 150 * s, col: '255,250,225', r: 150 * (this.scale || 1), I: 0.5 * flick, ew: 6 * s, eh: 6 * s,
-      shade: true,                                            // the hood caps the glow: it spills downward only
+      glow: false,
+      beam: { dir: 0, len: 150 * s, farW: 70 * s, I: flick },
     });
   },
   draw(e) {
@@ -2202,7 +2214,7 @@ function trenchPose(e, p) {
 
 defineActor('trenchMan', function (e) {                       // detective: trench coat + fedora
   const c = e.ctx, P = trenchPose(e, this), s = P.s, X = P.X, gy = P.gy, t = P.t, sway = P.sway;
-  const rim = rimSign(e, this), tint = e.litTint(X);
+  const rim = rimSign(e, this), tint = e.litTint(X, this);
   c.save(); c.translate(X + sway, gy);
   c.fillStyle = '#050608'; c.fillRect(-13 * s, -32 * s, 11 * s, 32 * s); c.fillRect(3 * s, -32 * s, 11 * s, 32 * s);
   c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-9 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(10 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.fill();
@@ -2314,7 +2326,7 @@ defineActor('boss', function (e) {                            // mob boss: pinst
 });
 
 defineActor('gunman', function (e) {                          // shooter, arm extended, muzzle flash on 'muzzle'
-  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, rim = rimSign(e, this), tint = e.litTint(X), flash = e.flags.muzzle || 0;
+  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, rim = rimSign(e, this), tint = e.litTint(X, this), flash = e.flags.muzzle || 0;
   c.save(); c.translate(X, gy); if (this.flip) c.scale(-1, 1);
   c.fillStyle = '#050608'; c.fillRect(-12 * s, -32 * s, 10 * s, 32 * s); c.fillRect(4 * s, -32 * s, 10 * s, 32 * s);
   c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-8 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(11 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.fill();
@@ -2510,7 +2522,9 @@ function bodyGrad(c, h, s, rim, tint) {
   const gx = rim * 34 * s, gvy = -_vb * 20 * s;                  // tilt the lit edge toward the light's height
   const g = c.createLinearGradient(gx, gvy, -gx, -gvy);
   let lit = '#3a4049';
-  if (tint) { const m = 0.5; lit = `rgb(${Math.round(58 + (tint[0] - 58) * m)},${Math.round(64 + (tint[1] - 64) * m)},${Math.round(73 + (tint[2] - 73) * m)})`; }
+  // a gentle wash of the light's colour on the lit edge, NOT a repaint of the cloth. Kept low so a
+  // coloured light tints the coat rather than recolouring it, and the moon never blows it to white.
+  if (tint) { const m = 0.3; lit = `rgb(${Math.round(58 + (tint[0] - 58) * m)},${Math.round(64 + (tint[1] - 64) * m)},${Math.round(73 + (tint[2] - 73) * m)})`; }
   g.addColorStop(0, lit); g.addColorStop(0.42, '#181b21'); g.addColorStop(1, '#080909');
   return g;
 }
