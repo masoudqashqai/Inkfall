@@ -18,6 +18,11 @@ export const ASPECT_MAX = 2.6;           // above this the screen is too wide: b
                                          // (up to 23:9, about 2.56) and 21:9 monitors all fill. Only
                                          // genuinely extreme ultrawides (32:9, about 3.55) pillarbox
 const SKIP_DELAY = 4000;                 // wait before the prompt offers the "watch anyway" fallback
+const SETTLE_SHOW = 750;                 // grace before the rotate prompt actually appears: the ENTER tap
+                                         // triggers an auto-rotate, so the screen is briefly portrait
+                                         // mid-flip. Wait this out and only show the prompt if it is
+                                         // STILL portrait after — so it never flashes during the rotation,
+                                         // and only appears where a manual rotate is truly needed (iPhone).
 
 // immersion helpers. matchMedia is wrapped because a few old engines throw on unknown queries.
 const mq = q => { try { return matchMedia(q).matches; } catch (e) { return false; } };
@@ -72,7 +77,7 @@ export class Viewport {
     this.onStart = null;              // boot wires this to manager.requestStart
     this.onPause = null;              // boot wires this to Audio2.suspend (full story pause)
     this.onResume = null;             // boot wires this to Audio2.resumeAll
-    this._skipTimer = null; this._settleTimer = null;
+    this._skipTimer = null; this._settleTimer = null; this._showTimer = null;
     const reeval = () => this.scheduleEvaluate();
     addEventListener('resize', reeval);
     addEventListener('orientationchange', reeval);
@@ -167,11 +172,22 @@ export class Viewport {
   }
 
   // the prompt adapts: where fullscreen is possible it leads with the FULLSCREEN button, otherwise it
-  // becomes a rotate-your-phone hint (the .no-fs class swaps the copy and hides the button via CSS)
+  // becomes a rotate-your-phone hint (the .no-fs class swaps the copy and hides the button via CSS).
+  // It is shown on a delay (SETTLE_SHOW), re-checking that the screen is STILL portrait when the timer
+  // fires, so the brief portrait moment during the ENTER auto-rotate never flashes the prompt.
   showOverlay() {
     if (!this.overlay) return;
     this.overlay.classList.toggle('no-fs', !canFullscreen());
-    if (this.overlay.classList.contains('show')) return;
+    if (this.overlay.classList.contains('show') || this._showTimer) return;   // visible, or a reveal already pending
+    this._showTimer = setTimeout(() => {
+      this._showTimer = null;
+      if (!this.experienceStarted || !this.blocked()) return;                 // rotation landed in the meantime: never show
+      this._revealOverlay();
+    }, SETTLE_SHOW);
+  }
+
+  _revealOverlay() {
+    this.overlay.classList.toggle('no-fs', !canFullscreen());
     this.overlay.classList.add('show');
     if (this.skipBtn) {
       this.skipBtn.classList.remove('show');
@@ -182,6 +198,7 @@ export class Viewport {
 
   hideOverlay() {
     if (!this.overlay) return;
+    clearTimeout(this._showTimer); this._showTimer = null;   // cancel a pending reveal the instant landscape lands
     this.overlay.classList.remove('show');
     clearTimeout(this._skipTimer);
   }

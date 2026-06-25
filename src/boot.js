@@ -10,7 +10,7 @@ import './library/index.js';
 import { STORIES } from '../stories/manifest.js';
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 58 · 1080p-anchored resolution scaling'
+const BUILD = 'v2 build 59 · no rotate-prompt flash'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 
