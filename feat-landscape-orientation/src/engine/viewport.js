@@ -8,9 +8,11 @@
 //      the prompt returns and the play clock pauses until landscape comes back. As a fallback the
 //      prompt offers "watch anyway", which plays letterboxed.
 export const ASPECT_MIN = 16 / 10;       // below this the screen is too tall: bars top and bottom
-export const ASPECT_MAX = 2.0;           // desktop cap: bars left and right past this (true ultrawides)
-export const ASPECT_MAX_TOUCH = 2.6;     // phones/tablets reach wider: modern handsets run ~18.5:9 to
-                                         // 23:9 in landscape (2.06 to 2.56), so let them fill edge to edge
+export const ASPECT_MAX = 2.6;           // above this the screen is too wide: bars left and right. Loose
+                                         // on purpose, normal desktops (a 1080p minus the dock and
+                                         // browser chrome runs ~2.2), modern phones in landscape
+                                         // (up to 23:9, about 2.56) and 21:9 monitors all fill. Only
+                                         // genuinely extreme ultrawides (32:9, about 3.55) pillarbox
 const SKIP_DELAY = 4000;                 // wait before the prompt offers the "watch anyway" fallback
 
 // a device counts as rotatable if it is touch first and exposes the Screen Orientation API

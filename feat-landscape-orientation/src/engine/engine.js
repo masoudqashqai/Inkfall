@@ -2,7 +2,7 @@
 // device-pixel sizing, and the requestAnimationFrame loop. It keeps the shared Frame's
 // scalars (size, time, contexts) live and hands a tick to the manager each frame.
 import { Frame } from './frame.js';
-import { ASPECT_MIN, ASPECT_MAX, ASPECT_MAX_TOUCH, isRotatable } from './viewport.js';
+import { ASPECT_MIN, ASPECT_MAX } from './viewport.js';
 
 export class Engine {
   constructor() {
@@ -33,10 +33,9 @@ export class Engine {
   resize() {
     this.DPR = Math.min(window.devicePixelRatio || 1, 2);
     const vw = innerWidth, vh = innerHeight, ar = vw / vh;
-    const maxAr = isRotatable() ? ASPECT_MAX_TOUCH : ASPECT_MAX;  // let modern phones fill, still cap desktop ultrawides
     let w = vw, h = vh;
     if (ar < ASPECT_MIN) h = Math.round(vw / ASPECT_MIN);        // too tall: cap the height
-    else if (ar > maxAr) w = Math.round(vh * maxAr);             // too wide: cap the width
+    else if (ar > ASPECT_MAX) w = Math.round(vh * ASPECT_MAX);   // too wide: cap the width
     this.W = w; this.H = h;
     for (const cv of [this.cv, this.lightCv, this.snapCv]) { cv.width = Math.floor(w * this.DPR); cv.height = Math.floor(h * this.DPR); }
     this.cv.style.width = w + 'px'; this.cv.style.height = h + 'px';
