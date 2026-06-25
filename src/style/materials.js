@@ -19,8 +19,8 @@ export function rimSign(e, node) {
   let ly = wsum > 0.05 ? wy / wsum : e.keyLight.y * e.H;
   // smooth the light CENTRE on the node, so two flickering lights on opposite sides (a bulb and a
   // barrel fire) can't swap dominance frame to frame and make the lit edge jump from side to side.
-  node._lx = node._lx == null ? lx : node._lx + (lx - node._lx) * 0.05;
-  node._ly = node._ly == null ? ly : node._ly + (ly - node._ly) * 0.05;
+  node._lx = node._lx == null ? lx : node._lx + (lx - node._lx) * 0.03;
+  node._ly = node._ly == null ? ly : node._ly + (ly - node._ly) * 0.03;
   lx = node._lx; ly = node._ly;
   const margin = 0.06 * e.W;
   let sign = node._rim || (lx < X ? -1 : 1);
@@ -30,7 +30,7 @@ export function rimSign(e, node) {
   // light amount, heavily smoothed on the node so flickering sources (a barrel fire, a failing bulb)
   // settle the cloth to a steady tone instead of strobing it.
   const a = Math.min(1, wsum * 0.9);
-  node._lit = node._lit == null ? a : node._lit + (a - node._lit) * 0.045;
+  node._lit = node._lit == null ? a : node._lit + (a - node._lit) * 0.03;
   _lit = node._lit;
   return node._rim = sign;
 }
@@ -45,8 +45,8 @@ export function bodyGrad(c, h, s, rim, tint, albedo) {
   const gx = rim * 34 * s, gvy = -_vb * 20 * s;                  // tilt the lit edge toward the light's height
   const g = c.createLinearGradient(gx, gvy, -gx, -gvy);
   const lm = 0.82 + _lit * 0.42;                                 // lit-side lift, capped so a bright light never washes the cloth to white
-  let tr = 1, tg = 1, tb = 1;                                    // faint colour bleed of the light
-  if (tint) { const mx = Math.max(tint[0], tint[1], tint[2], 1), k = 0.12; tr = 1 - k + k * tint[0] / mx; tg = 1 - k + k * tint[1] / mx; tb = 1 - k + k * tint[2] / mx; }
+  let tr = 1, tg = 1, tb = 1;                                    // colour of the light on the lit edge (a fire casts warm, a neon casts its hue)
+  if (tint) { const mx = Math.max(tint[0], tint[1], tint[2], 1), k = 0.32; tr = 1 - k + k * tint[0] / mx; tg = 1 - k + k * tint[1] / mx; tb = 1 - k + k * tint[2] / mx; }
   const lit = `rgb(${cl(A[0] * lm * tr)},${cl(A[1] * lm * tg)},${cl(A[2] * lm * tb)})`;
   const mid = `rgb(${cl(A[0] * 0.45)},${cl(A[1] * 0.45)},${cl(A[2] * 0.45)})`;
   const dark = `rgb(${cl(A[0] * 0.16)},${cl(A[1] * 0.16)},${cl(A[2] * 0.18)})`;
