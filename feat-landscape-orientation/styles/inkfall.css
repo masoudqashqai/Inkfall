@@ -83,7 +83,7 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
   display: none; color: #7c7c7c; font-size: var(--fs-note); letter-spacing: 0.06em; }
 #build { position: fixed; left: 8px; bottom: 4px; z-index: var(--z-build); color: #3a3a3a; font-size: 9px;
   letter-spacing: 0.1em; font-family: var(--f-mono); }
-#editbtn, #mute, #shoot { font-variant-emoji: text; }   /* keep the HUD glyphs monochrome (noir), never colour emoji */
+#menubtn, #shoot { font-variant-emoji: text; }   /* keep the HUD glyphs monochrome (noir), never colour emoji */
 #topbar { position: fixed; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); z-index: var(--z-hud);
   display: flex; flex-direction: column; align-items: flex-end; gap: var(--hud-gap); }
 .hud-row { display: flex; gap: var(--hud-gap); }
@@ -93,8 +93,8 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
 #actbtn::after { content: "\25BE"; font-size: 0.82em; transition: transform 0.3s ease; }   /* caret flips when open */
 #actbtn.open::after { transform: rotate(180deg); }
 /* stage-driven HUD presence: the in-story controls + narration appear only while playing */
-#mute, #shoot, #actsel { display: none; }
-body[data-stage="playing"] #mute, body[data-stage="playing"] #shoot { display: inline-flex; }
+#shoot, #actsel { display: none; }
+body[data-stage="playing"] #shoot { display: inline-flex; }
 body[data-stage="playing"] #actsel.unlocked { display: flex; }   /* only after THE END has been reached once */
 body[data-stage="playing"] #caption, body[data-stage="playing"] #tapnote { display: block; }
 #poster img { max-width: 88vw; max-height: 70vh; border: 1px solid rgba(216,212,200,0.4); box-shadow: 0 0 40px rgba(0,0,0,0.8); }

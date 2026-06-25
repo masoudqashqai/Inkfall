@@ -1,12 +1,15 @@
-// VIEWPORT — keeps the story in a wide, landscape frame. Two parts work together:
-//   1. Letterbox: the engine sizes the canvas to a target aspect band [ASPECT_MIN, ASPECT_MAX], so
-//      a vertical monitor gets bars top and bottom and an ultrawide gets bars left and right
-//      (the sizing itself lives in engine.resize, these constants are the contract).
-//   2. Orientation gate: on a device that can turn (phone, tablet) a portrait screen is asked to
-//      rotate. Starting a story first goes fullscreen and tries to lock to landscape, so the prompt
-//      only shows when the browser ignores that signal. If the screen reverts to portrait mid story
-//      the prompt returns and the play clock pauses until landscape comes back. As a fallback the
-//      prompt offers "watch anyway", which plays letterboxed.
+// VIEWPORT — keeps the story in a wide, landscape frame. It is built to degrade gracefully so the
+// experience works on every phone and browser, even where the immersive APIs do not exist:
+//   1. Letterbox (always works): the engine sizes the canvas to a target aspect band [ASPECT_MIN,
+//      ASPECT_MAX], so a too-tall screen gets bars top and bottom and a too-wide one gets bars left
+//      and right. This is pure canvas sizing plus CSS, no browser feature needed.
+//   2. Rotate prompt (always works): on any touch device held in portrait the prompt shows, driven
+//      by resize/orientationchange + a window aspect check, no API required. A "watch anyway"
+//      fallback plays letterboxed.
+//   3. Fullscreen + orientation lock (progressive enhancement): on start we try to go fullscreen and
+//      lock to landscape so the prompt is skipped. Where that is unsupported or refused (notably iOS
+//      Safari), it is caught and the prompt from step 2 takes over. So the worst case is still a
+//      correctly framed, landscape experience.
 export const ASPECT_MIN = 16 / 10;       // below this the screen is too tall: bars top and bottom
 export const ASPECT_MAX = 2.6;           // above this the screen is too wide: bars left and right. Loose
                                          // on purpose, normal desktops (a 1080p minus the dock and
@@ -15,10 +18,11 @@ export const ASPECT_MAX = 2.6;           // above this the screen is too wide: b
                                          // genuinely extreme ultrawides (32:9, about 3.55) pillarbox
 const SKIP_DELAY = 4000;                 // wait before the prompt offers the "watch anyway" fallback
 
-// a device counts as rotatable if it is touch first and exposes the Screen Orientation API
+// a device counts as rotatable if it is touch first (a phone or tablet that can physically turn).
+// The Screen Orientation API is NOT required here, the rotate prompt is the fallback for when the
+// fullscreen + lock signal cannot be honoured (for example iOS Safari).
 export function isRotatable() {
-  const coarse = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
-  return coarse && !!(window.screen && screen.orientation);
+  return matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
 }
 
 export class Viewport {
@@ -36,6 +40,7 @@ export class Viewport {
     const reeval = () => this.scheduleEvaluate();
     addEventListener('resize', reeval);
     addEventListener('orientationchange', reeval);
+    if (window.screen && screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', reeval);
   }
 
   attach({ overlay, skip }) {
@@ -56,12 +61,15 @@ export class Viewport {
     this.evaluate();
   }
 
-  // phones and tablets only: fullscreen first (orientation lock needs it), then ask for landscape
+  // phones and tablets only: fullscreen first (orientation lock needs it), then ask for landscape.
+  // Both are best effort and fully guarded, so an unsupported or refused call just leaves the rotate
+  // prompt to handle it. requestFullscreen accepts webkit/ms prefixes for older engines.
   async requestImmersive() {
     if (!this.rotatable) return;
     const root = document.documentElement;
-    try { if (root.requestFullscreen) await root.requestFullscreen(); } catch (e) {}
-    try { if (screen.orientation.lock) await screen.orientation.lock('landscape'); } catch (e) {}
+    const fs = root.requestFullscreen || root.webkitRequestFullscreen || root.msRequestFullscreen;
+    try { if (fs) await fs.call(root); } catch (e) {}
+    try { if (window.screen && screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch (e) {}
   }
 
   portrait() { return innerWidth / innerHeight < 1; }
