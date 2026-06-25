@@ -84,12 +84,15 @@ function castOne(e, c, st, cr) {
   for (const { L, w } of lit) {
     const t = shadowThrow(st, L.x, L.y, bx, headY);
     const emitSoft = Math.min(0.5, (L.ew + L.eh) / (2 * t.lh));   // a broad emitter throws a softer edge
+    // opacity from the light's weight, but with a gentle curve so a dim light (the high moon) still
+    // throws a readable shadow while a strong light is barely changed.
+    const wA = Math.pow(w, 0.6);
     c.save(); c.translate(bx, baseY);
 
     // FLOOR: lay the silhouette away from the light, foreshortened toward the camera. Recedes as
     // the light drops (the wall takes over), so the two stamps never both run at full strength.
     const throwScale = Math.min(SHADE.maxLen, Math.max(0.3, Math.abs(bx - L.x) / t.lh) * SHADE.lengthGain);
-    const fAlpha = SHADE.floorAlpha * w * dens * (1 - 0.5 * t.low);
+    const fAlpha = SHADE.floorAlpha * wA * dens * (1 - 0.5 * t.low);
     const fSoft = emitSoft + throwScale * 0.04 + SHADE.penumbra * 0.05;
     c.save(); c.beginPath(); c.rect(-st.gy * 4, 0, st.gy * 8, st.H); c.clip();   // floor only (below feet)
     projStamp(e, c, cr, fAlpha, fSoft, f => [1, 0, -t.dir * throwScale * f, -throwScale * SHADE.floorTilt * f, 0, 0]);
@@ -98,7 +101,7 @@ function castOne(e, c, st, cr) {
     // WALL: only where the set has a near wall and the light sits low enough to throw up it.
     if (st.wall && t.low > 0.2) {
       const rise = 1.1 + t.low * 2.0, lean = (Math.abs(bx - L.x) / t.lh) * 0.5 + 0.1;
-      const wAlpha = SHADE.wallAlpha * w * dens * t.low;
+      const wAlpha = SHADE.wallAlpha * wA * dens * t.low;
       const wSoft = emitSoft + SHADE.penumbra * 0.06;
       const wallTop = st.wall.top - baseY;   // local y where the wall ends (negative, above feet)
       c.save(); c.beginPath(); c.rect(-st.gy * 4, wallTop, st.gy * 8, baseY - st.wall.top); c.clip();   // wall band only
