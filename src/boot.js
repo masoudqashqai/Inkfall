@@ -10,7 +10,7 @@ import './library/index.js';
 import { STORIES } from '../stories/manifest.js';
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 44 · noir UI + clean audio pause'
+const BUILD = 'v2 build 45 · landscape prompt, no forced rotation'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 
@@ -25,8 +25,9 @@ el('actbtn').addEventListener('click', () => {
   el('actbtn').classList.toggle('open', open);
 });
 
-// keep the story in a landscape frame: go fullscreen + ask for landscape on a phone/tablet, hold
-// the start behind a "rotate your screen" prompt while portrait, and letterbox everywhere else.
+// keep the story in a landscape frame: on a phone/tablet in portrait, ask first with a prompt that
+// offers ROTATE TO LANDSCAPE or STAY IN PORTRAIT (never turning the screen on its own), and letterbox
+// everywhere else.
 const viewport = new Viewport(engine);
 viewport.attach({ overlay: el('rotate'), skip: el('rotate-skip'), fsCta: el('rotate-fs'), fsBtn: el('fsbtn') });
 viewport.onStart = () => manager.requestStart();
@@ -93,7 +94,7 @@ const setStage = s => { document.body.dataset.stage = s; };
 
 function beginPlay() {
   setStage('playing');     // CSS reveals the HUD + narration and fades the intro out
-  viewport.beginStory();   // goes immersive, then starts the story once the screen is landscape
+  viewport.beginStory();   // raises the landscape prompt in portrait, then starts once landscape or kept portrait
 }
 el('enter').addEventListener('click', beginPlay);
 
