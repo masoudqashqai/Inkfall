@@ -26,7 +26,7 @@ src/
     input.js          tap=advance, drag=look, hold=lightning
     math.js           rand32, lerp, clamp, clamp01, smooth01, hexRgb, cssRgb, TWO_PI
   style/palette.js    PALETTE + ANIM (central look + timing)
-  style/materials.js  shared shading: rimSign (directional form light), bodyGrad
+  style/materials.js  surface light model: rimSign (the per-figure light field), bodyGrad + shade (ambient fill + diffuse wrap)
   style/shadows.js    SHADE + AMBIENT + WASH (central shadow + ambient + surface-wash knobs)
   render/stage.js     the shared floor + wall stage geometry both lighting and shadows read
   render/lighting.js  light service: addLight, litTint, litColor, drawBackLight/drawFrontLight (beams, glow, washes, refl)
