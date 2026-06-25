@@ -4,7 +4,7 @@
 import { defineActor } from '../../objects/registry.js';
 import { PALETTE, ANIM } from '../../style/palette.js';
 import { TWO_PI, lerp, smooth01 } from '../../engine/math.js';
-import { rimSign, bodyGrad, shadowPool, ember, cigSmoke, drawFedora, drawPistol, muzzleFlash } from '../shared.js';
+import { rimSign, bodyGrad, ember, cigSmoke, drawFedora, drawPistol, muzzleFlash } from '../shared.js';
 
 // shared detective pose (so emitLight and draw agree without storing state)
 function trenchPose(e, p) {
@@ -123,6 +123,10 @@ defineActor('boss', function (e) {                            // mob boss: pinst
     c.beginPath(); c.ellipse(0, -115 * s, 16 * s, 4.5 * s, 0, 0, TWO_PI); c.fill();
     c.beginPath(); c.rect(-8 * s, -126 * s, 16 * s, 12 * s); c.fill();
   },
+  emitLight(e) {                                               // the lit cigar tip is a small warm light, in front of him
+    const s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit;
+    e.addLight({ x: X + 19 * s, y: gy - 102.5 * s, col: '255,140,50', r: 60 * s, I: 0.28, ew: 3 * s, eh: 3 * s, front: true });
+  },
 });
 
 defineActor('gunman', function (e) {                          // shooter, arm extended, muzzle flash on 'muzzle'
@@ -209,8 +213,6 @@ defineActor('dealer', function (e) {                          // croupier behind
 defineActor('singer', function (e) {                          // lounge singer at the mic, in a spotlight
   const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, gown = this.red ? '#cf0a16' : '#cdc9bf';
   c.save(); c.translate(X, gy);
-  const sl = c.createRadialGradient(0, -60 * s, 0, 0, -60 * s, 84 * s); sl.addColorStop(0, 'rgba(255,250,230,0.12)'); sl.addColorStop(1, 'rgba(255,250,230,0)'); c.fillStyle = sl; c.beginPath(); c.arc(0, -60 * s, 84 * s, 0, TWO_PI); c.fill();
-  shadowPool(c, 0, 4 * s, 22 * s, 6 * s);
   c.fillStyle = gown; c.shadowColor = this.red ? 'rgba(210,0,24,0.4)' : 'rgba(0,0,0,0)'; c.shadowBlur = this.red ? 14 * s : 0;
   c.beginPath(); c.moveTo(-6 * s, -66 * s); c.quadraticCurveTo(-10 * s, -30 * s, -16 * s, 0); c.quadraticCurveTo(0, 5 * s, 16 * s, 0); c.quadraticCurveTo(10 * s, -30 * s, 6 * s, -66 * s); c.closePath(); c.fill();
   c.beginPath(); c.moveTo(-6 * s, -66 * s); c.quadraticCurveTo(-7 * s, -78 * s, -4 * s, -84 * s); c.lineTo(4 * s, -84 * s); c.quadraticCurveTo(7 * s, -78 * s, 6 * s, -66 * s); c.closePath(); c.fill(); c.shadowBlur = 0;
@@ -223,4 +225,15 @@ defineActor('singer', function (e) {                          // lounge singer a
   c.fillStyle = '#1a1d22'; c.beginPath(); c.ellipse(20 * s, -90 * s, 4 * s, 5 * s, 0, 0, TWO_PI); c.fill();
   c.strokeStyle = 'rgba(200,210,225,0.4)'; c.lineWidth = 1; c.beginPath(); c.ellipse(20 * s, -90 * s, 4 * s, 5 * s, 0, 0, TWO_PI); c.stroke();
   c.restore();
-}, { castsShadow: false });   // a tight overhead spotlight: keep the staged contact pool, not a thrown shadow
+}, {
+  shadowW: 16, shadowH: 90,
+  shadowSil(e, c) {                                            // gown + head, cast by the overhead spotlight
+    const s = e.scaleOf(this);
+    c.beginPath(); c.moveTo(-6 * s, -66 * s); c.quadraticCurveTo(-10 * s, -30 * s, -16 * s, 0); c.quadraticCurveTo(0, 5 * s, 16 * s, 0); c.quadraticCurveTo(10 * s, -30 * s, 6 * s, -66 * s); c.closePath(); c.fill();
+    c.beginPath(); c.arc(0, -86 * s, 8 * s, 0, TWO_PI); c.fill();
+  },
+  emitLight(e) {                                               // the spotlight is a real overhead light (was a hand-drawn cone)
+    const s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit;
+    e.addLight({ x: X, y: gy - 150 * s, col: '255,250,230', r: 110 * s, I: 0.5, ew: 7 * s, eh: 7 * s, shade: true, beam: { dir: 0, len: 150 * s, farW: 46 * s, I: 0.6 } });
+  },
+});

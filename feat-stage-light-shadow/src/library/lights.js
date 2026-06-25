@@ -55,8 +55,7 @@ defineLight('bulb', {
   draw(e) {
     const c = e.ctx, x = this._X, y = this._y, fl = (this.intensity || 1) * this._flick;
     c.strokeStyle = e.palette.ink; c.lineWidth = 1; c.beginPath(); c.moveTo(x, y - 95); c.lineTo(x, y); c.stroke();
-    const g = c.createRadialGradient(x, y, 0, x, y, 120); g.addColorStop(0, `rgba(255,244,210,${0.22 * fl})`); g.addColorStop(1, 'rgba(255,244,210,0)');
-    c.fillStyle = g; c.beginPath(); c.arc(x, y, 120, 0, 7); c.fill();
+    // the air glow comes from the lighting system (emitLight). This draws only the lit filament.
     c.fillStyle = `rgba(255,246,220,${fl})`; c.shadowColor = '#fff'; c.shadowBlur = 16; c.beginPath(); c.arc(x, y, 3.5, 0, 7); c.fill(); c.shadowBlur = 0;
   },
 });

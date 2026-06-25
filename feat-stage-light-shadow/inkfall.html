@@ -168,7 +168,7 @@ __req("src/library/index.js");
 const { STORIES } = __req("stories/manifest.js");
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 43 · depth-correct light layering'
+const BUILD = 'v2 build 44 · every asset on the light + shadow system'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 
@@ -2142,8 +2142,7 @@ defineLight('bulb', {
   draw(e) {
     const c = e.ctx, x = this._X, y = this._y, fl = (this.intensity || 1) * this._flick;
     c.strokeStyle = e.palette.ink; c.lineWidth = 1; c.beginPath(); c.moveTo(x, y - 95); c.lineTo(x, y); c.stroke();
-    const g = c.createRadialGradient(x, y, 0, x, y, 120); g.addColorStop(0, `rgba(255,244,210,${0.22 * fl})`); g.addColorStop(1, 'rgba(255,244,210,0)');
-    c.fillStyle = g; c.beginPath(); c.arc(x, y, 120, 0, 7); c.fill();
+    // the air glow comes from the lighting system (emitLight). This draws only the lit filament.
     c.fillStyle = `rgba(255,246,220,${fl})`; c.shadowColor = '#fff'; c.shadowBlur = 16; c.beginPath(); c.arc(x, y, 3.5, 0, 7); c.fill(); c.shadowBlur = 0;
   },
 });
@@ -2186,7 +2185,7 @@ __mod["src/library/actors/people.js"] = function(__exports, __req){
 const { defineActor } = __req("src/objects/registry.js");
 const { PALETTE, ANIM } = __req("src/style/palette.js");
 const { TWO_PI, lerp, smooth01 } = __req("src/engine/math.js");
-const { rimSign, bodyGrad, shadowPool, ember, cigSmoke, drawFedora, drawPistol, muzzleFlash } = __req("src/library/shared.js");
+const { rimSign, bodyGrad, ember, cigSmoke, drawFedora, drawPistol, muzzleFlash } = __req("src/library/shared.js");
 
 // shared detective pose (so emitLight and draw agree without storing state)
 function trenchPose(e, p) {
@@ -2305,6 +2304,10 @@ defineActor('boss', function (e) {                            // mob boss: pinst
     c.beginPath(); c.ellipse(0, -115 * s, 16 * s, 4.5 * s, 0, 0, TWO_PI); c.fill();
     c.beginPath(); c.rect(-8 * s, -126 * s, 16 * s, 12 * s); c.fill();
   },
+  emitLight(e) {                                               // the lit cigar tip is a small warm light, in front of him
+    const s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit;
+    e.addLight({ x: X + 19 * s, y: gy - 102.5 * s, col: '255,140,50', r: 60 * s, I: 0.28, ew: 3 * s, eh: 3 * s, front: true });
+  },
 });
 
 defineActor('gunman', function (e) {                          // shooter, arm extended, muzzle flash on 'muzzle'
@@ -2391,8 +2394,6 @@ defineActor('dealer', function (e) {                          // croupier behind
 defineActor('singer', function (e) {                          // lounge singer at the mic, in a spotlight
   const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, gown = this.red ? '#cf0a16' : '#cdc9bf';
   c.save(); c.translate(X, gy);
-  const sl = c.createRadialGradient(0, -60 * s, 0, 0, -60 * s, 84 * s); sl.addColorStop(0, 'rgba(255,250,230,0.12)'); sl.addColorStop(1, 'rgba(255,250,230,0)'); c.fillStyle = sl; c.beginPath(); c.arc(0, -60 * s, 84 * s, 0, TWO_PI); c.fill();
-  shadowPool(c, 0, 4 * s, 22 * s, 6 * s);
   c.fillStyle = gown; c.shadowColor = this.red ? 'rgba(210,0,24,0.4)' : 'rgba(0,0,0,0)'; c.shadowBlur = this.red ? 14 * s : 0;
   c.beginPath(); c.moveTo(-6 * s, -66 * s); c.quadraticCurveTo(-10 * s, -30 * s, -16 * s, 0); c.quadraticCurveTo(0, 5 * s, 16 * s, 0); c.quadraticCurveTo(10 * s, -30 * s, 6 * s, -66 * s); c.closePath(); c.fill();
   c.beginPath(); c.moveTo(-6 * s, -66 * s); c.quadraticCurveTo(-7 * s, -78 * s, -4 * s, -84 * s); c.lineTo(4 * s, -84 * s); c.quadraticCurveTo(7 * s, -78 * s, 6 * s, -66 * s); c.closePath(); c.fill(); c.shadowBlur = 0;
@@ -2405,7 +2406,18 @@ defineActor('singer', function (e) {                          // lounge singer a
   c.fillStyle = '#1a1d22'; c.beginPath(); c.ellipse(20 * s, -90 * s, 4 * s, 5 * s, 0, 0, TWO_PI); c.fill();
   c.strokeStyle = 'rgba(200,210,225,0.4)'; c.lineWidth = 1; c.beginPath(); c.ellipse(20 * s, -90 * s, 4 * s, 5 * s, 0, 0, TWO_PI); c.stroke();
   c.restore();
-}, { castsShadow: false });   // a tight overhead spotlight: keep the staged contact pool, not a thrown shadow
+}, {
+  shadowW: 16, shadowH: 90,
+  shadowSil(e, c) {                                            // gown + head, cast by the overhead spotlight
+    const s = e.scaleOf(this);
+    c.beginPath(); c.moveTo(-6 * s, -66 * s); c.quadraticCurveTo(-10 * s, -30 * s, -16 * s, 0); c.quadraticCurveTo(0, 5 * s, 16 * s, 0); c.quadraticCurveTo(10 * s, -30 * s, 6 * s, -66 * s); c.closePath(); c.fill();
+    c.beginPath(); c.arc(0, -86 * s, 8 * s, 0, TWO_PI); c.fill();
+  },
+  emitLight(e) {                                               // the spotlight is a real overhead light (was a hand-drawn cone)
+    const s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit;
+    e.addLight({ x: X, y: gy - 150 * s, col: '255,250,230', r: 110 * s, I: 0.5, ew: 7 * s, eh: 7 * s, shade: true, beam: { dir: 0, len: 150 * s, farW: 46 * s, I: 0.6 } });
+  },
+});
 
 };
 __mod["src/library/shared.js"] = function(__exports, __req){
@@ -2414,7 +2426,7 @@ __mod["src/library/shared.js"] = function(__exports, __req){
 // helpers so library files import their shading from one place.
 const { TWO_PI } = __req("src/engine/math.js");
 const { PALETTE, ANIM } = __req("src/style/palette.js");
-{ const __m = __req("src/style/materials.js"); __exports.rimSign = __m.rimSign; __exports.bodyGrad = __m.bodyGrad; __exports.shadowPool = __m.shadowPool; }
+{ const __m = __req("src/style/materials.js"); __exports.rimSign = __m.rimSign; __exports.bodyGrad = __m.bodyGrad; }
 
 function ember(c, x, y, s, t) { const em = 0.6 + 0.4 * Math.sin(t * ANIM.emberSpeed); c.save(); c.fillStyle = `rgba(255,60,30,${0.7 + 0.3 * em})`; c.shadowColor = PALETTE.ember; c.shadowBlur = 10 * em; c.beginPath(); c.arc(x, y, 1.9 * s, 0, TWO_PI); c.fill(); c.restore(); }
 
@@ -2464,7 +2476,6 @@ __exports.muzzleFlash = muzzleFlash;
 __mod["src/style/materials.js"] = function(__exports, __req){
 // MATERIALS — shared surface shading so every object looks cut from the same cloth.
 // Change a material here and the whole cast restyles. `e` is the frame (for light queries).
-const { TWO_PI } = __req("src/engine/math.js");
 
 // which edge catches the light: toward the weighted CENTRE of nearby lights (not a single
 // dominant pick), with a dead zone + hysteresis so a flickering neon or a flaring cigarette
@@ -2489,12 +2500,8 @@ function bodyGrad(c, h, s, rim, tint) {
   return g;
 }
 
-// a plain soft contact blob (props that do not warrant a full directional shadow)
-function shadowPool(c, x, y, rx, ry) { c.save(); c.globalAlpha = 0.32; c.fillStyle = '#000'; c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, TWO_PI); c.fill(); c.restore(); }
-
 __exports.rimSign = rimSign;
 __exports.bodyGrad = bodyGrad;
-__exports.shadowPool = shadowPool;
 };
 __mod["src/library/actors/animals.js"] = function(__exports, __req){
 // ANIMALS — an alley cat with a glowing eye, and crows that lift off in slow motion.
@@ -2543,11 +2550,8 @@ defineMover('redCar', function (e) {
   const P = pts => { c.beginPath(); c.moveTo(pts[0][0] * s, pts[0][1] * s); for (let i = 1; i < pts.length; i++) c.lineTo(pts[i][0] * s, pts[i][1] * s); c.closePath(); };
   c.save(); c.translate(X, gy); c.scale(this.flip ? 1 : -1, 1);   // authored front-left; default faces RIGHT (its travel direction)
 
-  // soft contact shadow on the wet floor: a feathered ellipse hugging the ground (no hard slab).
-  // The coloured wet glow comes from the head/tail lamps via the lighting pass, not a red box.
-  c.save(); c.translate(0, 1 * s); c.scale(1, 0.16);
-  const sh = c.createRadialGradient(0, 0, 0, 0, 0, 88 * s); sh.addColorStop(0, 'rgba(0,0,0,0.55)'); sh.addColorStop(0.55, 'rgba(0,0,0,0.3)'); sh.addColorStop(1, 'rgba(0,0,0,0)');
-  c.fillStyle = sh; c.beginPath(); c.arc(0, 0, 88 * s, 0, TWO_PI); c.fill(); c.restore();
+  // the floor shadow is cast by the shadow system now (castsShadow + shadowSil below). The coloured
+  // wet glow comes from the head/tail lamps via the lighting pass, not a red box.
 
   // chrome bumpers (dim steel), front-left + rear-right, behind the body
   for (const [x0, x1] of [[-82, -66], [66, 82]]) { const sg = c.createLinearGradient(0, -16 * s, 0, -7 * s); sg.addColorStop(0, '#454a52'); sg.addColorStop(1, '#1b1f25'); c.fillStyle = sg; c.fillRect(x0 * s, -16 * s, (x1 - x0) * s, 9 * s); }
@@ -2585,7 +2589,14 @@ defineMover('redCar', function (e) {
   }
   c.restore();
 }, {
-  castsShadow: false,
+  shadowW: 82, shadowH: 55,
+  shadowSil(e, c) {                                            // the car body footprint, cast on the wet floor
+    const s = e.scaleOf(this);
+    const body = [[-78, -9], [-78, -21], [-72, -31], [-30, -34], [-26, -34], [-13, -54], [-7, -55], [29, -55], [41, -37], [71, -35], [76, -34], [78, -23], [78, -9]];
+    c.beginPath(); c.moveTo(body[0][0] * s, body[0][1] * s); for (let i = 1; i < body.length; i++) c.lineTo(body[i][0] * s, body[i][1] * s); c.closePath(); c.fill();
+    c.fillRect(-80 * s, -12 * s, 160 * s, 12 * s);
+    for (const wx of [-44, 46]) { c.beginPath(); c.arc(wx * s, -12 * s, 12 * s, 0, TWO_PI); c.fill(); }
+  },
   emitLight(e) {
     const s = e.scaleOf(this), X = e.walkX(this), gy = e.gy + (this.dy || 0) * e.unit, ly = gy - 9 * s, dir = this.flip ? -1 : 1;
     e.addLight({ x: X + dir * 78 * s, y: ly, col: '255,238,196', r: 150 * s, I: 0.5, ew: 10 * s, eh: 7 * s });   // headlight (front)
@@ -2599,11 +2610,9 @@ __mod["src/library/props/casino.js"] = function(__exports, __req){
 const { defineProp } = __req("src/objects/registry.js");
 const { PALETTE } = __req("src/style/palette.js");
 const { TWO_PI } = __req("src/engine/math.js");
-const { shadowPool } = __req("src/library/shared.js");
 
 defineProp('cardTable', function (e) {
   const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, top = gy - 46 * s, w = 132 * s, h = 42 * s;
-  shadowPool(c, X, gy + 4 * s, w * 0.58, 10 * s);
   c.fillStyle = '#070708'; c.fillRect(X - w * 0.5, top, w, 48 * s);
   const felt = c.createRadialGradient(X, top, 4 * s, X, top, w * 0.5); felt.addColorStop(0, '#1c2a22'); felt.addColorStop(1, '#0c130f');
   c.fillStyle = felt; c.beginPath(); c.ellipse(X, top, w * 0.5, h * 0.5, 0, 0, TWO_PI); c.fill();
@@ -2613,12 +2622,18 @@ defineProp('cardTable', function (e) {
   const hot = this.glow !== false;
   for (let i = 0; i < 5; i++) { c.fillStyle = (hot && i === 4) ? PALETTE.redHot : (i % 2 ? '#cfcfcf' : '#2a2a2a'); c.beginPath(); c.ellipse(X + 42 * s, top - 2 * s - i * 3 * s, 7 * s, 3 * s, 0, 0, TWO_PI); c.fill(); }
   if (hot) { c.save(); c.shadowColor = PALETTE.redHot; c.shadowBlur = 12; c.fillStyle = PALETTE.redHot; c.beginPath(); c.ellipse(X + 42 * s, top - 14 * s, 7 * s, 3 * s, 0, 0, TWO_PI); c.fill(); c.restore(); }
+}, {
+  castsShadow: true, shadowW: 66, shadowH: 46,
+  shadowSil(e, c) {                                            // the table body + top, cast on the floor
+    const s = e.scaleOf(this), w = 132 * s;
+    c.fillRect(-w * 0.5, -46 * s, w, 48 * s);
+    c.beginPath(); c.ellipse(0, -46 * s, w * 0.5, 21 * s, 0, 0, TWO_PI); c.fill();
+  },
 });
 
 defineProp('slotMachine', function (e) {
   const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, w = 46 * s, h = 86 * s;
   c.save(); c.translate(X, gy);
-  shadowPool(c, 0, 4 * s, w * 0.7, 7 * s);
   const cab = c.createLinearGradient(-w / 2, 0, w / 2, 0); cab.addColorStop(0, '#0c0e12'); cab.addColorStop(0.5, '#1b1f25'); cab.addColorStop(1, '#0c0e12');
   c.fillStyle = cab; c.fillRect(-w / 2, -h, w, h);
   c.beginPath(); c.moveTo(-w / 2, -h); c.quadraticCurveTo(0, -h - 16 * s, w / 2, -h); c.closePath(); c.fill();
@@ -2632,6 +2647,13 @@ defineProp('slotMachine', function (e) {
   c.strokeStyle = '#3a3f47'; c.lineWidth = 3 * s; c.beginPath(); c.moveTo(w / 2, -h + 22 * s); c.lineTo(w / 2 + 10 * s, -h + 10 * s); c.stroke();
   c.fillStyle = PALETTE.redHot; c.shadowColor = PALETTE.redHot; c.shadowBlur = 8; c.beginPath(); c.arc(w / 2 + 10 * s, -h + 10 * s, 4 * s, 0, TWO_PI); c.fill(); c.shadowBlur = 0;
   c.restore();
+}, {
+  castsShadow: true, shadowW: 24, shadowH: 92,
+  shadowSil(e, c) {                                            // the cabinet, cast on the floor
+    const s = e.scaleOf(this), w = 46 * s, h = 86 * s;
+    c.fillRect(-w / 2, -h, w, h);
+    c.beginPath(); c.moveTo(-w / 2, -h); c.quadraticCurveTo(0, -h - 16 * s, w / 2, -h); c.closePath(); c.fill();
+  },
 });
 
 defineProp('rouletteWheel', function (e) {
@@ -2719,12 +2741,12 @@ __mod["src/library/props/street.js"] = function(__exports, __req){
 const { defineProp } = __req("src/objects/registry.js");
 const { PALETTE } = __req("src/style/palette.js");
 const { TWO_PI } = __req("src/engine/math.js");
-const { shadowPool } = __req("src/library/shared.js");
 
 defineProp('barrelFire', function (e) {                       // a drum fire in the alley
   const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, t = e.t;
   c.save(); c.translate(X, gy);
-  const fg = c.createRadialGradient(0, -46 * s, 0, 0, -46 * s, 64 * s); fg.addColorStop(0, 'rgba(255,140,30,0.35)'); fg.addColorStop(1, 'rgba(255,90,20,0)'); c.fillStyle = fg; c.beginPath(); c.arc(0, -46 * s, 64 * s, 0, TWO_PI); c.fill();
+  // the warm glow in the air comes from the lighting system (emitLight + air glow + floor wash),
+  // not a hand-drawn gradient here. This draws only the drum and the flames themselves.
   c.fillStyle = '#15181d'; c.fillRect(-16 * s, -44 * s, 32 * s, 44 * s);
   c.strokeStyle = '#0a0c10'; c.lineWidth = 2; c.beginPath(); c.moveTo(-16 * s, -30 * s); c.lineTo(16 * s, -30 * s); c.moveTo(-16 * s, -14 * s); c.lineTo(16 * s, -14 * s); c.stroke();
   c.fillStyle = '#05060a'; c.beginPath(); c.ellipse(0, -44 * s, 16 * s, 4 * s, 0, 0, TWO_PI); c.fill();
@@ -2762,12 +2784,19 @@ defineProp('trafficLight', function (e) {                     // turns green on 
 
 defineProp('fireHydrant', function (e) {
   const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit;
-  c.save(); c.translate(X, gy); shadowPool(c, 0, 2 * s, 12 * s, 3 * s);
+  c.save(); c.translate(X, gy);
   c.fillStyle = '#16191e'; c.fillRect(-6 * s, -22 * s, 12 * s, 22 * s); c.beginPath(); c.arc(0, -22 * s, 7 * s, Math.PI, 0); c.fill();
   c.fillRect(-9 * s, -16 * s, 3 * s, 5 * s); c.fillRect(6 * s, -16 * s, 3 * s, 5 * s);
   c.fillStyle = '#0a0c10'; c.beginPath(); c.arc(0, -26 * s, 2.5 * s, 0, TWO_PI); c.fill();
   c.strokeStyle = 'rgba(200,210,225,0.3)'; c.lineWidth = 1; c.beginPath(); c.moveTo(-5 * s, -20 * s); c.lineTo(-5 * s, -2 * s); c.stroke();
   c.restore();
+}, {
+  castsShadow: true, shadowW: 9, shadowH: 26,
+  shadowSil(e, c) {
+    const s = e.scaleOf(this);
+    c.fillRect(-6 * s, -22 * s, 12 * s, 22 * s); c.beginPath(); c.arc(0, -22 * s, 7 * s, Math.PI, 0); c.fill();
+    c.fillRect(-9 * s, -16 * s, 3 * s, 5 * s); c.fillRect(6 * s, -16 * s, 3 * s, 5 * s);
+  },
 });
 
 defineProp('payphone', function (e) {
@@ -2788,6 +2817,9 @@ defineProp('streetSign', function (e) {
   c.save(); c.translate(0, -116 * s); c.fillStyle = '#1c2a22'; c.fillRect(-30 * s, -7 * s, 60 * s, 12 * s);
   c.fillStyle = 'rgba(220,230,225,0.85)'; c.font = `bold ${7 * s}px "Courier New",monospace`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(this.label || 'SIN ST', 0, -1 * s); c.restore();
   c.restore();
+}, {
+  castsShadow: true, shadowW: 30, shadowH: 123,
+  shadowSil(e, c) { const s = e.scaleOf(this); c.fillRect(-1.5 * s, -120 * s, 3 * s, 120 * s); c.fillRect(-30 * s, -123 * s, 60 * s, 12 * s); },
 });
 
 defineProp('waterTower', function (e) {
@@ -2804,6 +2836,9 @@ defineProp('dumpster', function (e) {
   c.strokeStyle = 'rgba(0,0,0,0.55)'; c.lineWidth = 1.5; c.strokeRect(X - bw / 2, g - bh, bw, bh);
   c.beginPath(); for (let i = 1; i < 4; i++) { c.moveTo(X - bw / 2 + i * bw / 4, g - bh); c.lineTo(X - bw / 2 + i * bw / 4, g); } c.stroke();
   c.restore();
+}, {
+  castsShadow: true, shadowW: 18, shadowH: 50,
+  shadowSil(e, c) { const s = e.scaleOf(this), bw = 30 * s, bh = 46 * s; c.fillRect(-bw / 2, -bh, bw, bh); c.fillRect(-bw / 2 - 3 * s, -bh - 3 * s, bw + 6 * s, 3.5 * s); },
 });
 
 defineProp('manhole', function (e) {

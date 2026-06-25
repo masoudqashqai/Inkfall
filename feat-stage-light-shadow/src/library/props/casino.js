@@ -2,11 +2,9 @@
 import { defineProp } from '../../objects/registry.js';
 import { PALETTE } from '../../style/palette.js';
 import { TWO_PI } from '../../engine/math.js';
-import { shadowPool } from '../shared.js';
 
 defineProp('cardTable', function (e) {
   const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, top = gy - 46 * s, w = 132 * s, h = 42 * s;
-  shadowPool(c, X, gy + 4 * s, w * 0.58, 10 * s);
   c.fillStyle = '#070708'; c.fillRect(X - w * 0.5, top, w, 48 * s);
   const felt = c.createRadialGradient(X, top, 4 * s, X, top, w * 0.5); felt.addColorStop(0, '#1c2a22'); felt.addColorStop(1, '#0c130f');
   c.fillStyle = felt; c.beginPath(); c.ellipse(X, top, w * 0.5, h * 0.5, 0, 0, TWO_PI); c.fill();
@@ -16,12 +14,18 @@ defineProp('cardTable', function (e) {
   const hot = this.glow !== false;
   for (let i = 0; i < 5; i++) { c.fillStyle = (hot && i === 4) ? PALETTE.redHot : (i % 2 ? '#cfcfcf' : '#2a2a2a'); c.beginPath(); c.ellipse(X + 42 * s, top - 2 * s - i * 3 * s, 7 * s, 3 * s, 0, 0, TWO_PI); c.fill(); }
   if (hot) { c.save(); c.shadowColor = PALETTE.redHot; c.shadowBlur = 12; c.fillStyle = PALETTE.redHot; c.beginPath(); c.ellipse(X + 42 * s, top - 14 * s, 7 * s, 3 * s, 0, 0, TWO_PI); c.fill(); c.restore(); }
+}, {
+  castsShadow: true, shadowW: 66, shadowH: 46,
+  shadowSil(e, c) {                                            // the table body + top, cast on the floor
+    const s = e.scaleOf(this), w = 132 * s;
+    c.fillRect(-w * 0.5, -46 * s, w, 48 * s);
+    c.beginPath(); c.ellipse(0, -46 * s, w * 0.5, 21 * s, 0, 0, TWO_PI); c.fill();
+  },
 });
 
 defineProp('slotMachine', function (e) {
   const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, w = 46 * s, h = 86 * s;
   c.save(); c.translate(X, gy);
-  shadowPool(c, 0, 4 * s, w * 0.7, 7 * s);
   const cab = c.createLinearGradient(-w / 2, 0, w / 2, 0); cab.addColorStop(0, '#0c0e12'); cab.addColorStop(0.5, '#1b1f25'); cab.addColorStop(1, '#0c0e12');
   c.fillStyle = cab; c.fillRect(-w / 2, -h, w, h);
   c.beginPath(); c.moveTo(-w / 2, -h); c.quadraticCurveTo(0, -h - 16 * s, w / 2, -h); c.closePath(); c.fill();
@@ -35,6 +39,13 @@ defineProp('slotMachine', function (e) {
   c.strokeStyle = '#3a3f47'; c.lineWidth = 3 * s; c.beginPath(); c.moveTo(w / 2, -h + 22 * s); c.lineTo(w / 2 + 10 * s, -h + 10 * s); c.stroke();
   c.fillStyle = PALETTE.redHot; c.shadowColor = PALETTE.redHot; c.shadowBlur = 8; c.beginPath(); c.arc(w / 2 + 10 * s, -h + 10 * s, 4 * s, 0, TWO_PI); c.fill(); c.shadowBlur = 0;
   c.restore();
+}, {
+  castsShadow: true, shadowW: 24, shadowH: 92,
+  shadowSil(e, c) {                                            // the cabinet, cast on the floor
+    const s = e.scaleOf(this), w = 46 * s, h = 86 * s;
+    c.fillRect(-w / 2, -h, w, h);
+    c.beginPath(); c.moveTo(-w / 2, -h); c.quadraticCurveTo(0, -h - 16 * s, w / 2, -h); c.closePath(); c.fill();
+  },
 });
 
 defineProp('rouletteWheel', function (e) {

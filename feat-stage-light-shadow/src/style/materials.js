@@ -1,6 +1,5 @@
 // MATERIALS — shared surface shading so every object looks cut from the same cloth.
 // Change a material here and the whole cast restyles. `e` is the frame (for light queries).
-import { TWO_PI } from '../engine/math.js';
 
 // which edge catches the light: toward the weighted CENTRE of nearby lights (not a single
 // dominant pick), with a dead zone + hysteresis so a flickering neon or a flaring cigarette
@@ -24,6 +23,3 @@ export function bodyGrad(c, h, s, rim, tint) {
   g.addColorStop(0, lit); g.addColorStop(0.42, '#181b21'); g.addColorStop(1, '#080909');
   return g;
 }
-
-// a plain soft contact blob (props that do not warrant a full directional shadow)
-export function shadowPool(c, x, y, rx, ry) { c.save(); c.globalAlpha = 0.32; c.fillStyle = '#000'; c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, TWO_PI); c.fill(); c.restore(); }
