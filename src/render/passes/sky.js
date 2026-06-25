@@ -20,6 +20,11 @@ export function sky(e) {
 
   if (scene.indoor) return;   // no sky/moon indoors (the room wall would occlude it anyway)
   const m = scene.moon || { x: 0.78, y: 0.18 }, mx = m.x * e.W + scene.camera.look * 0.1, my = m.y * e.H, mr = 34;
+  // a moon behind a wall lights nothing: skip the disc, the halo AND the floor reflection together,
+  // so the reflection can never leak onto the floor while the disc is occluded. The backdrop knows
+  // its own geometry (the alley walls), the scene can also force it with hideMoon.
+  const bd = scene.backdrop;
+  if (scene.hideMoon || (bd && bd.occludesMoon && bd.occludesMoon(e, mx, my))) return;
 
   // the moon disc: a soft radially-shaded body with a few faint craters
   const md = c.createRadialGradient(mx - mr * 0.32, my - mr * 0.32, mr * 0.15, mx, my, mr);

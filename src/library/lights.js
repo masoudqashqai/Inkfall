@@ -10,16 +10,22 @@ defineLight('lamp', {
     const t = e.t, X = e.X(this), s = e.unit * (this.scale || 1);
     const flick = this.flicker ? (Math.sin(t * 30 + (this.seed || 0)) > -0.9 ? 1 : 0.4) * (0.85 + 0.15 * Math.sin(t * 7)) : 1;
     this._flick = flick; this._X = X; this._s = s;
-    e.addLight({ x: X + 26 * s, y: e.gy - 150 * s, col: '255,250,225', r: 150 * (this.scale || 1), I: 0.5 * flick, ew: 6 * s, eh: 6 * s });
+    // the lamp throws a volumetric beam from the BULB down to the wet floor. No air glow: the halo
+    // sat around the hood above the bulb and read like the lid was glowing. The light sits exactly at
+    // the drawn bulb (x + 26, gy - 150), so the shaft starts at the lamp, not the lid. The floor wash
+    // gives the pool where it lands.
+    e.addLight({
+      x: X + 26 * s, y: e.gy - 150 * s, col: '255,250,225', r: 50 * s, I: 0.5 * flick, ew: 6 * s, eh: 6 * s,
+      glow: false,
+      beam: { dir: 0, len: 150 * s, farW: 70 * s, I: flick },
+    });
   },
   draw(e) {
     const c = e.ctx, X = this._X, s = this._s, gy = e.gy, fl = (this.intensity || 1) * this._flick, ink = e.palette.ink;
     const topY = gy - 150 * s; c.fillStyle = ink;
     c.fillRect(X - 2 * s, topY, 4 * s, 150 * s);
     c.beginPath(); c.moveTo(X, topY); c.lineTo(X + 26 * s, topY - 4 * s); c.lineTo(X + 26 * s, topY + 3 * s); c.closePath(); c.fill();
-    const lx = X + 26 * s, ly = topY - 2 * s, g = c.createRadialGradient(lx, ly, 0, lx, ly + 110 * s, 150 * s);
-    g.addColorStop(0, `rgba(255,250,225,${0.30 * fl})`); g.addColorStop(0.4, `rgba(230,235,255,${0.10 * fl})`); g.addColorStop(1, 'rgba(230,235,255,0)');
-    c.fillStyle = g; c.beginPath(); c.moveTo(lx, ly); c.lineTo(lx - 70 * s, gy); c.lineTo(lx + 70 * s, gy); c.closePath(); c.fill();
+    const lx = X + 26 * s, ly = topY - 2 * s;
     c.fillStyle = `rgba(255,250,230,${fl})`; c.shadowColor = '#fff'; c.shadowBlur = 24 * fl; c.beginPath(); c.arc(lx, ly + 4 * s, 4 * s, 0, 7); c.fill(); c.shadowBlur = 0;
     c.fillStyle = ink; c.beginPath(); c.moveTo(lx - 7 * s, ly - 6 * s); c.lineTo(lx + 7 * s, ly - 6 * s); c.lineTo(lx + 4 * s, ly + 2 * s); c.lineTo(lx - 4 * s, ly + 2 * s); c.closePath(); c.fill();
   },
@@ -34,11 +40,12 @@ defineLight('neon', {
       if (!covering) { const st = e.sceneT(); flick = st < 0.4 ? 0.04 : (st < 1.9 ? (Math.sin(st * 34) > -0.1 ? flick : 0.12) : flick); if (st >= 0.4 && !e.flags._ign) { e.flags._ign = true; Audio2.neonZap(); } }
       else flick = 0.04;
     }
-    this._flick = flick; this._X = X; this._y = y;
-    const lx = X + this.w / 2 + (this.arrow ? this.h * 0.45 : 0), ly = y + this.h / 2;
-    e.addLight({ x: lx, y: ly, col: hexRgb(this.color), r: Math.max(this.w, this.h) * 1.8, I: 0.9 * flick, ew: this.w * 0.55, eh: this.h * 0.55 });
+    const u3 = e.unit / 3, w = this.w * u3, h = this.h * u3;   // sign + halo scale together (= 1080p sizes at 1080p)
+    this._flick = flick; this._X = X; this._y = y; this._w = w; this._h = h;
+    const lx = X + w / 2 + (this.arrow ? h * 0.45 : 0), ly = y + h / 2;
+    e.addLight({ x: lx, y: ly, col: hexRgb(this.color), r: Math.max(w, h) * 1.8, I: 0.9 * flick, ew: w * 0.55, eh: h * 0.55 });
   },
-  draw(e) { neonFixture(e.ctx, this._X, this._y, this.w, this.h, this.color, this.label, this._flick, this.arrow); },
+  draw(e) { neonFixture(e.ctx, this._X, this._y, this._w, this._h, this.color, this.label, this._flick, this.arrow); },
 });
 
 defineLight('bulb', {
@@ -46,21 +53,26 @@ defineLight('bulb', {
     const t = e.t, X = e.X(this), y = (this.y != null ? this.y : 0.5) * e.H;
     const flick = this.flicker ? (Math.sin(t * 30 + (this.seed || 0)) > -0.9 ? 1 : 0.4) * (0.85 + 0.15 * Math.sin(t * 7)) : 1;
     this._flick = flick; this._X = X; this._y = y;
-    e.addLight({ x: X, y, col: '255,244,210', r: 150, I: 0.6 * flick, ew: 5, eh: 5 });
+    const u3 = e.unit / 3;   // radius scales with the screen (= 1080p values at 1080p), so coverage is consistent
+    // a hanging bulb throws a soft cone DOWN onto whatever is below it (the table), so the surface it
+    // hangs over reads as lit, not just the bulb glowing. intensity now actually drives the light.
+    e.addLight({
+      x: X, y, col: '255,244,210', r: 160 * u3, I: 0.8 * (this.intensity || 1) * flick, ew: 5 * u3, eh: 5 * u3,
+      beam: { dir: 0, len: (e.gy - y) * 0.82, farW: 96 * u3, I: 0.6 * flick },
+    });
   },
   draw(e) {
-    const c = e.ctx, x = this._X, y = this._y, fl = (this.intensity || 1) * this._flick;
-    c.strokeStyle = e.palette.ink; c.lineWidth = 1; c.beginPath(); c.moveTo(x, y - 95); c.lineTo(x, y); c.stroke();
-    const g = c.createRadialGradient(x, y, 0, x, y, 120); g.addColorStop(0, `rgba(255,244,210,${0.22 * fl})`); g.addColorStop(1, 'rgba(255,244,210,0)');
-    c.fillStyle = g; c.beginPath(); c.arc(x, y, 120, 0, 7); c.fill();
-    c.fillStyle = `rgba(255,246,220,${fl})`; c.shadowColor = '#fff'; c.shadowBlur = 16; c.beginPath(); c.arc(x, y, 3.5, 0, 7); c.fill(); c.shadowBlur = 0;
+    const c = e.ctx, x = this._X, y = this._y, fl = (this.intensity || 1) * this._flick, u3 = e.unit / 3;
+    c.strokeStyle = e.palette.ink; c.lineWidth = 1; c.beginPath(); c.moveTo(x, y - 95 * u3); c.lineTo(x, y); c.stroke();
+    // the air glow comes from the lighting system (emitLight). This draws only the lit filament.
+    c.fillStyle = `rgba(255,246,220,${fl})`; c.shadowColor = '#fff'; c.shadowBlur = 16 * u3; c.beginPath(); c.arc(x, y, 3.5 * u3, 0, 7); c.fill(); c.shadowBlur = 0;
   },
 });
 
 defineLight('glow', {
   emitLight(e) {
-    const X = e.X(this), y = (this.y != null ? this.y : 0.5) * e.H, I = 0.5 * (this.intensity || 1);
-    e.addLight({ x: X, y, col: cssRgb(this.color), r: this.r, I, ew: this.r * 0.3, eh: this.r * 0.3 });
+    const X = e.X(this), y = (this.y != null ? this.y : 0.5) * e.H, I = 0.5 * (this.intensity || 1), r = this.r * e.unit / 3;
+    e.addLight({ x: X, y, col: cssRgb(this.color), r, I, ew: r * 0.3, eh: r * 0.3 });
   },
 });
 

@@ -3,7 +3,7 @@
 // helpers so library files import their shading from one place.
 import { TWO_PI } from '../engine/math.js';
 import { PALETTE, ANIM } from '../style/palette.js';
-export { rimSign, bodyGrad, shadowPool } from '../style/materials.js';
+export { rimSign, bodyGrad, shade, shadeForm } from '../style/materials.js';
 
 export function ember(c, x, y, s, t) { const em = 0.6 + 0.4 * Math.sin(t * ANIM.emberSpeed); c.save(); c.fillStyle = `rgba(255,60,30,${0.7 + 0.3 * em})`; c.shadowColor = PALETTE.ember; c.shadowBlur = 10 * em; c.beginPath(); c.arc(x, y, 1.9 * s, 0, TWO_PI); c.fill(); c.restore(); }
 
@@ -38,6 +38,9 @@ export function drawPistol(c, x, y, s) {
   c.restore();
 }
 
+// MUZZLE FLASH — the original burst: a soft yellow star with a white-hot centre (f: 1 just fired ->
+// 0 gone). The flash that actually floods the alley and shimmers on the wet floor is real light, the
+// gunman registers it in emitLight, so this is only the spark at the barrel.
 export function muzzleFlash(c, x, y, s, f) {
   c.save(); c.translate(x, y); c.globalAlpha = f; c.fillStyle = PALETTE.amber; c.shadowColor = '#ff3000'; c.shadowBlur = 30;
   c.beginPath(); for (let i = 0; i < 10; i++) { const a = i / 10 * TWO_PI, r = (i % 2 ? 6 : 18) * s * (0.6 + f); c.lineTo(Math.cos(a) * r, Math.sin(a) * r); } c.closePath(); c.fill();
