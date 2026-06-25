@@ -85,7 +85,37 @@ Backdrops: `defineBackdrop(name, data => ({ indoor?, build(e){ return geom }, dr
 - Animation today is param-driven from scene timing. The intended growth point is a clip/timeline
   system on `Actor`, and the Node contract is built to absorb it without changing objects.
 - Bump the `BUILD` tag in `src/boot.js` on a noticeable change.
-- Prose in docs/comments: no em or en dashes, no semicolons, no hyphenated modifiers.
+- All prose (docs, comments, commit messages, PR descriptions) follows the Output rules below.
+
+## Output rules (apply to ALL written output)
+
+These apply to every piece of text: docs, code comments, commit messages, PR and release
+descriptions, the README, and the in app copy. They do not apply to code itself.
+
+1. Never use the em dash or en dash. Use a comma, colon, parentheses, or a full stop. Rewrite the
+   sentence if needed.
+2. Never hyphenate compound modifiers (write "read only", "follow up", "black and white", "low
+   latency"). Genuine identifiers stay as is: package names, CLI flags, code symbols, file names.
+3. Never use the semicolon in prose. Use a full stop or a comma, or rewrite. This does not apply to
+   code.
+4. No bare URLs in places that render links (PRs, README, docs). Hyperlink a short descriptive
+   phrase, for example [the live build](https://masoudqashqai.github.io/Inkfall/).
+
+## Git
+
+A few conventions for working in this repo.
+
+- Work on a branch off `main`, never commit straight to `main`. Name branches by intent, for
+  example `fix/mobile-flicker`, `feat/clip-system`, `docs/...`.
+- Open a pull request into `main` for review, then merge once it looks good. Keep each PR focused on
+  one change so it is easy to review.
+- No CI quality gates here (no CodeScene or SonarQube). Verify by hand (see Verify below): serve it,
+  check the console is clean, tap through both stories, and run `node build.mjs`.
+- Before opening a PR for a noticeable change, bump the `BUILD` tag in `src/boot.js` and rebuild the
+  standalone with `node build.mjs` so `inkfall.html` stays in sync.
+- GitHub Pages serves `main`, so merging publishes to [the live build](https://masoudqashqai.github.io/Inkfall/).
+- Do not push or merge unless asked. Never force push or rewrite shared history, and never resolve a
+  merge conflict without checking first.
 
 ## Verify
 
