@@ -15,11 +15,13 @@ modules, no build, no dependencies. Deploys as a static site.
 
 ```
 index.html            shell: DOM + styles/inkfall.css + <script type="module" src="src/boot.js">
+styles/inkfall.css    shell + HUD styles: design tokens (:root), the .hud-btn grid, the .overlay modal
 build.mjs             zero-dep bundler → standalone inkfall.html
 src/
-  boot.js             DOM wiring, intro picker (from manifest), editor, starts the loop
+  boot.js             DOM wiring, intro picker (from manifest), editor, story menu, HUD stage, starts the loop
   engine/
-    engine.js         canvas + offscreen light buffer + rain/grain + rAF loop + the live Frame
+    engine.js         canvas (letterbox sizing) + offscreen light buffer + rain/grain + pausable rAF loop + the live Frame
+    viewport.js       landscape frame: aspect band letterbox, rotate gate (fullscreen + orientation lock), pausable play clock
     frame.js          per-frame facade passed to passes + objects (e.*)
     camera.js         look (drag parallax), zoom (establishing), shake
     compositor.js     ordered render: set → back light → cast (each caster's shadow just before it) → front light → weather → post → transition
@@ -35,8 +37,8 @@ src/
   objects/            node + actor/mover/prop/effect/light + registry (define*, create, createBackdrop)
   library/            the art by category, self-registering via library/index.js
   scene/scene.js      one act: content + per-scene runtime (flags, lineIdx, timing, weather, shells, ripples)
-  scene/manager.js    flow: scenes, transitions, establishing shot, narration, scene nav
-  assets/audio.js     data-driven, story-scoped sound
+  scene/manager.js    flow: scenes, transitions, establishing shot, narration, act picker, reset
+  assets/audio.js     data-driven, story-scoped sound (with suspend/resumeAll for the gate)
 stories/manifest.js   tales on the picker (lazy-loaded); <id>/story.js export default; SCHEMA.md
 assets/audio/         shared mp3s (declared per story)
 _legacy/              archived prior builds (do not edit)
@@ -70,6 +72,47 @@ optional near wall). A light is described once with `addLight({...})`, the light
 A shadow needs nothing from the object beyond `castsShadow` (and an optional `shadowSil`): the
 compositor turns each `castsShadow` object into a caster and paints it in depth order. The look is
 tuned centrally in `style/shadows.js` (SHADE, AMBIENT, WASH).
+
+## Viewport and HUD
+
+The story always plays in a wide, landscape frame, and the chrome around it runs on one shared
+system.
+
+- Landscape frame (`engine/viewport.js` + `engine.js`): the canvas is sized to a target aspect band
+  (`ASPECT_MIN` to `ASPECT_MAX`) and centered, so a too tall screen gets bars top and bottom and a
+  too wide one gets bars left and right. Everything downstream reads `e.W/e.H` (the band), so the
+  world never knows it is letterboxed. The cap is loose on purpose, so normal desktops and modern
+  phones in landscape fill edge to edge and only genuine ultrawides pillarbox.
+- 1080p anchor (the scaling contract): the world is drawn in a FIXED virtual resolution. The band is
+  always `REF_H` logical units tall (1080, our anchor), so `e.H` is always 1080 and `e.W` is
+  `1080 * aspect`. The engine folds a single scale `ls` (real band height over 1080) into the world
+  transform (`DPR * ls`), so the whole scene is one uniform zoom of the same 1080p composition at any
+  size: a phone, a 1080p screen, a 4K screen all show the identical framing, just at more or fewer
+  pixels. The upshot for draw code: every size literal means "pixels at 1080p", and `e.unit` is a
+  constant 3. Same aspect ratio, bigger or smaller screen is a pure uniform zoom. A different aspect
+  ratio keeps the same vertical scale and only shows more or less world on the sides, it never
+  resizes objects. Offscreen sprites that cache art (the skyline) bake at the real device scale
+  `DPR * ls` so they stay crisp, while their geometry stays in logical units so the composition is
+  identical at any resolution. Pointer drags are CSS px, so `boot.js` divides them by `ls` before the
+  camera, keeping the look feel the same everywhere.
+- Rotate gate (`viewport.js`): on a touch device held in portrait, starting a story goes fullscreen
+  and asks for landscape (`screen.orientation.lock`), and the "rotate your screen" prompt shows only
+  if that is refused. Reverting to portrait mid story shows the prompt again, and a "watch anyway"
+  fallback plays letterboxed.
+- Pausable play clock (`engine.js`): `engine.pause()` and `engine.resume()` freeze one play clock
+  (used by the gate) so animation holds and resumes with no time jump. Audio mirrors this through
+  `Audio2.suspend()` and `Audio2.resumeAll()`, so the prompt is a full pause of motion and sound.
+- HUD tokens (`styles/inkfall.css`): the `:root` block holds the design tokens, fonts (`--f-*`), the
+  palette (`--c-*`), a vmin type scale (`--fs-*`) and a z-index ladder (`--z-*`). Sizing is vmin so
+  the HUD never balloons in a wide frame. Restyle the chrome here, it is one edit.
+- HUD primitives: buttons share one skin, `.hud-btn` plus `.hud-sm/.hud-md/.hud-lg` sized on a grid
+  cell (`--hud-cell`, with whole cell widths). Full screen modals (poster, story menu, rotate
+  prompt) share the `.overlay` primitive.
+- HUD stage (`boot.js`): `document.body.dataset.stage` is `menu` or `playing`, and CSS keys off it
+  for coarse visibility (the intro fades for `menu`, the in story HUD and narration show for
+  `playing`). The manager still drives the per frame caption and tap note fades. The REVIEW ACT
+  picker stays hidden until THE END is reached once (the manager toggles `#actsel.unlocked`), drops
+  open as a drawer below the HUD, and `manager.reset()` returns to the start screen without a reload.
 
 ## Object contract
 
@@ -105,10 +148,13 @@ it; omit it on open sets (skyline, rooftop) to keep them floor only.
   `src/library/index.js`), then add the name to the editor help in `index.html` and to `stories/SCHEMA.md`.
 - New story: `stories/<id>/story.js` (`export default {...}`, see `SCHEMA.md`) + a `manifest.js` entry.
   Per-story behaviour is data (params, `fx`, `onFlag`/`hideOnFlag`), not engine edits.
-- Restyle everything: `style/palette.js` (palette/timing), `style/materials.js` (shading),
+- Restyle the world: `style/palette.js` (palette/timing), `style/materials.js` (shading),
   `style/shadows.js` (shadow + ambient + surface-wash look), `render/lighting.js` (light model),
   `render/shadows.js` + `render/stage.js` (shadow model + stage geometry), `render/passes/post.js`
   (screen finish).
+- Restyle the HUD chrome: the design tokens in the `:root` block of `styles/inkfall.css`.
+- New HUD control: give it `class="hud-btn hud-sm|hud-md|hud-lg"` and show it from a stage rule
+  (`body[data-stage="playing"] ...`) rather than toggling it by hand.
 
 ## Conventions
 
@@ -158,3 +204,7 @@ A few conventions for working in this repo.
 No test suite. Serve, open, confirm the console logs `INKFALL v2 build ...` with no errors, ENTER,
 tap through both stories, and check the STORY editor round-trips JSON. Fast headless check: load in
 headless Chrome and grep the console for errors.
+
+For HUD or viewport changes also check: the frame stays landscape (bars on a too tall or too wide
+window, no bars on a normal desktop), the STORY menu offers back to start and edit, REVIEW ACT is
+hidden until THE END and then drops open, and a narrow portrait window shows the rotate prompt.

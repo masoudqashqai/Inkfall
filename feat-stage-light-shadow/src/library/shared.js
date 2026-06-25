@@ -3,7 +3,7 @@
 // helpers so library files import their shading from one place.
 import { TWO_PI } from '../engine/math.js';
 import { PALETTE, ANIM } from '../style/palette.js';
-export { rimSign, bodyGrad, shade } from '../style/materials.js';
+export { rimSign, bodyGrad, shade, shadeForm } from '../style/materials.js';
 
 export function ember(c, x, y, s, t) { const em = 0.6 + 0.4 * Math.sin(t * ANIM.emberSpeed); c.save(); c.fillStyle = `rgba(255,60,30,${0.7 + 0.3 * em})`; c.shadowColor = PALETTE.ember; c.shadowBlur = 10 * em; c.beginPath(); c.arc(x, y, 1.9 * s, 0, TWO_PI); c.fill(); c.restore(); }
 

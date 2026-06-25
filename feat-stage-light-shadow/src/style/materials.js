@@ -64,32 +64,47 @@ export function rimSign(e, node) {
   return node._rim = sign;
 }
 
-// the cloth: ambient fill + a half-Lambert wrap of direct light, sampled across the body as a smooth
-// multi-stop gradient (no hard knee), the axis tilted by the light's vertical lean.
-export function bodyGrad(c, h, s, rim, albedo) {
-  const A = albedo || BASE, cl = v => v < 0 ? 0 : v > 255 ? 255 : Math.round(v);
-  const dir = _lhx >= 0 ? 1 : -1, obl = Math.min(1, Math.abs(_lhx) + 0.15);   // how side-on the light is
-  const gx = dir * 36 * s, gvy = -_vb * 18 * s;                  // axis: lit edge -> far edge
-  const g = c.createLinearGradient(gx, gvy, -gx, -gvy);
+// one band of the surface at direct-light level d (0..1): albedo x (ambient fill + direct light).
+const _cl = v => v < 0 ? 0 : v > 255 ? 255 : Math.round(v);
+const band = (A, d) => `rgb(${_cl(A[0] * (_fill * _amb[0] + (1 - _fill) * d * _lcol[0]))},${_cl(A[1] * (_fill * _amb[1] + (1 - _fill) * d * _lcol[1]))},${_cl(A[2] * (_fill * _amb[2] + (1 - _fill) * d * _lcol[2]))})`;
+
+// the light's direction in screen space (horizontal lean _lhx, vertical lean _vb), normalised. The
+// shading ramp points AT the light, so an overhead source reads top-lit, a side source side-lit, a
+// low fire up-lit. This is what makes light DIRECTION visible on the form (not just its amount).
+function lightAxis() {
+  let dx = _lhx, dy = -_vb; const m = Math.hypot(dx, dy);
+  return m < 0.001 ? [0, -1] : [dx / m, dy / m];
+}
+
+const WRAP = 0.8;   // how directional the form light is (a clear lit -> shadow ramp; ambient fills the shadow)
+
+// the cloth: ambient fill + a half-Lambert wrap of direct light along the light direction, sampled
+// as a smooth multi-stop gradient (no hard knee). The shadow side falls to the ambient fill, never black.
+export function bodyGrad(c, h, s, albedo) {
+  const A = albedo || BASE, [dx, dy] = lightAxis(), R = 34 * s;
+  const g = c.createLinearGradient(dx * R, dy * R, -dx * R, -dy * R);
   for (let i = 0; i <= 6; i++) {
-    const t = i / 6, u = 1 - 2 * t;                             // +1 lit edge .. -1 far edge
-    const hl = (1 - obl) + obl * Math.max(0, 0.5 + 0.5 * u);     // half-Lambert wrap (smooth)
-    const d = _lit * hl * hl;                                    // direct light at this band, soft terminator
-    const r = A[0] * (_fill * _amb[0] + (1 - _fill) * d * _lcol[0]);
-    const gg = A[1] * (_fill * _amb[1] + (1 - _fill) * d * _lcol[1]);
-    const b = A[2] * (_fill * _amb[2] + (1 - _fill) * d * _lcol[2]);
-    g.addColorStop(t, `rgb(${cl(r)},${cl(gg)},${cl(b)})`);
+    const t = i / 6, u = 1 - 2 * t, hl = (1 - WRAP) + WRAP * Math.max(0, 0.5 + 0.5 * u);
+    g.addColorStop(t, band(A, _lit * hl * hl));
   }
   return g;
 }
 
-// a FLAT surface (a white shirt, bare skin, a tie): the same ambient fill + direct light without a
-// gradient, since these are small. Keeps a shirt or a face consistent with the cloth around it, so
-// an unlit figure goes uniformly dark and lifts (and takes the light's hue) as light reaches it.
-export function shade(rgb) {
-  const cl = v => v < 0 ? 0 : v > 255 ? 255 : Math.round(v), d = _lit;
-  const r = rgb[0] * (_fill * _amb[0] + (1 - _fill) * d * _lcol[0]);
-  const g = rgb[1] * (_fill * _amb[1] + (1 - _fill) * d * _lcol[1]);
-  const b = rgb[2] * (_fill * _amb[2] + (1 - _fill) * d * _lcol[2]);
-  return `rgb(${cl(r)},${cl(g)},${cl(b)})`;
+// a round FORM (a face, a head): a GENTLE directional wrap across a small disc, so a face catches the
+// light direction (a touch brighter on the side toward the light) but stays readable, not half black.
+// Skin is a highlight feature, so it leans bright: a soft wrap, no squared falloff.
+const FACE_WRAP = 0.4;
+export function shadeForm(c, cx, cy, r, rgb) {
+  const [dx, dy] = lightAxis();
+  const g = c.createLinearGradient(cx + dx * r, cy + dy * r, cx - dx * r, cy - dy * r);
+  for (let i = 0; i <= 3; i++) {
+    const t = i / 3, u = 1 - 2 * t, hl = (1 - FACE_WRAP) + FACE_WRAP * Math.max(0, 0.5 + 0.5 * u);
+    g.addColorStop(t, band(rgb, _lit * hl));
+  }
+  return g;
 }
+
+// a small FLAT surface (a tie, lips, a cigarette): ambient fill + direct light, no gradient. So a
+// motif red still reacts to the light (deepens in shadow, lifts and warms under a source) instead of
+// staying a fixed pure red, but stays small enough not to need a directional ramp.
+export function shade(rgb) { return band(rgb, _lit); }

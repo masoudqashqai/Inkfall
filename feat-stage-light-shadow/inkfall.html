@@ -6,123 +6,339 @@
 <meta name="theme-color" content="#000000" />
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
 <title>INKFALL — a noir story engine</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Inkfall" />
+<link rel="apple-touch-icon" href="assets/icon.svg" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Special+Elite&display=swap" rel="stylesheet">
 <style>
-:root { color-scheme: dark; }
+:root { color-scheme: dark;
+  /* fonts: one role each */
+  --f-display: "Oswald", sans-serif;                      /* UI chrome: titles, labels, menus */
+  --f-type: "Special Elite", "Courier New", monospace;   /* the typed narration + scene tag */
+  --f-mono: "Courier New", monospace;                     /* buttons, build tag, editor */
+  /* palette */
+  --c-bg: #050505;                  /* opaque screens (intro, rotate prompt) */
+  --c-scrim: rgba(0,0,0,0.92);      /* modal wash (poster, story menu) */
+  --c-fg: #d8d4c8;                  /* bright HUD text + icons */
+  --c-fg-2: #c9c4b6;                /* button label */
+  --c-cream: #ece6d6;               /* intro body text */
+  --c-dim: rgba(236,230,214,0.6);   /* secondary labels */
+  --c-red: #e10010;                 /* accent */
+  --c-red-deep: #c20012;            /* typed-text accent (scene tag + caption bold) */
+  --c-paper: rgba(245,242,232,0.95);/* caption card */
+  --c-ink: #111;                    /* caption text */
+  --c-panel: rgba(8,8,10,0.62);     /* button fill */
+  --c-line: rgba(216,212,200,0.3);  /* button border */
+  --c-line-hi: rgba(255,255,255,0.6);/* button hover border */
+  /* type scale (vmin so it never balloons in a wide frame) */
+  --fs-title: clamp(54px, 14vmin, 130px);
+  --fs-head: clamp(15px, 3vmin, 18px);
+  --fs-sub: clamp(15px, 3vmin, 22px);
+  --fs-body: clamp(14px, 2.4vmin, 19px);
+  --fs-menu: clamp(13px, 2.2vmin, 15px);
+  --fs-caption: clamp(13px, 2.4vmin, 18px);
+  --fs-label: clamp(11px, 2vmin, 14px);
+  --fs-hud: clamp(10px, 2vmin, 13px);
+  --fs-icon: clamp(14px, 3vmin, 18px);
+  --fs-note: clamp(8px, 1.6vmin, 11px);
+  /* z-index ladder (low to high) */
+  --z-caption: 10;
+  --z-hud: 25;
+  --z-intro: 30;
+  --z-overlay: 40;
+  --z-build: 50;
+  --z-prompt: 70;
+  /* HUD grid: one square cell is the button height (and a small icon-only button's width).
+     Wider buttons span whole cells plus the gaps between them, so everything lines up. */
+  --hud-cell: clamp(34px, 6vmin, 40px);
+  --hud-gap: 6px;
+  --hud-w1: var(--hud-cell);                                          /* small:  1 cell, icon only */
+  --hud-w2: calc(var(--hud-cell) * 2 + var(--hud-gap));              /* medium: 2 cells, icon + text */
+  --hud-w3: calc(var(--hud-cell) * 3 + var(--hud-gap) * 2);         /* large:  3 cells, text (or icon + text) */
+}
+/* HUD chips: compact bordered controls (the icon buttons + the REVIEW ACT toggle), red on interact */
+.hud-btn {
+  cursor: pointer; font-family: var(--f-mono); color: var(--c-fg-2);
+  background: var(--c-panel); border: 1px solid var(--c-line);
+  transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease; }
+.hud-btn:hover, .hud-btn:active { color: #fff; border-color: var(--c-red); }
+/* HUD button sizing: every control is one cell tall, the size class sets the width */
+.hud-btn { height: var(--hud-cell); line-height: 1; display: inline-flex; align-items: center;
+  justify-content: center; gap: 0.5em; letter-spacing: 0.14em; font-size: var(--fs-hud); }
+.hud-sm { width: var(--hud-w1); padding: 0; font-size: var(--fs-icon); }
+.hud-md { width: var(--hud-w2); }
+.hud-lg { width: var(--hud-w3); }
+/* HUD icons drawn in CSS (currentColor), so they centre exactly and render the same everywhere */
+.hud-btn .ic { display: block; pointer-events: none; }
+.ic-menu, .ic-menu::before, .ic-menu::after { width: 16px; height: 2px; background: currentColor; }
+.ic-menu { position: relative; }
+.ic-menu::before, .ic-menu::after { content: ''; position: absolute; left: 0; }
+.ic-menu::before { top: -5px; }
+.ic-menu::after { top: 5px; }
+.ic-poster { width: 17px; height: 14px; border: 2px solid currentColor; border-radius: 1px; }
+.ic-fs { width: 18px; height: 16px; position: relative; }
+.ic-fs::before, .ic-fs::after { content: ''; position: absolute; width: 8px; height: 8px; }
+.ic-fs::before { top: 0; left: 0; border-top: 2px solid currentColor; border-left: 2px solid currentColor; }
+.ic-fs::after { right: 0; bottom: 0; border-bottom: 2px solid currentColor; border-right: 2px solid currentColor; }
+/* shared modal overlay: a centered card on a dark wash (poster, story menu, rotate prompt) */
+.overlay { position: fixed; inset: 0; z-index: var(--z-overlay); display: none;
+  flex-direction: column; align-items: center; justify-content: center; padding: 24px;
+  background: var(--c-scrim); }
+.overlay.show { display: flex; }
+
+/* ===================== NOIR DESIGN LANGUAGE =====================
+   A framed title card, a hairline-ruled heading, a typewriter note, a diamond separator, and
+   typographic actions that take red diamond marks. Reused by every panel, menu and on-screen list. */
+.noir-panel { display: flex; flex-direction: column; align-items: stretch; gap: clamp(2px, 0.6vmin, 6px);
+  background: rgba(3,3,4,0.55); border: 1px solid rgba(220,216,200,0.42);
+  outline: 1px solid rgba(220,216,200,0.16); outline-offset: 5px;   /* the double rule of a film card */
+  box-shadow: 0 24px 80px rgba(0,0,0,0.75);
+  padding: clamp(26px, 5vmin, 42px) clamp(22px, 5vmin, 40px); }
+.noir-title { color: var(--c-cream); font-family: var(--f-display); font-weight: 700; text-align: center;
+  letter-spacing: 0.4em; font-size: clamp(20px, 4.4vmin, 28px); text-transform: uppercase; position: relative;
+  padding-bottom: clamp(12px, 2.2vmin, 18px); margin-bottom: clamp(10px, 2vmin, 16px); }
+.noir-title::after { content: ''; position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
+  width: 46px; height: 2px; background: var(--c-red); }
+.noir-note { color: rgba(236,230,214,0.6); font-family: var(--f-type); font-size: var(--fs-menu);
+  letter-spacing: 0.03em; line-height: 1.6; text-align: center; margin: 2px 0 clamp(8px, 1.6vmin, 14px); }
+.noir-sep { height: 0; border-top: 1px solid rgba(220,216,200,0.16); position: relative; margin: clamp(8px, 1.6vmin, 14px) 0; }
+.noir-sep::after { content: '\25C6'; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  color: rgba(220,216,200,0.45); font-size: 8px; background: var(--c-bg); padding: 0 7px; }
+/* typographic action: borderless, tracked caps, red diamond marks flanking it on hover/active */
+.noir-item, #poster a, #poster button {
+  background: transparent; border: 0; cursor: pointer; color: rgba(236,230,214,0.82); text-decoration: none;
+  font-family: var(--f-display); font-weight: 500; text-transform: uppercase; text-align: center;
+  letter-spacing: 0.26em; font-size: clamp(14px, 2.9vmin, 18px); padding: clamp(9px, 1.9vmin, 13px) 22px;
+  position: relative; transition: color 0.18s ease, letter-spacing 0.18s ease; }
+.noir-item:hover, .noir-item:active, #poster a:hover, #poster button:hover, #poster button:active {
+  color: #fff; letter-spacing: 0.3em; }
+.noir-item::before, .noir-item::after, #poster a::before, #poster a::after, #poster button::before, #poster button::after {
+  content: '\25C6'; position: absolute; top: 50%; transform: translateY(-50%); color: var(--c-red); font-size: 0.46em;
+  opacity: 0; transition: opacity 0.18s ease; }
+.noir-item::before, #poster a::before, #poster button::before { left: 8%; }
+.noir-item::after, #poster a::after, #poster button::after { right: 8%; }
+.noir-item:hover::before, .noir-item:hover::after, .noir-item:active::before, .noir-item:active::after,
+#poster a:hover::before, #poster a:hover::after, #poster button:hover::before, #poster button:hover::after { opacity: 1; }
+.noir-item.is-primary { color: #fff; font-weight: 700; }                       /* the marked default action */
+.noir-item.is-primary::before, .noir-item.is-primary::after { opacity: 1; }
+.noir-item.is-danger { color: rgba(225,86,90,0.9); }
+.noir-item.is-danger:hover, .noir-item.is-danger:active { color: var(--c-red); }
+/* ================================================================ */
+
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
 html, body { height: 100%; overflow: hidden; background: #000; font-family: "Courier New", monospace; }
-#c { position: fixed; inset: 0; display: block; touch-action: none; }
-#scenetag { position: fixed; top: max(14px, env(safe-area-inset-top)); left: 16px; z-index: 10;
-  font-family: "Special Elite", "Courier New", monospace;
-  color: #d8d4c8; font-size: clamp(15px, 3.8vw, 19px); letter-spacing: 0.3em; font-weight: 400; text-shadow: 2px 2px 0 #000;
+#c { position: fixed; left: 0; top: 0; display: block; touch-action: none; }
+/* the canvas is sized + centered by the engine to a landscape band, so the body's black shows
+   through as letterbox bars (top/bottom on a tall screen, left/right on a wide one) */
+#scenetag { position: fixed; top: max(6px, env(safe-area-inset-top)); left: max(8px, env(safe-area-inset-left)); z-index: var(--z-caption);
+  font-family: var(--f-type);
+  color: var(--c-fg); font-size: var(--fs-label); letter-spacing: 0.25em; font-weight: 400; text-shadow: 2px 2px 0 #000;
   opacity: 0; transition: opacity 0.5s ease; }
-#scenetag b { color: #c20012; }
-#caption { position: fixed; left: 50%; bottom: calc(max(24px, env(safe-area-inset-bottom)) + 18px); transform: translateX(-50%);
-  z-index: 10; width: min(94vw, 800px); background: rgba(245,242,232,0.95); color: #111;
-  border: 2px solid #000; box-shadow: 7px 7px 0 rgba(0,0,0,0.6);
-  padding: clamp(22px, 5.4vw, 34px) clamp(22px, 5vw, 36px);
-  font-family: "Special Elite", "Courier New", monospace;
-  font-size: clamp(21px, 6vw, 31px); line-height: 1.55; letter-spacing: 0.005em; transition: opacity 0.35s ease; }
-#caption b { color: #c20012; font-weight: 700; }
-#tapnote { position: fixed; left: 50%; bottom: 7px; transform: translateX(-50%); z-index: 10; white-space: nowrap;
-  color: #7c7c7c; font-size: clamp(9px, 2.6vw, 12px); letter-spacing: 0.06em; }
-#build { position: fixed; left: 8px; bottom: 4px; z-index: 50; color: #3a3a3a; font-size: 9px;
-  letter-spacing: 0.1em; font-family: "Courier New", monospace; }
-#editbtn, #mute, #shoot { font-variant-emoji: text; }   /* keep the HUD glyphs monochrome (noir), never colour emoji */
-#topbar { position: fixed; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); z-index: 25;
-  display: flex; align-items: stretch; gap: 8px; }
-#topbar button { font-family: inherit; cursor: pointer; background: rgba(0,0,0,0.55); color: #d8d4c8;
-  border: 1px solid rgba(255,255,255,0.28); display: inline-flex; align-items: center; justify-content: center; }
-#topbar button:hover, #topbar button:active { border-color: #e10010; color: #fff; }
-#editbtn { font-size: clamp(14px, 3.9vw, 18px); letter-spacing: 0.16em; padding: 0 clamp(18px, 5vw, 26px);
-  height: clamp(50px, 13.5vw, 60px); }
-#mute, #shoot { display: none; font-size: clamp(22px, 6vw, 28px); line-height: 1;
-  width: clamp(50px, 13.5vw, 60px); height: clamp(50px, 13.5vw, 60px); }
-#mute.show, #shoot.show { display: inline-flex; }
-#poster { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center;
-  flex-direction: column; background: rgba(0,0,0,0.92); }
-#poster.show { display: flex; }
+#scenetag b { color: var(--c-red-deep); }
+#caption { position: fixed; left: 50%; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 10px); transform: translateX(-50%);
+  z-index: var(--z-caption); width: fit-content; max-width: min(90vw, 600px); background: var(--c-paper); color: var(--c-ink);
+  border: 2px solid #000; box-shadow: 4px 4px 0 rgba(0,0,0,0.5);
+  padding: clamp(9px, 1.7vmin, 13px) clamp(12px, 2.2vmin, 18px);
+  font-family: var(--f-type); display: none; opacity: 0; text-align: center;
+  font-size: var(--fs-caption); line-height: 1.4; letter-spacing: 0.005em; }
+#caption b { color: var(--c-red-deep); font-weight: 700; }
+/* narration lines render in and out with a torn paper-cut edge. The cut shape (direction, depths,
+   segment lengths) is generated per line in scene/captionfx.js and played via the Web Animations
+   API, seeded so a replay always draws the same edge. */
+#tapnote { position: fixed; left: 50%; bottom: 6px; transform: translateX(-50%); z-index: var(--z-caption); white-space: nowrap;
+  display: none; color: #7c7c7c; font-size: var(--fs-note); letter-spacing: 0.06em; }
+#build { position: fixed; left: 8px; bottom: 4px; z-index: var(--z-build); color: #3a3a3a; font-size: 9px;
+  letter-spacing: 0.1em; font-family: var(--f-mono); }
+#fsbtn { display: none; }                                /* the HUD fullscreen button, shown by the viewport when not immersive */
+#fsbtn.show { display: inline-flex; }
+#topbar { position: fixed; top: max(6px, env(safe-area-inset-top)); right: max(6px, env(safe-area-inset-right)); z-index: var(--z-hud);
+  display: flex; flex-direction: column; align-items: flex-end; gap: var(--hud-gap); }
+.hud-row { display: flex; gap: var(--hud-gap); }
+/* act selector: a REVIEW ACT toggle at the top left that drops the act list open beneath it */
+#actsel { position: fixed; top: max(6px, env(safe-area-inset-top)); left: max(6px, env(safe-area-inset-left));
+  z-index: var(--z-hud); flex-direction: column; align-items: stretch; gap: var(--hud-gap); width: max-content; }
+#actbtn { min-width: var(--hud-w3); }
+#actbtn::after { content: "\25BE"; font-size: 0.82em; transition: transform 0.3s ease; }   /* caret flips when open */
+#actbtn.open::after { transform: rotate(180deg); }
+/* REVIEW ACT reveals with a noir neon flicker: it slides in from the left, a red glow settling out */
+body[data-stage="playing"] #actsel.unlocked #actbtn { animation: actReveal 0.9s ease-out; }
+@keyframes actReveal {
+  0%   { opacity: 0; transform: translateX(-16px); border-color: var(--c-red); box-shadow: 0 0 16px rgba(225,0,16,0.55); }
+  22%  { opacity: 0.9; }
+  34%  { opacity: 0.12; }                 /* the stutter of a tube catching */
+  50%  { opacity: 1; }
+  62%  { opacity: 0.4; }
+  100% { opacity: 1; transform: translateX(0); border-color: var(--c-line); box-shadow: 0 0 0 rgba(225,0,16,0); }
+}
+/* stage-driven HUD presence: the in-story controls + narration appear only while playing */
+#shoot, #actsel { display: none; }
+body[data-stage="playing"] #shoot { display: inline-flex; }
+body[data-stage="playing"] #actsel.unlocked { display: flex; }   /* only after THE END has been reached once */
+body[data-stage="playing"] #caption, body[data-stage="playing"] #tapnote { display: block; }
+/* clean scene mode (toggled from Story Engine): leave only the menu button + the build mark */
+body.clean #caption, body.clean #tapnote, body.clean #scenetag,
+body.clean #shoot, body.clean #fsbtn { display: none; }
+body.clean #actsel.unlocked { display: none; }   /* match the .unlocked show rule's specificity so clean wins */
+/* the controls hint shows only until the viewer has seen it once (then it lives in the menu) */
+body.controls-seen #tapnote { display: none; }
+/* once REVIEW ACT is present (top left), drop the top-left act-name text so they do not clash */
+body.acts-unlocked #scenetag { display: none; }
 #poster img { max-width: 88vw; max-height: 70vh; border: 1px solid rgba(216,212,200,0.4); box-shadow: 0 0 40px rgba(0,0,0,0.8); }
-#poster .poster-row { margin-top: 18px; display: flex; gap: 12px; }
-#poster a, #poster button { padding: 15px 32px; cursor: pointer; background: transparent; color: #fff;
-  border: 1px solid #fff; font-family: inherit; font-size: clamp(14px, 3.4vw, 16px); letter-spacing: 0.16em; text-decoration: none; }
-#poster a:hover { background: #e10010; border-color: #e10010; }
-#poster button:hover { background: #fff; color: #000; }
-#scenenav { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(max(20px, env(safe-area-inset-bottom)) + 20px);
-  z-index: 25; display: none; gap: 10px; flex-wrap: wrap; justify-content: center; width: min(96vw, 860px); }
-#scenenav.show { display: flex; }
-#scenenav button { font-family: inherit; font-size: clamp(13px, 3.5vw, 17px); letter-spacing: 0.12em; font-weight: 700; cursor: pointer;
-  color: #c9c4b6; background: rgba(8,8,10,0.62); border: 1px solid rgba(216,212,200,0.3); padding: 14px 17px; line-height: 1.25; }
-#scenenav button:hover { color: #fff; border-color: rgba(255,255,255,0.6); }
-#scenenav button.cur { color: #fff; border-color: #e10010; box-shadow: 0 0 12px rgba(225,0,16,0.45); }
-#editor { position: fixed; inset: 0; z-index: 40; display: none; flex-direction: column; gap: 10px;
+#poster .poster-row { margin-top: 18px; display: flex; gap: clamp(12px, 3vmin, 28px); }   /* SAVE / BACK use .noir-item */
+/* the act list drops open below the toggle: a clipped column that grows downward, each button
+   easing down in turn for a noir, rope ladder feel. Every button shares one width (the widest
+   title, floored at the 3 cell size) and stays one cell tall on a single line. */
+#scenenav { display: flex; flex-direction: column; align-items: stretch; gap: var(--hud-gap);
+  overflow: hidden; max-height: 0; transition: max-height 0.45s cubic-bezier(0.22,0.61,0.36,1); }
+#scenenav.open { max-height: 70vh; overflow-y: auto; }
+/* act buttons in the drop: the typographic noir style, red diamonds flank the hovered + current act */
+#scenenav button { min-width: var(--hud-w3); height: var(--hud-cell); white-space: nowrap; cursor: pointer; position: relative;
+  display: flex; align-items: center; justify-content: center; padding: 0 18px;
+  background: transparent; border: 0; color: rgba(236,230,214,0.82);
+  font-family: var(--f-display); font-weight: 600; text-transform: uppercase;
+  font-size: var(--fs-hud); letter-spacing: 0.18em;
+  opacity: 0; transform: translateY(-10px);
+  transition: opacity 0.3s ease, transform 0.35s cubic-bezier(0.22,0.61,0.36,1), color 0.2s ease; }
+#scenenav button::before, #scenenav button::after { content: '\25C6'; position: absolute; top: 50%; transform: translateY(-50%);
+  color: var(--c-red); font-size: 0.5em; opacity: 0; transition: opacity 0.18s ease; }
+#scenenav button::before { left: 5%; }
+#scenenav button::after { right: 5%; }
+#scenenav.open button { opacity: 1; transform: translateY(0); }
+#scenenav.open button:nth-child(1) { transition-delay: 0.04s; }
+#scenenav.open button:nth-child(2) { transition-delay: 0.09s; }
+#scenenav.open button:nth-child(3) { transition-delay: 0.14s; }
+#scenenav.open button:nth-child(4) { transition-delay: 0.19s; }
+#scenenav.open button:nth-child(5) { transition-delay: 0.24s; }
+#scenenav.open button:nth-child(6) { transition-delay: 0.29s; }
+#scenenav.open button:nth-child(7) { transition-delay: 0.34s; }
+#scenenav.open button:nth-child(8) { transition-delay: 0.39s; }
+#scenenav button:hover, #scenenav button:active { color: #fff; }
+#scenenav button:hover::before, #scenenav button:hover::after,
+#scenenav button.cur::before, #scenenav button.cur::after { opacity: 1; }
+#scenenav button.cur { color: #fff; }
+/* at THE END the act picker becomes a centered row of acts below the title (no toggle); during
+   ordinary play it stays the top-left REVIEW ACT dropdown. Clean mode still hides it either way. */
+body.ended #actbtn { display: none; }
+body.ended #actsel { top: auto; left: 50%; right: auto; transform: translateX(-50%);
+  bottom: clamp(34px, 13vh, 120px); align-items: center; width: auto; max-width: 92vw; }
+body.ended #scenenav, body.ended #scenenav.open { flex-direction: row; flex-wrap: wrap;
+  justify-content: center; align-items: center; max-height: none; overflow: visible;
+  gap: clamp(6px, 1.5vmin, 12px) clamp(10px, 2.5vmin, 22px); }
+/* at THE END the buttons are the old boxed chips (no diamonds), red accent on hover + the current act */
+body.ended #scenenav button { background: var(--c-panel); border: 1px solid var(--c-line); color: var(--c-fg-2);
+  font-family: var(--f-mono); font-weight: 700; letter-spacing: 0.14em; padding: 0 14px; }
+body.ended #scenenav button::before, body.ended #scenenav button::after { display: none; }
+body.ended #scenenav button:hover, body.ended #scenenav button:active { color: #fff; border-color: var(--c-red); }
+body.ended #scenenav button.cur { color: #fff; border-color: var(--c-red); box-shadow: 0 0 12px rgba(225,0,16,0.45); }
+/* PAUSE MENU — a vignette behind the noir panel. Several views (main, story engine, controls, exit
+   confirm) share one panel slot; data-view on #storymenu picks which shows. */
+#storymenu { background: radial-gradient(ellipse at center, rgba(4,4,5,0.88), rgba(0,0,0,0.97)); }
+#storymenu .noir-panel { width: min(88vw, 400px); }
+#storymenu .sm-view { display: none; }
+#storymenu[data-view="main"] .v-main,
+#storymenu[data-view="engine"] .v-engine,
+#storymenu[data-view="controls"] .v-controls,
+#storymenu[data-view="confirm"] .v-confirm { display: flex; }
+/* controls review: a small key/role list in the noir voice */
+.sm-keys { display: flex; flex-direction: column; gap: clamp(8px, 1.8vmin, 14px); margin: clamp(4px,1vmin,10px) 0 clamp(10px,2vmin,16px); }
+.sm-key { display: flex; align-items: baseline; justify-content: center; gap: 14px; }
+.sm-key b { color: var(--c-red); font-family: var(--f-display); font-weight: 700; letter-spacing: 0.2em;
+  font-size: var(--fs-menu); min-width: 64px; text-align: right; }
+.sm-key span { color: rgba(236,230,214,0.82); font-family: var(--f-type); letter-spacing: 0.04em; font-size: var(--fs-menu); text-align: left; }
+/* the story editor: full screen for the JSON, but its heading and actions use the noir language */
+#editor { position: fixed; inset: 0; z-index: var(--z-overlay); display: none; flex-direction: column; gap: 10px;
   background: rgba(6,7,10,0.97); padding: max(16px, env(safe-area-inset-top)) 16px 16px; }
-#editor .ed-head { color: #e10010; letter-spacing: 0.3em; font-weight: 700; font-size: clamp(14px, 3.6vw, 16px); }
-#editor .ed-help { color: #8a8a8a; font-size: clamp(11px, 2.7vw, 13px); line-height: 1.8; }
-#ed-text { flex: 1; width: 100%; resize: none; background: #0e1014; color: #d6e0c8; border: 1px solid #2a2e36;
-  font-family: "Courier New", monospace; font-size: clamp(13px, 3vw, 15px); line-height: 1.5; padding: 12px; }
-#ed-err { color: #ff6a6a; font-size: clamp(12px, 2.8vw, 14px); min-height: 16px; }
-.ed-btns { display: flex; gap: 12px; flex-wrap: wrap; }
-.ed-btns button { flex: 1; min-width: 100px; padding: 16px; cursor: pointer; font-family: inherit; font-weight: 700;
-  letter-spacing: 0.18em; font-size: clamp(14px, 3.4vw, 16px); background: transparent; color: #fff; border: 1px solid #fff; }
-#ed-play { background: #e10010; border-color: #e10010; }
-.ed-btns button:active { opacity: 0.7; }
-#intro { position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column; align-items: center;
+#editor .ed-head { padding-bottom: clamp(8px, 1.6vmin, 12px); margin-bottom: 2px; }   /* .noir-title sets the rest */
+#editor .ed-help { color: #8a8a8a; font-size: clamp(11px, 2vmin, 13px); line-height: 1.8; }
+#ed-text { flex: 1; width: 100%; resize: none; background: #0e1014; color: #d6e0c8; border: 1px solid var(--c-line);
+  font-family: var(--f-mono); font-size: clamp(13px, 2.4vmin, 15px); line-height: 1.5; padding: 12px; }
+#ed-err { color: #ff6a6a; font-size: clamp(12px, 2.2vmin, 14px); min-height: 16px; text-align: center; }
+.ed-btns { display: flex; gap: clamp(10px, 3vmin, 28px); flex-wrap: wrap; justify-content: center; }
+/* the start screen is always present but fades in/out by stage (no display swap, so the fade shows) */
+#intro { position: fixed; inset: 0; z-index: var(--z-intro); display: flex; flex-direction: column; align-items: center;
   justify-content: center; text-align: center; padding: 28px 22px; overflow-y: auto;
-  background: #050505; transition: opacity 0.8s ease; }
-#intro h1 { font-family: "Oswald", sans-serif; color: #fff; font-size: clamp(72px, 23vw, 200px); letter-spacing: 0.04em; font-weight: 700;
+  background: var(--c-bg); opacity: 0; pointer-events: none; transition: opacity 0.8s ease; }
+body[data-stage="menu"] #intro { opacity: 1; pointer-events: auto; }
+/* the start screen shares the HUD's vmin scale so it stays balanced in a wide frame instead of
+   inflating off viewport width. Sizes and gaps scale with the smaller dimension, which also keeps
+   it fitting on short landscape screens without a separate breakpoint. */
+#intro h1 { font-family: var(--f-display); color: #fff; font-size: var(--fs-title); letter-spacing: 0.04em; font-weight: 700;
   line-height: 1.0; transform: skewX(-7deg); }
-#intro h1 .b { color: #e10010; }
-#intro p { font-family: "Oswald", sans-serif; color: #ece6d6; margin-top: 22px; font-size: clamp(22px, 6vw, 30px); letter-spacing: 0.28em; font-weight: 600; }
-#intro .sub { font-family: "Oswald", sans-serif; color: rgba(236,230,214,0.72); margin-top: 18px; font-size: clamp(20px, 5vw, 25px); letter-spacing: 0.02em;
-  font-weight: 400; max-width: 640px; line-height: 1.65; }
-#intro .pick-label { font-family: "Oswald", sans-serif; color: rgba(236,230,214,0.55); margin-top: 44px; font-size: clamp(16px, 4vw, 19px); letter-spacing: 0.38em; font-weight: 600; }
-#storypick { margin-top: 18px; display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
-.storybtn { font-family: "Oswald", sans-serif; cursor: pointer; background: transparent; color: #f2eee2; border: 1px solid rgba(236,230,214,0.45);
-  font-size: clamp(22px, 5.6vw, 27px); letter-spacing: 0.16em; font-weight: 600; padding: 22px 32px; transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease; }
+#intro h1 .b { color: var(--c-red); }
+#intro p { font-family: var(--f-display); color: var(--c-cream); margin-top: clamp(10px, 2vmin, 18px); font-size: var(--fs-sub); letter-spacing: 0.26em; font-weight: 600; }
+#intro .sub { font-family: var(--f-display); color: rgba(236,230,214,0.72); margin-top: clamp(8px, 1.6vmin, 14px); font-size: var(--fs-body); letter-spacing: 0.02em;
+  font-weight: 400; max-width: 600px; line-height: 1.6; }
+#intro .pick-label { font-family: var(--f-display); color: rgba(236,230,214,0.55); margin-top: clamp(18px, 4vmin, 36px); font-size: var(--fs-label); letter-spacing: 0.34em; font-weight: 600; }
+#storypick { margin-top: clamp(12px, 2.4vmin, 18px); display: flex; gap: clamp(12px, 2vmin, 18px); flex-wrap: wrap; justify-content: center; }
+.storybtn { font-family: var(--f-display); cursor: pointer; background: transparent; color: #f2eee2; border: 1px solid rgba(236,230,214,0.45);
+  font-size: var(--fs-sub); letter-spacing: 0.16em; font-weight: 600; padding: clamp(14px, 2.6vmin, 20px) clamp(20px, 4vmin, 32px); transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease; }
 .storybtn:hover { border-color: #fff; background: rgba(236,230,214,0.06); }
-.storybtn.cur { color: #fff; border-color: #e10010; }
-.storybtn small { display: block; color: rgba(236,230,214,0.6); font-size: clamp(14px, 3.6vw, 17px); letter-spacing: 0.1em; margin-top: 10px; font-weight: 400; }
+.storybtn.cur { color: #fff; border-color: var(--c-red); }
+.storybtn small { display: block; color: var(--c-dim); font-size: clamp(12px, 2vmin, 15px); letter-spacing: 0.1em; margin-top: clamp(6px, 1.2vmin, 10px); font-weight: 400; }
 .storybtn:hover small { color: rgba(236,230,214,0.88); }
 .storybtn.cur small { color: #ea5a5a; }
-#enter { font-family: "Oswald", sans-serif; margin-top: 40px; padding: 24px 64px; cursor: pointer; background: transparent; color: #fff;
-  border: 1px solid #fff; font-size: clamp(23px, 5.8vw, 28px); letter-spacing: 0.28em; font-weight: 600; transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease; }
-#enter:hover, #enter:active { background: #e10010; border-color: #e10010; }
-/* short screens (landscape / small desktop windows): shrink the intro so it still fits */
-@media (max-height: 720px) {
-  #intro h1 { font-size: clamp(48px, 12vh, 110px); }
-  #intro p { font-size: clamp(16px, 3.4vh, 22px); margin-top: 12px; }
-  #intro .sub { font-size: clamp(14px, 2.8vh, 18px); margin-top: 10px; }
-  #intro .pick-label { margin-top: 20px; }
-  #enter { margin-top: 22px; }
+#enter { font-family: var(--f-display); margin-top: clamp(20px, 4vmin, 36px); padding: clamp(14px, 2.6vmin, 22px) clamp(36px, 8vmin, 64px); cursor: pointer; background: transparent; color: #fff;
+  border: 1px solid #fff; font-size: var(--fs-sub); letter-spacing: 0.26em; font-weight: 600; transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease; }
+#enter:hover, #enter:active { background: var(--c-red); border-color: var(--c-red); }
+/* while the stories load, the picker label, picker and ENTER are replaced by a noir spinner */
+#intro.loading .pick-label, #intro.loading #storypick, #intro.loading #enter { display: none; }
+#introloading { display: none; flex-direction: column; align-items: center; gap: clamp(10px, 2vmin, 16px); margin-top: clamp(22px, 5vmin, 44px); }
+#intro.loading #introloading { display: flex; }
+#introloading .spin { width: clamp(28px, 5vmin, 40px); height: clamp(28px, 5vmin, 40px); border-radius: 50%;
+  border: 2px solid rgba(236,230,214,0.18); border-top-color: var(--c-red); animation: introspin 0.85s linear infinite; }
+#introloading .loadlabel { font-family: var(--f-display); color: rgba(236,230,214,0.55); font-size: var(--fs-label);
+  letter-spacing: 0.34em; font-weight: 600; animation: loadpulse 1.5s ease-in-out infinite; }
+@keyframes introspin { to { transform: rotate(360deg); } }
+@keyframes loadpulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.9; } }
+
+/* short viewports (landscape phones, small desktop windows): tuck the caption down a touch
+   (the font already scales with height via vmin) */
+@media (max-height: 560px) {
+  #caption { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 8px); }
+}
+/* wide desktops: a touch larger so it reads from a distance, still within the standard scale */
+@media (min-width: 1100px) {
+  #caption { font-size: 18px; max-width: min(52vw, 600px); }
 }
 
-/* short viewports (landscape phones, small desktop windows): keep the bigger caption
-   from eating the frame — scale it to the available height and tuck it down */
-@media (max-height: 560px) {
-  #caption { font-size: clamp(17px, 4.4vh, 25px); line-height: 1.4;
-    padding: clamp(10px, 2vh, 16px) clamp(14px, 3vw, 22px);
-    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 8px); }
-  #scenenav { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 100px); }
-}
-/* wide desktops: comfortably readable from a distance */
-@media (min-width: 1100px) {
-  #caption { font-size: 30px; width: min(72vw, 860px); }
+/* immersion prompt: the .overlay primitive, but opaque and on top of everything */
+#rotate { z-index: var(--z-prompt); background: var(--c-bg); gap: 28px; }
+#rotate .rotate-text { font-family: var(--f-display); color: var(--c-cream); max-width: 420px;
+  font-size: var(--fs-sub); letter-spacing: 0.16em; font-weight: 600; line-height: 1.6; }
+#rotate .rt-nofs { display: none; }                      /* copy swaps when fullscreen is impossible */
+#rotate.no-fs .rt-fs { display: none; }
+#rotate.no-fs .rt-nofs { display: block; }
+#rotate.no-fs .rotate-fs { display: none; }              /* no fullscreen button where it cannot work */
+#rotate .rotate-skip { display: none; }              /* the buttons use .noir-item, this only gates the fallback */
+#rotate .rotate-skip.show { display: inline-block; }
+/* a little phone that tips from portrait to landscape on a loop */
+.rotate-phone { width: 58px; height: 102px; border: 4px solid var(--c-fg); border-radius: 12px;
+  position: relative; transform-origin: 50% 50%; animation: rotatehint 2.6s ease-in-out infinite; }
+.rotate-phone .rotate-cam { position: absolute; left: 50%; bottom: 7px; transform: translateX(-50%);
+  width: 14px; height: 14px; border: 2px solid var(--c-fg); border-radius: 50%; }
+@keyframes rotatehint {
+  0%, 22% { transform: rotate(0deg); }
+  55%, 88% { transform: rotate(-90deg); }
+  100% { transform: rotate(0deg); }
 }
 
 </style>
 </head>
-<body>
+<body data-stage="menu">
 <canvas id="c"></canvas>
 <div id="scenetag"></div>
-<div id="caption" style="display:none"></div>
-<div id="tapnote" style="display:none">TAP — NEXT&nbsp; ·&nbsp; DRAG — LOOK&nbsp; ·&nbsp; HOLD — LIGHTNING</div>
-<div id="intro">
+<div id="caption"></div>
+<div id="tapnote">TAP — NEXT&nbsp; ·&nbsp; DRAG — LOOK&nbsp; ·&nbsp; HOLD — LIGHTNING</div>
+<div id="intro" class="loading">
   <h1>INK<span class="b">FALL</span></h1>
   <p id="introsub">A NOIR STORY ENGINE</p>
   <div class="sub" id="introblurb">Feed it a story. Get back a rain-soaked, black-and-white world where the only colour is the colour that bleeds.</div>
+  <div id="introloading"><span class="spin" aria-hidden="true"></span><span class="loadlabel">LOADING</span></div>
   <div class="pick-label">CHOOSE YOUR TALE</div>
   <div id="storypick"></div>
   <button id="enter">ENTER THE CITY</button>
@@ -130,25 +346,72 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
 
 <div id="build"></div>
 <div id="topbar">
-  <button id="shoot" title="save a poster of this frame">❏</button>
-  <button id="mute" title="sound">♪</button>
-  <button id="editbtn">✎ STORY</button>
+  <div class="hud-row">
+    <button id="shoot" class="hud-btn hud-sm" title="save a poster of this frame"><i class="ic ic-poster"></i></button>
+    <button id="fsbtn" class="hud-btn hud-sm" title="fullscreen"><i class="ic ic-fs"></i></button>
+    <button id="menubtn" class="hud-btn hud-sm" title="menu"><i class="ic ic-menu"></i></button>
+  </div>
 </div>
-<div id="scenenav"></div>
+<div id="actsel">
+  <button id="actbtn" class="hud-btn">REVIEW ACT</button>
+  <div id="scenenav"></div>
+</div>
 
-<div id="poster">
+<div id="rotate" class="overlay">
+  <div class="rotate-phone" aria-hidden="true"><span class="rotate-cam"></span></div>
+  <div class="rotate-text rt-fs">This story plays best in fullscreen, landscape.</div>
+  <div class="rotate-text rt-nofs">Rotate your phone for the best view.</div>
+  <button id="rotate-fs" class="rotate-fs noir-item is-primary">ENTER FULLSCREEN</button>
+  <button id="rotate-skip" class="rotate-skip noir-item">WATCH ANYWAY</button>
+</div>
+
+<div id="poster" class="overlay">
   <img id="posterimg" alt="Inkfall poster" />
   <div class="poster-row">
     <a id="posterdl" download="inkfall.png">SAVE</a>
     <button id="posterclose">BACK TO THE RAIN</button>
   </div>
 </div>
+<div id="storymenu" class="overlay" data-view="main">
+  <div class="noir-panel sm-view v-main">
+    <div class="noir-title">PAUSED</div>
+    <button id="sm-resume" class="noir-item is-primary">RESUME</button>
+    <button id="sm-sound" class="noir-item">SOUND: ON</button>
+    <button id="sm-engine" class="noir-item">STORY ENGINE</button>
+    <button id="sm-controls" class="noir-item">CONTROLS</button>
+    <div class="noir-sep"></div>
+    <button id="sm-back" class="noir-item is-danger">EXIT TO START</button>
+  </div>
+  <div class="noir-panel sm-view v-engine">
+    <div class="noir-title">STORY ENGINE</div>
+    <button id="sm-edit" class="noir-item">EDIT STORY</button>
+    <button id="sm-hud" class="noir-item">HIDE HUD</button>
+    <div class="noir-sep"></div>
+    <button id="sm-engine-back" class="noir-item is-primary">BACK</button>
+  </div>
+  <div class="noir-panel sm-view v-controls">
+    <div class="noir-title">CONTROLS</div>
+    <div class="sm-keys">
+      <div class="sm-key"><b>TAP</b><span>advance the story</span></div>
+      <div class="sm-key"><b>DRAG</b><span>look around the scene</span></div>
+      <div class="sm-key"><b>HOLD</b><span>call down lightning</span></div>
+    </div>
+    <div class="noir-sep"></div>
+    <button id="sm-controls-back" class="noir-item is-primary">BACK</button>
+  </div>
+  <div class="noir-panel sm-view v-confirm">
+    <div class="noir-title">LEAVE THE STORY?</div>
+    <div class="noir-note">This returns you to the start screen.</div>
+    <button id="sm-confirm-yes" class="noir-item is-danger">EXIT TO START</button>
+    <button id="sm-confirm-no" class="noir-item is-primary">STAY</button>
+  </div>
+</div>
 <div id="editor">
-  <div class="ed-head">STORY EDITOR — JSON</div>
+  <div class="ed-head noir-title">STORY EDITOR</div>
   <textarea id="ed-text" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
   <div id="ed-err"></div>
   <div class="ed-help">backdrops: skyline · alley · rooftop · room &nbsp;|&nbsp; lights: lamp · neon · bulb · glow &nbsp;|&nbsp; people: trenchMan · thug · boss · gunman · dealer · womanInRed · singer &nbsp;|&nbsp; animals: cat · crow &nbsp;|&nbsp; movers: redCar &nbsp;|&nbsp; weapons: knife · pistol · tommyGun &nbsp;|&nbsp; casino: cardTable · slotMachine · rouletteWheel · drink · cash &nbsp;|&nbsp; street: trafficLight · barrelFire · fireHydrant · payphone · streetSign · waterTower · dumpster · manhole &nbsp;|&nbsp; effects: steam · searchlight · newspaper · bloodSplat · bodyOnGround · chalkOutline · bloodDrain &nbsp;|&nbsp; line fx: muzzle · blood · lightning · hammer · lighter &nbsp;|&nbsp; reveal/hide with onFlag / hideOnFlag</div>
-  <div class="ed-btns"><button id="ed-play">▶ PLAY</button><button id="ed-reset">DEFAULT</button><button id="ed-close">CLOSE</button></div>
+  <div class="ed-btns"><button id="ed-play" class="noir-item is-primary">PLAY</button><button id="ed-reset" class="noir-item">DEFAULT</button><button id="ed-close" class="noir-item">CLOSE</button></div>
 </div>
 
 <script>
@@ -161,6 +424,7 @@ __mod["src/boot.js"] = function(__exports, __req){
 // builds the intro picker from the story manifest, lazy-loads the chosen story, and runs the
 // loop. The editor round-trips a story as JSON (stories are pure data).
 const { Engine } = __req("src/engine/engine.js");
+const { Viewport } = __req("src/engine/viewport.js");
 const { Manager } = __req("src/scene/manager.js");
 const { Audio2 } = __req("src/assets/audio.js");
 const { rand32, TWO_PI } = __req("src/engine/math.js");
@@ -168,25 +432,57 @@ __req("src/library/index.js");
 const { STORIES } = __req("stories/manifest.js");
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 56 · indoor vs outdoor light/shadow profile'
+const BUILD = 'v2 build 58 · 1080p-anchored resolution scaling'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 
 const engine = new Engine(); engine.init();
 const manager = new Manager(engine);
-manager.attachDom({ cap: el('caption'), tag: el('scenetag'), tap: el('tapnote'), nav: el('scenenav') });
+manager.attachDom({ cap: el('caption'), tag: el('scenetag'), tap: el('tapnote'), nav: el('scenenav'), act: el('actbtn'), actsel: el('actsel') });
+manager.onBegin = () => Audio2.start();   // audio starts as the opening title card lifts, not before
+
+// REVIEW ACT toggle: drop the act list open/closed below the HUD
+el('actbtn').addEventListener('click', () => {
+  const open = el('scenenav').classList.toggle('open');
+  el('actbtn').classList.toggle('open', open);
+});
+
+// keep the story in a landscape frame: go fullscreen + ask for landscape on a phone/tablet, hold
+// the start behind a "rotate your screen" prompt while portrait, and letterbox everywhere else.
+const viewport = new Viewport(engine);
+viewport.attach({ overlay: el('rotate'), skip: el('rotate-skip'), fsCta: el('rotate-fs'), fsBtn: el('fsbtn') });
+viewport.onStart = () => manager.requestStart();
+viewport.onPause = () => Audio2.suspend();     // full story pause behind the prompt: clock + sound
+viewport.onResume = () => Audio2.resumeAll();
+
+// the TAP/DRAG/HOLD hint is shown once ever, then retired to the menu's CONTROLS panel
+if (localStorage.getItem('inkfall_controls_seen')) document.body.classList.add('controls-seen');
+const markControlsSeen = () => {
+  if (document.body.classList.contains('controls-seen')) return;
+  document.body.classList.add('controls-seen');
+  try { localStorage.setItem('inkfall_controls_seen', '1'); } catch (e) {}
+};
 
 // input → manager
 const { bindInput } = __req("src/engine/input.js");
 bindInput(engine.cv, {
   isReady: () => manager.started,
-  onTap: () => manager.advance(),
-  onDrag: dx => manager.drag(dx),
+  onTap: () => { const live = manager.started && !manager.transState; manager.advance(); if (live) markControlsSeen(); },   // retire the hint on a real advance
+  onDrag: dx => manager.drag(dx / engine.ls),   // pointer deltas are CSS px; the camera looks in logical units, so a drag feels the same at any resolution
   onHold: () => manager.holdLightning(),
 });
 
 const cache = {};
-const loadStory = i => (cache[i] ||= STORIES[i].load());
+// load + cache a story, but never cache a failure or an empty module, so a transient error (a fetch
+// that fails while the dev server is still warming up) can be retried instead of sticking forever
+function loadStory(i) {
+  if (cache[i]) return cache[i];
+  const p = STORIES[i].load()
+    .then(s => { if (!s) throw new Error('empty story ' + i); return s; })
+    .catch(err => { delete cache[i]; throw err; });
+  cache[i] = p;
+  return p;
+}
 let defaultStory = null;
 
 function applyIntroText(s) {
@@ -200,7 +496,7 @@ function buildStoryPicker() {
   STORIES.forEach((s, i) => {
     const b = document.createElement('button'); b.className = 'storybtn'; b.dataset.i = i;
     b.innerHTML = `${s.name}<small>${s.tagline}</small>`;
-    b.addEventListener('click', () => selectStory(i));
+    b.addEventListener('click', () => selectStory(i).catch(() => {}));   // a transient load error is retryable by clicking again
     pick.appendChild(b);
   });
 }
@@ -213,20 +509,15 @@ async function selectStory(i) {
   document.querySelectorAll('.storybtn').forEach(b => b.classList.toggle('cur', +b.dataset.i === i));
 }
 
+// the HUD stage drives coarse visibility from CSS: "menu" shows the intro, "playing" shows the
+// in-story HUD + narration. Per-frame caption/tap fades stay in the manager.
+const setStage = s => { document.body.dataset.stage = s; };
+
 function beginPlay() {
-  const intro = el('intro');
-  intro.style.opacity = '0'; setTimeout(() => intro.style.display = 'none', 800);
-  el('caption').style.display = 'block';
-  el('tapnote').style.display = 'block';
-  el('mute').classList.add('show');
-  el('shoot').classList.add('show');
-  Audio2.start();
-  manager.requestStart();
+  setStage('playing');     // CSS reveals the HUD + narration and fades the intro out
+  viewport.beginStory();   // goes immersive, then starts the story once the screen is landscape
 }
 el('enter').addEventListener('click', beginPlay);
-
-const muteEl = el('mute');
-muteEl.addEventListener('click', () => { const on = Audio2.toggle(); muteEl.textContent = on ? '♪' : '✕'; muteEl.style.color = on ? '#d8d4c8' : '#777'; });
 
 // ---- "pull a frame": turn the live canvas into a downloadable noir poster ----
 let halftone = null;
@@ -269,15 +560,49 @@ function makePoster() {
   el('posterclose').textContent = 'BACK TO ' + ((manager.current && manager.current.title || 'THE RAIN').replace(/&nbsp;/g, ' ')).toUpperCase();
   el('poster').classList.add('show');
 }
-el('shoot').addEventListener('click', () => { if (manager.started) makePoster(); });
-el('posterclose').addEventListener('click', () => el('poster').classList.remove('show'));
+el('shoot').addEventListener('click', () => { if (manager.started) { makePoster(); refreshPause(); } });
+el('posterclose').addEventListener('click', () => { el('poster').classList.remove('show'); refreshPause(); });
 
 // ---- story editor (pure-data JSON) ----
 const editor = el('editor'), edText = el('ed-text'), edErr = el('ed-err');
 const noCache = (k, v) => (k && k[0] === '_') ? undefined : v;
-el('editbtn').addEventListener('click', () => { edText.value = JSON.stringify(manager.story, noCache, 2); edErr.textContent = ''; editor.style.display = 'flex'; });
-el('ed-close').addEventListener('click', () => editor.style.display = 'none');
-el('ed-reset').addEventListener('click', () => { edText.value = JSON.stringify(defaultStory, noCache, 2); edErr.textContent = 'Default story loaded into the editor — press PLAY to run it.'; });
+// the STORY button opens a small menu: go back to the start screen, or open the JSON editor
+const storymenu = el('storymenu');
+const openEditor = () => { edText.value = JSON.stringify(manager.story, noCache, 2); edErr.textContent = ''; editor.style.display = 'flex'; };
+function goToStartMenu() {
+  storymenu.classList.remove('show'); storymenu.dataset.view = 'main'; document.body.classList.remove('clean');
+  editor.style.display = 'none'; el('poster').classList.remove('show');
+  el('scenenav').classList.remove('open'); el('actbtn').classList.remove('open');
+  Audio2.setStory(manager.story && manager.story.audio);   // stop the playing audio, reset to the unstarted state
+  viewport.reset(); manager.reset();                        // drop back to act one, not started, so ENTER replays cleanly
+  setStage('menu');                                          // CSS fades the intro back in and hides the HUD
+}
+const soundBtn = el('sm-sound'), hudItem = el('sm-hud');
+const setView = v => { storymenu.dataset.view = v; };
+const syncMenu = () => {
+  soundBtn.textContent = Audio2.isOn() ? 'SOUND: ON' : 'SOUND: OFF';
+  hudItem.textContent = document.body.classList.contains('clean') ? 'SHOW HUD' : 'HIDE HUD';
+};
+// a true pause menu: while the menu, poster or editor is open, the play clock + audio are paused
+const refreshPause = () => viewport.setMenuPaused(
+  storymenu.classList.contains('show') || el('poster').classList.contains('show') || editor.style.display === 'flex');
+const openMenu = () => { setView('main'); syncMenu(); storymenu.classList.add('show'); refreshPause(); };
+const closeMenu = () => { storymenu.classList.remove('show'); setView('main'); refreshPause(); };
+soundBtn.addEventListener('click', () => { Audio2.toggle(); syncMenu(); });
+hudItem.addEventListener('click', () => { document.body.classList.toggle('clean'); syncMenu(); });   // clean scene mode
+el('menubtn').addEventListener('click', openMenu);
+el('sm-resume').addEventListener('click', closeMenu);
+storymenu.addEventListener('click', e => { if (e.target === storymenu) closeMenu(); });
+el('sm-engine').addEventListener('click', () => setView('engine'));
+el('sm-controls').addEventListener('click', () => setView('controls'));
+el('sm-engine-back').addEventListener('click', () => setView('main'));
+el('sm-controls-back').addEventListener('click', () => setView('main'));
+el('sm-back').addEventListener('click', () => setView('confirm'));     // exiting is destructive: confirm first
+el('sm-confirm-no').addEventListener('click', () => setView('main'));
+el('sm-confirm-yes').addEventListener('click', goToStartMenu);
+el('sm-edit').addEventListener('click', () => { storymenu.classList.remove('show'); openEditor(); refreshPause(); });
+el('ed-close').addEventListener('click', () => { editor.style.display = 'none'; refreshPause(); });
+el('ed-reset').addEventListener('click', () => { edText.value = JSON.stringify(defaultStory, noCache, 2); edErr.textContent = 'Default story loaded into the editor, press PLAY to run it.'; });
 el('ed-play').addEventListener('click', () => {
   let s; try { s = JSON.parse(edText.value); } catch (err) { edErr.textContent = 'JSON error: ' + err.message; return; }
   if (!s || !Array.isArray(s.scenes) || !s.scenes.length) { edErr.textContent = 'A story needs a non-empty "scenes" array.'; return; }
@@ -285,13 +610,19 @@ el('ed-play').addEventListener('click', () => {
   try { localStorage.setItem('inkfall_story', JSON.stringify(s, noCache)); } catch (e) {}
   editor.style.display = 'none';
   if (!manager.started) beginPlay();
+  refreshPause();
 });
 
 // ---- bootstrap ----
 (async () => {
   buildStoryPicker();
-  defaultStory = await loadStory(0);
-  await selectStory(0);
+  let ready = false;
+  for (let attempt = 0; attempt < 12 && !ready; attempt++) {   // the dev server may still be warming up: retry the first load
+    try { defaultStory = await loadStory(0); await selectStory(0); ready = true; }
+    catch (e) { await new Promise(r => setTimeout(r, 350)); }
+  }
+  if (!ready) { const l = el('introloading'); if (l) l.querySelector('.loadlabel').textContent = 'COULD NOT LOAD, REFRESH'; return; }
+  el('intro').classList.remove('loading');   // stories ready: swap the spinner for the picker + ENTER
   engine.run(e => manager.tick(e));
 })();
 
@@ -301,16 +632,26 @@ __mod["src/engine/engine.js"] = function(__exports, __req){
 // device-pixel sizing, and the requestAnimationFrame loop. It keeps the shared Frame's
 // scalars (size, time, contexts) live and hands a tick to the manager each frame.
 const { Frame } = __req("src/engine/frame.js");
+const { ASPECT_MIN, ASPECT_MAX } = __req("src/engine/viewport.js");
+
+// the world is authored in a FIXED virtual resolution: the band is always REF_H logical units tall
+// (1080p, our anchor). The world transform scales that logical space to the real band, so the whole
+// scene is one uniform zoom of the same 1080p composition at any size (a phone, 1080p, 4K). Every
+// number in draw code therefore means "pixels at 1080p". Width is REF_H * aspect (so a wider frame
+// shows more world, never bigger objects), and unit stays 3 everywhere.
+const REF_H = 1080;
 
 class Engine {
   constructor() {
     this.cv = null; this.ctx = null; this.DPR = 1; this.W = 0; this.H = 0; this.unit = 1;
+    this.cssW = 0; this.cssH = 0; this.ls = 1;   // the real band size (CSS px) and logical->CSS scale
     this.lightCv = null; this.lightCtx = null;
     this.shadowCv = null; this.shadowCtx = null;   // the offscreen shadow buffer (projected onto the stage, blitted under the cast)
     this.snapCv = null; this.snapCtx = null;   // a frozen copy of the last frame, for the beat crossfade
     this.frame = new Frame();
     this.drops = []; this.grain = null;     // rain particles + film-grain tile (persist across scenes)
     this.last = 0;
+    this.paused = false; this.pauseOffset = 0; this._pauseAt = 0;   // a play clock that the viewport gate can freeze
   }
 
   init() {
@@ -327,11 +668,24 @@ class Engine {
     this.resize();
   }
 
+  // size the canvas to the landscape aspect band, centered, so the viewport's spare space becomes
+  // black bars: top and bottom on a too-tall screen, left and right on a too-wide one. Everything
+  // downstream reads W/H, but those are now LOGICAL units (the band is always REF_H tall): the world
+  // transform scales the logical space onto the real band, so the world never knows its real size
+  // OR that it is letterboxed. The buffers and CSS still use the real band size in device/CSS px.
   resize() {
     this.DPR = Math.min(window.devicePixelRatio || 1, 2);
-    this.W = innerWidth; this.H = innerHeight;
-    for (const cv of [this.cv, this.lightCv, this.shadowCv, this.snapCv]) { cv.width = Math.floor(this.W * this.DPR); cv.height = Math.floor(this.H * this.DPR); }
-    this.cv.style.width = this.W + 'px'; this.cv.style.height = this.H + 'px';
+    const vw = innerWidth, vh = innerHeight, ar = vw / vh;
+    let w = vw, h = vh;
+    if (ar < ASPECT_MIN) h = Math.round(vw / ASPECT_MIN);        // too tall: cap the height
+    else if (ar > ASPECT_MAX) w = Math.round(vh * ASPECT_MAX);   // too wide: cap the width
+    this.cssW = w; this.cssH = h;                                // the real band, in CSS px
+    this.ls = Math.min(w, h) / REF_H;                           // logical -> CSS scale (the band is always REF_H tall)
+    this.W = w / this.ls; this.H = h / this.ls;                 // the LOGICAL band (H == REF_H, W == REF_H * aspect)
+    for (const cv of [this.cv, this.lightCv, this.shadowCv, this.snapCv]) { cv.width = Math.floor(w * this.DPR); cv.height = Math.floor(h * this.DPR); }
+    this.cv.style.width = w + 'px'; this.cv.style.height = h + 'px';
+    this.cv.style.left = Math.floor((vw - w) / 2) + 'px';
+    this.cv.style.top = Math.floor((vh - h) / 2) + 'px';
     this.initRain();
     if (!this.grain) this.buildGrain();
     if (this.onResize) this.onResize();
@@ -339,8 +693,11 @@ class Engine {
 
   initRain() {
     this.drops.length = 0;
-    const n = Math.floor((this.W * this.H) / 5200);
-    for (let i = 0; i < n; i++) this.drops.push({ x: Math.random() * (this.W + 200) - 100, y: Math.random() * this.H, len: 8 + Math.random() * 16, sp: 9 + Math.random() * 9 });
+    // size + count track the scene scale (k = 1 at a 1080p landscape screen), so rain looks exactly
+    // like 1080p everywhere instead of becoming a flood of fine pixels on a big window.
+    const k = Math.min(this.W, this.H) / 1080;
+    const n = Math.floor((this.W * this.H) / (5200 * k * k));
+    for (let i = 0; i < n; i++) this.drops.push({ x: Math.random() * (this.W + 200) - 100, y: Math.random() * this.H, len: (8 + Math.random() * 16) * k, sp: (9 + Math.random() * 9) * k });
   }
   buildGrain() {
     const g = document.createElement('canvas'); g.width = g.height = 220;
@@ -355,25 +712,38 @@ class Engine {
     f.W = this.W; f.H = this.H; f.unit = Math.min(this.W, this.H) / 360;
     f.t = now / 1000; f.dt = Math.min((now - this.last) / 1000, 0.05);
     f.main = this.ctx; f.light = this.lightCtx; f.shadow = this.shadowCtx; f.ctx = this.ctx;
-    f.drops = this.drops; f.grain = this.grain; f.DPR = this.DPR;
+    f.drops = this.drops; f.grain = this.grain; f.DPR = this.DPR; f.ls = this.ls;
     this.last = now;
     return f;
   }
 
-  // device-pixel transform helpers (buffers + main share the same backing size)
-  setWorldTransform(ctx) { ctx.setTransform(this.DPR, 0, 0, this.DPR, 0, 0); }
+  // transform helpers. World drawing maps LOGICAL units -> device pixels through DPR * ls (the world
+  // is authored at REF_H tall and scaled to the real band), so all draw code is resolution agnostic.
+  // Device drawing (buffer-to-buffer blits, the shadow tint, the crossfade) is 1:1, no logical scale.
+  setWorldTransform(ctx) { const k = this.DPR * this.ls; ctx.setTransform(k, 0, 0, k, 0, 0); }
   setDeviceTransform(ctx) { ctx.setTransform(1, 0, 0, 1, 0, 0); }
 
   // freeze the current on-screen frame so the next beat can crossfade out of it
   snapshot() { this.snapCtx.setTransform(1, 0, 0, 1, 0, 0); this.snapCtx.clearRect(0, 0, this.snapCv.width, this.snapCv.height); this.snapCtx.drawImage(this.cv, 0, 0); }
 
+  // freeze the play clock (used by the orientation gate). Time stops, so the story holds its frame
+  // and resumes without a jump when landscape returns.
+  pause() { if (this.paused) return; this.paused = true; this._pauseAt = performance.now(); }
+  resume() { if (!this.paused) return; this.paused = false; this.pauseOffset += performance.now() - this._pauseAt; }
+
   run(onTick) {
     this.last = performance.now();
-    const loop = now => { requestAnimationFrame(loop); onTick(this.syncFrame(now), now); };
+    const loop = now => {
+      requestAnimationFrame(loop);
+      if (this.paused) return;                 // hold the last frame, advance no time
+      const pt = now - this.pauseOffset;        // the play clock: wall time minus all paused spans
+      onTick(this.syncFrame(pt), pt);
+    };
     requestAnimationFrame(loop);
   }
 }
 
+__exports.REF_H = REF_H;
 __exports.Engine = Engine;
 };
 __mod["src/engine/frame.js"] = function(__exports, __req){
@@ -388,7 +758,7 @@ const L = __req("src/render/lighting.js");
 
 class Frame {
   constructor() {
-    this.W = this.H = 0; this.unit = 1; this.t = 0; this.dt = 0;
+    this.W = this.H = 0; this.unit = 1; this.t = 0; this.dt = 0; this.DPR = 1; this.ls = 1;
     this.world = this.light = this.shadow = this.main = null;  // the four 2d contexts (world, light buffer, shadow buffer, main)
     this.ctx = null;                              // active draw target (set per pass)
     this.scene = null;                            // active Scene
@@ -465,7 +835,9 @@ const ANIM = {
   swaySpeed: 1.1, walkSpeed: 2.2, emberSpeed: 6, flickerSpeed: 9,
   rainAlpha: 0.35, grainAlpha: 0.015, grainAlphaEnd: 0.15, vignette: 0.7, parallaxLerp: 0.08,
   boltGap: [5, 13],
-  transIn: 2.0, transOut: 1.6, cardHold: 1.7,   // scene-transition speed: higher in/out = faster wipe; cardHold = act-card dwell (s)
+  transIn: 2.0, transOut: 1.6, cardHold: 2.0,   // scene-transition speed: higher in/out = faster wipe; cardHold = act-card dwell (s)
+  openCardHold: 2.8,                             // the first act card (right after the story title) lingers a touch longer
+  titleHold: 3.4,                                // opening story-title card dwell (s), spans the fullscreen toast
 };
 
 __exports.PALETTE = PALETTE;
@@ -685,12 +1057,20 @@ function drawBeam(c, t, x, y, ew, col, b) {
   const farW = b.farW != null ? b.farW : (b.spread != null ? len * Math.tan(b.spread) : len * 0.45);
   const I = b.I != null ? b.I : 1, fx = x + ax * len, fy = y + ay * len;
   const g = c.createLinearGradient(x, y, fx, fy);
-  g.addColorStop(0, `rgba(${col},${0.30 * I})`); g.addColorStop(0.5, `rgba(${col},${0.10 * I})`); g.addColorStop(1, `rgba(${col},0)`);
+  // carry the light most of the way down the shaft instead of dying at half length, so the beam reads
+  // as throwing light in its direction rather than fading into the air just past the source.
+  g.addColorStop(0, `rgba(${col},${0.34 * I})`); g.addColorStop(0.6, `rgba(${col},${0.18 * I})`); g.addColorStop(1, `rgba(${col},${0.06 * I})`);
   c.save(); c.globalCompositeOperation = 'lighter'; c.fillStyle = g;
   c.beginPath();
   c.moveTo(x - pxv * nearW, y - pyv * nearW); c.lineTo(x + pxv * nearW, y + pyv * nearW);
   c.lineTo(fx + pxv * farW, fy + pyv * farW); c.lineTo(fx - pxv * farW, fy - pyv * farW);
-  c.closePath(); c.fill(); c.restore();
+  c.closePath(); c.fill();
+  // a soft pool where the beam lands, so the light reads as cast onto the surface at the end of the
+  // throw (the floor under a lamp, the table under a hanging bulb), not just hanging in the air.
+  const lp = c.createRadialGradient(fx, fy, 0, fx, fy, farW * 1.4);
+  lp.addColorStop(0, `rgba(${col},${0.18 * I})`); lp.addColorStop(1, `rgba(${col},0)`);
+  c.fillStyle = lp; c.beginPath(); c.ellipse(fx, fy, farW * 1.4, farW * 0.7, 0, 0, Math.PI * 2); c.fill();
+  c.restore();
 }
 function beam(e, L) { drawBeam(e.light, e.t, L.x, L.y, L.ew, L.col, L.beam); }
 
@@ -820,6 +1200,202 @@ __exports.AMBIENT = AMBIENT;
 __exports.WASH = WASH;
 __exports.ENV = ENV;
 };
+__mod["src/engine/viewport.js"] = function(__exports, __req){
+// VIEWPORT — keeps the story in a wide, fullscreen, landscape frame, degrading gracefully so it
+// works on every phone and browser:
+//   1. Letterbox (always works): the engine sizes the canvas to a target aspect band [ASPECT_MIN,
+//      ASPECT_MAX], so a too-tall screen gets bars top and bottom and a too-wide one gets bars left
+//      and right. Pure canvas sizing plus CSS, no browser feature needed, this is the fallback.
+//   2. Immersion gate (touch devices): starting a story tries to enter fullscreen and lock to
+//      landscape (the lock is fullscreen scoped and releases on exit). If the screen is not yet
+//      fullscreen + landscape, a prompt offers a FULLSCREEN button (or a rotate hint where fullscreen
+//      is impossible), and a "watch anyway" fallback plays letterboxed. Once immersion is reached or
+//      skipped, a broken state mid story is non-blocking: it letterboxes and shows a HUD button.
+//   3. Platform reality: where element fullscreen does not exist (iPhone Safari) the target relaxes
+//      to landscape only, and the bundled web app manifest gives true fullscreen from the home
+//      screen. Desktop never auto-prompts, it offers fullscreen from the menu and letterboxes if tall.
+const ASPECT_MIN = 16 / 10;       // below this the screen is too tall: bars top and bottom
+const ASPECT_MAX = 2.6;           // above this the screen is too wide: bars left and right. Loose
+                                         // on purpose, normal desktops (a 1080p minus the dock and
+                                         // browser chrome runs ~2.2), modern phones in landscape
+                                         // (up to 23:9, about 2.56) and 21:9 monitors all fill. Only
+                                         // genuinely extreme ultrawides (32:9, about 3.55) pillarbox
+const SKIP_DELAY = 4000;                 // wait before the prompt offers the "watch anyway" fallback
+
+// immersion helpers. matchMedia is wrapped because a few old engines throw on unknown queries.
+const mq = q => { try { return matchMedia(q).matches; } catch (e) { return false; } };
+
+// a device counts as rotatable if it is touch first (a phone or tablet that can physically turn)
+function isRotatable() {
+  return mq('(pointer: coarse)') || navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+}
+function isFullscreen() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+// an installed app (home-screen PWA), NOT element fullscreen via the API: the (display-mode: fullscreen)
+// query matches both, so exclude the API case (which sets document.fullscreenElement) or the fullscreen
+// toggle would vanish the instant you entered fullscreen, leaving no way out.
+function isStandalone() {
+  if (isFullscreen()) return false;
+  return mq('(display-mode: fullscreen)') || mq('(display-mode: standalone)') || navigator.standalone === true;
+}
+// can we actually put an element into fullscreen? Test for a request method on the root, not
+// document.fullscreenEnabled: iPhone Safari reports that flag for video but cannot fullscreen a
+// canvas, which would trap the gate forever. No request method means relax the target to landscape.
+function canFullscreen() {
+  const root = document.documentElement;
+  return !!(root.requestFullscreen || root.webkitRequestFullscreen) && !isStandalone();
+}
+// Prefer the Screen Orientation API, which is authoritative the instant a lock resolves, over
+// innerWidth/innerHeight, which lag a frame or two behind the reflow and caused the prompt to flash.
+// Fall back to the window size where the API is absent.
+function landscape() {
+  const o = window.screen && screen.orientation;
+  if (o && typeof o.type === 'string' && o.type) return o.type.indexOf('landscape') === 0;
+  return innerWidth >= innerHeight;
+}
+
+// the immersion target adapts to the platform: a real fullscreen where we can reach one, otherwise
+// the best we can do (landscape) on engines with no element fullscreen, such as iPhone Safari. A
+// home-screen PWA is already fullscreen, so there only landscape is needed.
+function isImmersive() {
+  if (isStandalone()) return landscape();
+  if (canFullscreen()) return isFullscreen() && landscape();
+  return landscape();
+}
+
+class Viewport {
+  constructor(engine) {
+    this.engine = engine;
+    this.rotatable = isRotatable();
+    this.overlay = null; this.skipBtn = null; this.fsBtn = null;
+    this.experienceStarted = false;   // ENTER pressed, a story is on its way in
+    this.storyStarted = false;        // onStart has fired (the play clock is live)
+    this.gatePassed = false;          // immersion reached, or "watch anyway" chosen, at least once
+    this.gateBlocked = false;         // the immersion prompt is up
+    this.menuPaused = false;          // a menu/modal is open (the pause menu)
+    this.onStart = null;              // boot wires this to manager.requestStart
+    this.onPause = null;              // boot wires this to Audio2.suspend (full story pause)
+    this.onResume = null;             // boot wires this to Audio2.resumeAll
+    this._skipTimer = null; this._settleTimer = null;
+    const reeval = () => this.scheduleEvaluate();
+    addEventListener('resize', reeval);
+    addEventListener('orientationchange', reeval);
+    addEventListener('fullscreenchange', reeval);
+    addEventListener('webkitfullscreenchange', reeval);
+    if (window.screen && screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', reeval);
+  }
+
+  // overlay = the immersion prompt, skip = its "watch anyway", fsCta = its FULLSCREEN button,
+  // fsBtn = the in-story HUD fullscreen button
+  attach({ overlay, skip, fsCta, fsBtn }) {
+    this.overlay = overlay; this.skipBtn = skip; this.fsBtn = fsBtn;
+    if (skip) skip.addEventListener('click', () => { this.gatePassed = true; this.evaluate(); });
+    if (fsCta) fsCta.addEventListener('click', () => this.enter());
+    if (fsBtn) fsBtn.addEventListener('click', () => this.toggleFullscreen());
+  }
+
+  // enter the immersive view: fullscreen, then lock to landscape. The lock is fullscreen scoped and
+  // releases by itself when fullscreen ends, it is not a persistent global lock. Both are guarded,
+  // so an unsupported call is simply a no-op and the prompt handles the rest.
+  async enter() {
+    const root = document.documentElement;
+    const fs = root.requestFullscreen || root.webkitRequestFullscreen;
+    // skip requestFullscreen when already fullscreen or running as an installed PWA, it would be
+    // redundant and re-trigger Chrome's "swipe to exit" toast. (An installed PWA is fullscreen with
+    // no Fullscreen API call, so it never shows that toast at all.)
+    try { if (fs && !isFullscreen() && !isStandalone()) await fs.call(root); } catch (e) {}
+    try { if (window.screen && screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch (e) {}
+    this.evaluate();
+  }
+  exit() {
+    try { const x = document.exitFullscreen || document.webkitExitFullscreen; if (x && isFullscreen()) x.call(document); } catch (e) {}
+    this.scheduleEvaluate();
+  }
+  toggleFullscreen() { if (isFullscreen()) this.exit(); else this.enter(); }
+  fullscreenOn() { return isFullscreen(); }
+
+  // ENTER pressed: on a touch device try to go straight into the immersive view (the tap is the user
+  // gesture fullscreen needs). Where that cannot or will not happen, evaluate() raises the prompt.
+  async beginStory() {
+    this.experienceStarted = true;
+    if (this.rotatable) await this.enter(); else this.evaluate();
+  }
+
+  // back to the start screen: leave fullscreen and reset the gate so it runs again next time
+  reset() {
+    this.experienceStarted = false; this.storyStarted = false; this.gatePassed = false;
+    this.gateBlocked = false; this.menuPaused = false;
+    this.hideOverlay(); this.engine.resume(); this.exit();
+  }
+
+  // the play clock + audio pause while the immersion prompt is up OR a menu/modal is open. One
+  // coordinator so the gate and the pause menu never fight over the engine. All calls are idempotent.
+  applyPause() {
+    if (this.gateBlocked || this.menuPaused) { this.engine.pause(); if (this.onPause) this.onPause(); }
+    else { this.engine.resume(); if (this.onResume) this.onResume(); }
+  }
+  setMenuPaused(on) { this.menuPaused = on; this.applyPause(); }
+
+  // the gate only blocks on a touch device that has not yet reached immersion (or chosen to skip).
+  // After that, a broken immersion mid story is non-blocking: it letterboxes and shows the HUD button.
+  blocked() { return this.rotatable && !this.gatePassed && !isImmersive(); }
+
+  // orientation + fullscreen changes can fire a burst of events, so settle briefly before judging
+  scheduleEvaluate() {
+    if (!this.experienceStarted) return;
+    clearTimeout(this._settleTimer);
+    this._settleTimer = setTimeout(() => this.evaluate(), 220);
+  }
+
+  // Judge immediately: the orientation comes from the Screen Orientation API (authoritative the moment
+  // a lock resolves), so there is no layout-size lag to wait out, the prompt covers the scene at once.
+  evaluate() {
+    if (!this.experienceStarted) return;
+    if (isImmersive()) this.gatePassed = true;
+    this.gateBlocked = this.blocked();
+    if (this.gateBlocked) this.showOverlay();
+    else {
+      this.hideOverlay();
+      if (!this.storyStarted) { this.storyStarted = true; if (this.onStart) this.onStart(); }
+    }
+    this.applyPause();
+    this.updateFsBtn();
+  }
+
+  // HUD fullscreen toggle: shown while playing on any device that can fullscreen (hidden during the
+  // gate prompt). Click enters or exits fullscreen.
+  updateFsBtn() {
+    if (!this.fsBtn) return;
+    this.fsBtn.classList.toggle('show', this.storyStarted && canFullscreen() && !this.blocked());   // a HUD enter/exit toggle, any device that can fullscreen
+    this.fsBtn.title = isFullscreen() ? 'exit fullscreen' : 'fullscreen';
+  }
+
+  // the prompt adapts: where fullscreen is possible it leads with the FULLSCREEN button, otherwise it
+  // becomes a rotate-your-phone hint (the .no-fs class swaps the copy and hides the button via CSS)
+  showOverlay() {
+    if (!this.overlay) return;
+    this.overlay.classList.toggle('no-fs', !canFullscreen());
+    if (this.overlay.classList.contains('show')) return;
+    this.overlay.classList.add('show');
+    if (this.skipBtn) {
+      this.skipBtn.classList.remove('show');
+      clearTimeout(this._skipTimer);
+      this._skipTimer = setTimeout(() => this.skipBtn.classList.add('show'), SKIP_DELAY);
+    }
+  }
+
+  hideOverlay() {
+    if (!this.overlay) return;
+    this.overlay.classList.remove('show');
+    clearTimeout(this._skipTimer);
+  }
+}
+
+__exports.ASPECT_MIN = ASPECT_MIN;
+__exports.ASPECT_MAX = ASPECT_MAX;
+__exports.isRotatable = isRotatable;
+__exports.isImmersive = isImmersive;
+__exports.Viewport = Viewport;
+};
 __mod["src/scene/manager.js"] = function(__exports, __req){
 // MANAGER — the flow controller. Owns the camera, the compositor, the list of scenes, the
 // transition state machine, the establishing shot, narration (captions + fx), and the scene
@@ -831,6 +1407,10 @@ const { Scene } = __req("src/scene/scene.js");
 const { Audio2 } = __req("src/assets/audio.js");
 const { lerp, smooth01 } = __req("src/engine/math.js");
 const { ANIM } = __req("src/style/palette.js");
+const { capKeyframes } = __req("src/scene/captionfx.js");
+
+const CAP_VARIANTS = ['lr', 'rl', 'co'];   // narration render directions, chosen deterministically per line
+const CAP_IN_MS = 1150, CAP_OUT_MS = 460;  // narration render-in / wipe-out durations
 
 class Manager {
   constructor(engine) {
@@ -863,6 +1443,10 @@ class Manager {
 
   requestStart() { this._startReq = true; }
 
+  // tear down a run and return to the unstarted state (used by "back to start menu"), so a fresh
+  // ENTER replays the story from act one instead of needing a page reload
+  reset() { this.started = false; this._startReq = false; this.loadStory(this.story); }
+
   tick(e) {
     e.scene = this.current;
     this.current.ensureGeometry(e);
@@ -878,9 +1462,14 @@ class Manager {
   }
 
   doStart(e) {
-    this.started = true; this.seen = []; this.navShown = false; this.opening = true;
-    this.finishing = false; this.ended = false;
-    this.transAlpha = 1; this.enterScene(0, e); this.transState = 'card'; this.cardT = 0;
+    this.started = true; this.seen = []; this.navShown = false; this.opening = false;
+    this.finishing = false; this.ended = false; document.body.classList.remove('ended');
+    this.transAlpha = 1;
+    // open on the story-name card (act-card style) before any audio or scene runs. titleHold spans
+    // the browser's fullscreen toast, so the story proper begins once that has gone.
+    this.titleText = ((this.story && (this.story.subtitle || this.story.title)) || '').replace(/&nbsp;/g, ' ');
+    if (this.titleText) { this.transState = 'title'; this.cardT = 0; }
+    else { this.opening = true; this.cardDur = ANIM.openCardHold; this.enterScene(0, e); this.transState = 'card'; this.cardT = 0; }
   }
 
   // establishing shot: open wide and push in to the framed view. The zoom goes below 1 (a true
@@ -895,16 +1484,24 @@ class Manager {
   }
 
   runFlow(e) {
+    if (this.transState === 'title') {                 // opening story-title card, then the story proper begins
+      this.cardT += e.dt;
+      if (this.cardT >= ANIM.titleHold) {
+        if (this.onBegin) this.onBegin();              // start audio only now, as the first act opens
+        this.opening = true; this.cardDur = ANIM.openCardHold; this.enterScene(0, e); this.transState = 'card'; this.cardT = 0;
+      }
+      return;
+    }
     if (this.transState === 'in') {
       this.transAlpha += e.dt * ANIM.transIn;
       if (this.transAlpha >= 1) {
         this.transAlpha = 1;
         if (this.finishing) { this.finishing = false; this.ended = true; this.transState = null; this.transAlpha = 0; this.revealNav(); Audio2.whoosh(); }  // last act done: cut to the black THE END screen + scene picker
-        else { this.enterScene(this.pending, e); this.transState = 'card'; this.cardT = 0; }
+        else { this.enterScene(this.pending, e); this.cardDur = ANIM.cardHold; this.transState = 'card'; this.cardT = 0; }
       }
     } else if (this.transState === 'card') {
       this.cardT += e.dt;
-      if (this.cardT >= ANIM.cardHold) { this.current.sceneStart = e.t; this.showLine(e); this.showTag(); this.transState = 'out'; }
+      if (this.cardT >= (this.cardDur || ANIM.cardHold)) { this.current.sceneStart = e.t; this.showLine(e); this.showTag(); this.transState = 'out'; }
     } else if (this.transState === 'out') {
       this.transAlpha -= e.dt * ANIM.transOut;
       if (this.transAlpha <= 0) { this.transAlpha = 0; this.transState = null; }
@@ -916,11 +1513,12 @@ class Manager {
     this.fadeT = null;                                  // no stale beat-crossfade bleeding into a new act
     Audio2.scene(this.current.data); Audio2.whoosh();   // swap ambience + play the swoosh as the act-name card renders
     if (!this.seen.includes(idx)) this.seen.push(idx);
-    if (this.navShown) this.highlightNav();
+    this.highlightNav();   // keep the current act marked in the picker, open or not
   }
 
-  // the scene picker, revealed on THE END so any act can be replayed
-  revealNav() { this.navShown = true; if (this.dom.nav) this.dom.nav.classList.add('show'); this.highlightNav(); }
+  // on THE END, unlock the act picker (hidden until the story is finished once) and drop it open
+  revealNav() { this.navShown = true; if (this.dom.actsel) this.dom.actsel.classList.add('unlocked'); document.body.classList.add('acts-unlocked', 'ended'); this.openNav(true); this.highlightNav(); }
+  openNav(on) { if (this.dom.nav) this.dom.nav.classList.toggle('open', on); if (this.dom.act) this.dom.act.classList.toggle('open', on); }
   highlightNav() { if (this.dom.nav) this.dom.nav.querySelectorAll('button').forEach(b => b.classList.toggle('cur', +b.dataset.s === this.idx)); }
 
   advance() {
@@ -936,7 +1534,7 @@ class Manager {
   jumpTo(idx) {
     if (!this.started || this.transState) return;
     if (idx === this.idx && !this.ended) return;
-    this.ended = false; this.finishing = false;
+    this.ended = false; this.finishing = false; document.body.classList.remove('ended');   // leaving THE END: back to the top-left toggle
     Audio2.duck(0.8);
     this.pending = idx; this.transState = 'in';
   }
@@ -947,7 +1545,22 @@ class Manager {
   showLine(e) {
     const s = this.current, line = s.data.script[s.lineIdx]; s.lineStart = e.t;
     const cap = this.dom.cap;
-    if (cap) { cap.style.opacity = '0'; setTimeout(() => { cap.innerHTML = line.text; cap.style.opacity = '1'; }, 170); }
+    if (cap) {
+      const wasShown = this._capShown, prev = this._capSpec;   // a line is already up: wipe it out first
+      if (wasShown && prev) {
+        cap.getAnimations().forEach(a => a.cancel()); cap.style.opacity = '1';
+        cap.animate(capKeyframes(prev.variant, prev.seed, 'out'), { duration: CAP_OUT_MS, easing: 'ease-in', fill: 'forwards' });
+      }
+      // direction + torn-edge profile are deterministic from act + line, so a replay always matches
+      const variant = CAP_VARIANTS[(this.idx * 31 + s.lineIdx) % CAP_VARIANTS.length];
+      const seed = this.idx * 1009 + s.lineIdx + 1;
+      setTimeout(() => {
+        cap.innerHTML = line.text; cap.style.opacity = '1';
+        cap.getAnimations().forEach(a => a.cancel());
+        cap.animate(capKeyframes(variant, seed, 'in'), { duration: CAP_IN_MS, easing: 'cubic-bezier(0.25, 0.6, 0.3, 1)', fill: 'forwards' });
+        this._capSpec = { variant, seed }; this._capShown = true;
+      }, wasShown ? CAP_OUT_MS - 20 : 0);
+    }
     for (const fx of (line.fx || [])) {
       if (fx === 'muzzle') { s.flags.muzzle = 1.0; s.fireGun(e); this.camera.shake(6); }
       else if (fx === 'blood') { s.flags.blood = true; s.flags._bloodT = e.t; }
@@ -960,18 +1573,22 @@ class Manager {
   showTag() { const t = this.dom.tag; if (!t) return; t.innerHTML = this.current.title; t.style.opacity = '0.85'; clearTimeout(this._tag); this._tag = setTimeout(() => t.style.opacity = '0', 2600); }
 
   applyOverlayVisibility() {
-    const covering = this.transState === 'in' || this.transState === 'card';
-    if (this.dom.cap && (covering || this.ended)) this.dom.cap.style.opacity = '0';   // no caption over THE END
+    const covering = this.transState === 'in' || this.transState === 'card' || this.transState === 'title';
+    if (this.dom.cap && (covering || this.ended)) {   // no caption over a wipe or THE END
+      if (this._capShown) { this.dom.cap.getAnimations().forEach(a => a.cancel()); this._capShown = false; }
+      this.dom.cap.style.opacity = '0';
+    }
     if (this.dom.tap) this.dom.tap.style.opacity = (covering || this.ended) ? '0' : (this.started ? '1' : '0');
   }
 
   buildSceneNav() {
     const nav = this.dom.nav; if (!nav) return;
-    nav.innerHTML = ''; nav.classList.remove('show'); this.navShown = false;
+    nav.innerHTML = ''; this.openNav(false); this.navShown = false;
+    if (this.dom.actsel) this.dom.actsel.classList.remove('unlocked'); document.body.classList.remove('acts-unlocked', 'ended');   // re-lock until this story is finished again
     (this.scenes || []).forEach((s, i) => {
       const b = document.createElement('button'); b.dataset.s = i;
       b.innerHTML = (s.data.title || ('SCENE ' + i)).replace(/&nbsp;/g, ' ');
-      b.addEventListener('click', () => this.jumpTo(i));
+      b.addEventListener('click', () => { this.jumpTo(i); this.openNav(false); });   // pick an act, then collapse the drawer
       nav.appendChild(b);
     });
   }
@@ -1375,8 +1992,8 @@ function weather(e) {
 }
 
 function rain(e, bloodRain) {
-  const c = e.ctx, drops = e.drops, drift = [], lit = !bloodRain && e.lights.length > 0;
-  c.lineWidth = bloodRain ? 1.6 : 1.1;   // blood rain falls heavier
+  const c = e.ctx, drops = e.drops, drift = [], lit = !bloodRain && e.lights.length > 0, k = e.unit / 3;
+  c.lineWidth = (bloodRain ? 1.6 : 1.1) * k;   // blood rain falls heavier; width tracks the scene scale (1 at 1080p)
   c.strokeStyle = bloodRain ? `rgba(168,8,16,${ANIM.rainAlpha + 0.22})` : `rgba(180,190,210,${ANIM.rainAlpha})`;
   c.beginPath();
   for (let i = 0; i < drops.length; i++) {
@@ -1442,7 +2059,7 @@ const { ANIM } = __req("src/style/palette.js");
 
 function transition(e) {
   const f = e.flow;
-  if (f.transState === 'card') { panelWipe(e, 1); drawCard(e); }
+  if (f.transState === 'card' || f.transState === 'title') { panelWipe(e, 1); drawCard(e); }
   else if (f.transAlpha > 0) panelWipe(e, f.transAlpha);
   if (f.finishing || f.ended) drawEnd(e);   // rises over the closing wipe and stays through the reveal
 }
@@ -1476,12 +2093,17 @@ function panelWipe(e, p) {
   c.restore();
 }
 
+// the act-name title card, reused for the opening story-title card ('title' state). The opening one
+// shows the story name from f.titleText and dwells longer (titleHold).
 function drawCard(e) {
-  const c = e.ctx, f = e.flow, title = (e.scene.data.title || '').replace(/&nbsp;/g, ' '), hold = ANIM.cardHold;
+  const c = e.ctx, f = e.flow, isTitle = f.transState === 'title', hold = isTitle ? ANIM.titleHold : (f.cardDur || ANIM.cardHold);
+  const title = isTitle ? (f.titleText || '') : (e.scene.data.title || '').replace(/&nbsp;/g, ' ');
   let a = 1; if (f.cardT < 0.3) a = f.cardT / 0.3; else if (f.cardT > hold - 0.3) a = Math.max(0, (hold - f.cardT) / 0.3);
   c.save(); c.globalAlpha = a; c.fillStyle = '#f3f0e6'; c.textAlign = 'center'; c.textBaseline = 'middle';
-  c.font = `600 ${Math.round(Math.min(e.W, e.H) * 0.07)}px "Oswald",sans-serif`;
   if ('letterSpacing' in c) c.letterSpacing = '0.32em';
+  let fs = Math.round(Math.min(e.W, e.H) * (isTitle ? 0.06 : 0.07));   // story names run longer than act names
+  c.font = `600 ${fs}px "Oswald",sans-serif`;
+  while (fs > 12 && c.measureText(title).width > e.W * 0.84) { fs -= 2; c.font = `600 ${fs}px "Oswald",sans-serif`; }
   c.fillText(title, e.W / 2, e.H / 2);
   if ('letterSpacing' in c) c.letterSpacing = '0px';
   c.restore();
@@ -1754,7 +2376,7 @@ __mod["src/assets/audio.js"] = function(__exports, __req){
 // A story with no audio block is silent, so sounds never bleed between stories.
 const Audio2 = (() => {
   const A = 'assets/audio/';
-  let on = true, started = false, cfg = null;
+  let on = true, started = false, cfg = null, suspended = false;
   let music = null, rain = null, amb = null;
   const pools = {}, loops = {};
 
@@ -1774,7 +2396,9 @@ const Audio2 = (() => {
     }, 30);
   }
 
-  function resume(a) { if (!a || !on || !started) return; if (a._start && a.currentTime < a._start) { try { a.currentTime = a._start; } catch (e) {} } a.play().catch(() => {}); }
+  // the single choke point for starting a persistent sound. It refuses while suspended (gate/menu),
+  // so nothing, including a sound toggle, can bring audio back until resumeAll lifts the suspend.
+  function resume(a) { if (!a || !on || !started || suspended) return; if (a._start && a.currentTime < a._start) { try { a.currentTime = a._start; } catch (e) {} } a.play().catch(() => {}); }
 
   function setStory(c) {
     [music, rain, amb].forEach(stop); music = rain = amb = null;
@@ -1821,14 +2445,32 @@ const Audio2 = (() => {
       a.volume = tgt; if (a.paused) a.play().catch(() => {});
     } else if (a && !a.paused) ramp(a, 0, 0.4);   // animation ended: fade out + pause
   }
+  // full pause for the orientation gate: hold every sound where it is. The persistent loops
+  // (music, rain, ambience, active animation loops) remember they were playing so resumeAll can
+  // bring them back. One-shots are just silenced, they are transient and re-fire on their own.
+  function suspend() {
+    if (suspended) return; suspended = true;
+    const keep = [music, rain, amb]; for (const k in loops) keep.push(loops[k]);
+    for (const a of keep) { if (a && !a.paused) { a._wasPlaying = true; try { a.pause(); } catch (e) {} } }
+    for (const k in pools) for (const a of pools[k].pool) { try { a.pause(); } catch (e) {} }
+  }
+  function resumeAll() {
+    if (!suspended) return; suspended = false;
+    if (!on || !started) return;
+    const keep = [music, rain, amb]; for (const k in loops) keep.push(loops[k]);
+    for (const a of keep) { if (a && a._wasPlaying) { a._wasPlaying = false; a.play().catch(() => {}); } }
+  }
   function toggle() {
     on = !on;
+    // while suspended (the gate or pause menu is up) only record the choice, do not start playback.
+    // resumeAll will apply it, respecting `on`, when the story resumes.
+    if (suspended) { if (!on) for (const k in loops) stop(loops[k]); return on; }
     [music, rain, amb].forEach(a => { if (a) { a.volume = on ? a._v : 0; if (on) resume(a); else stop(a); } });
     if (!on) for (const k in loops) stop(loops[k]);
     return on;
   }
   return {
-    setStory, start, scene, play, setLoop, stopLoops, duck, toggle, isOn: () => on,
+    setStory, start, scene, play, setLoop, stopLoops, duck, toggle, suspend, resumeAll, isOn: () => on,
     gun: () => play('gunshot', 1, 0.97 + Math.random() * 0.06),
     gunCock: () => play('hammer'),
     shellClink: () => play('shell', 0.8 + Math.random() * 0.3, 0.95 + Math.random() * 0.1),
@@ -1848,21 +2490,23 @@ __mod["src/library/effects/ripples.js"] = function(__exports, __req){
 class Ripples {
   constructor() { this.list = []; }
   spawn(e) {
-    const x = Math.random() * e.W, y = e.gy + Math.random() * (e.H - e.gy) * 0.9, blood = e.scene.data.bloodRain;
+    // size + growth track the scene scale (k = 1 at a 1080p screen), so a ripple looks like 1080p
+    // everywhere instead of being huge on a phone and a speck on a desktop.
+    const k = e.unit / 3, x = Math.random() * e.W, y = e.gy + Math.random() * (e.H - e.gy) * 0.9, blood = e.scene.data.bloodRain;
     const col = blood ? [220, 24, 34] : e.litColor(x, 150, 162, 180);
-    this.list.push({ x, y, r: 1, max: 10 + Math.random() * 26, life: 1, col, blood });
+    this.list.push({ x, y, r: k, max: (10 + Math.random() * 26) * k, gr: 34 * k, life: 1, col, blood });
   }
   clear() { this.list.length = 0; }
   update(dt) {
     for (let i = this.list.length - 1; i >= 0; i--) {
-      const p = this.list[i]; p.r += dt * 34; p.life -= dt * 1.1;
+      const p = this.list[i]; p.r += dt * p.gr; p.life -= dt * 1.1;
       if (p.life <= 0 || p.r > p.max) this.list.splice(i, 1);
     }
   }
   draw(e) {
-    const c = e.light; c.save(); c.globalCompositeOperation = 'lighter';
+    const c = e.light, k = e.unit / 3; c.save(); c.globalCompositeOperation = 'lighter';
     for (const p of this.list) {
-      c.globalAlpha = (p.blood ? 0.42 : 0.22) * p.life; c.strokeStyle = `rgb(${p.col[0]},${p.col[1]},${p.col[2]})`; c.lineWidth = p.blood ? 1.9 : 1.2;
+      c.globalAlpha = (p.blood ? 0.42 : 0.22) * p.life; c.strokeStyle = `rgb(${p.col[0]},${p.col[1]},${p.col[2]})`; c.lineWidth = (p.blood ? 1.9 : 1.2) * k;
       c.beginPath(); c.ellipse(p.x, p.y, p.r, p.r * 0.4, 0, 0, Math.PI * 2); c.stroke();
     }
     c.restore(); c.globalAlpha = 1;
@@ -1870,6 +2514,68 @@ class Ripples {
 }
 
 __exports.Ripples = Ripples;
+};
+__mod["src/scene/captionfx.js"] = function(__exports, __req){
+// CAPTION FX — builds the torn paper-cut reveal for a narration line as Web Animations keyframes.
+// The cut depths and segment lengths vary per line but are seeded, so a replay always draws the same
+// edge. Everything is capped (D_MAX, ROWS, SEG) so the tear stays tasteful and never goes crazy.
+const { rand32, clamp } = __req("src/engine/math.js");
+
+const D_MAX = 6;        // deepest a cut reaches in from the edge, % of width
+const ROWS = [7, 11];   // number of cut segments down the edge, min..max
+const SEG = [6, 26];    // each segment's length, min..max, % of height
+
+const r1 = v => +clamp(v, 0, 100).toFixed(1);
+
+// a per-line edge profile: row y positions (uneven) + two depth arrays (one per side for centre-out)
+function profile(rng) {
+  const n = ROWS[0] + Math.floor(rng() * (ROWS[1] - ROWS[0] + 1));
+  const segs = []; for (let i = 0; i < n - 1; i++) segs.push(0.5 + rng());
+  const sum = segs.reduce((a, b) => a + b, 0);
+  const ys = [0]; let acc = 0;
+  for (let i = 0; i < n - 1; i++) { acc += clamp(segs[i] / sum * 100, SEG[0], SEG[1]); ys.push(acc); }
+  const span = ys[ys.length - 1]; for (let i = 0; i < ys.length; i++) ys[i] = +(ys[i] / span * 100).toFixed(2);
+  const depths = () => ys.map((y, i) => (i === 0 || i === ys.length - 1) ? 0 : clamp(Math.pow(rng(), 1.4) * D_MAX, 0, D_MAX));
+  return { ys, dA: depths(), dB: depths() };
+}
+
+// a clip-path polygon from per-row left/right edge x positions, walked clockwise
+function poly(ys, lx, rx) {
+  const n = ys.length, p = [`${lx[0]}% 0%`, `${rx[0]}% 0%`];
+  for (let i = 1; i < n; i++) p.push(`${rx[i]}% ${ys[i]}%`);
+  p.push(`${lx[n - 1]}% 100%`);
+  for (let i = n - 2; i >= 1; i--) p.push(`${lx[i]}% ${ys[i]}%`);
+  return `polygon(${p.join(', ')})`;
+}
+
+// keyframes for one render: variant = lr | rl | co, mode = in | out. Same seed gives the same teeth
+// for a line's entrance and its exit, so the cut looks consistent.
+function capKeyframes(variant, seed, mode) {
+  const { ys, dA, dB } = profile(rand32(seed));
+  const n = ys.length;
+  const frame = (edge, offset) => {
+    const lx = [], rx = [];
+    for (let i = 0; i < n; i++) { const e = edge(i); lx.push(r1(e[0])); rx.push(r1(e[1])); }
+    return { clipPath: poly(ys, lx, rx), offset };
+  };
+
+  if (variant === 'co') {                                   // centre out: both edges torn, opening from the middle
+    const co = (H, s, o) => frame(i => { const eL = Math.min(dA[i] * s, H * 0.9), eR = Math.min(dB[i] * s, H * 0.9); return [50 - H + eL, 50 + H - eR]; }, o);
+    return mode === 'in'
+      ? [co(0.6, 0, 0), co(16, 1, 0.32), co(50, 1, 0.72), co(50, 0, 1)]
+      : [co(50, 0.6, 0), co(16, 1, 0.6), co(0.6, 0, 1)];
+  }
+  if (variant === 'rl') {                                   // right to left: a torn left edge sweeps across
+    return mode === 'in'
+      ? [frame(i => [(100 - D_MAX) + dA[i], 100], 0), frame(i => [dA[i], 100], 0.7), frame(i => [0, 100], 1)]
+      : [frame(i => [0, 100 - dA[i]], 0), frame(i => [0, D_MAX - dA[i]], 0.7), frame(i => [0, 0], 1)];
+  }
+  return mode === 'in'                                      // left to right (default): a torn right edge sweeps across
+    ? [frame(i => [0, D_MAX - dA[i]], 0), frame(i => [0, 100 - dA[i]], 0.7), frame(i => [0, 100], 1)]
+    : [frame(i => [dA[i], 100], 0), frame(i => [(100 - D_MAX) + dA[i], 100], 0.7), frame(i => [100, 100], 1)];
+}
+
+__exports.capKeyframes = capKeyframes;
 };
 __mod["src/library/index.js"] = function(__exports, __req){
 // LIBRARY — importing this registers every backdrop, light, actor, mover, prop and effect on
@@ -1939,19 +2645,23 @@ function buildSkyline(e, seed, cfgList, groundY) {
   return layers;
 }
 
-// Each layer's buildings + windows are static, so they are rendered once to an offscreen canvas
-// (at device resolution) and cached on the layer. Per frame we just blit that canvas at the
-// parallax offset, instead of re-running the building/window loops every frame.
+// Each layer's buildings + windows are static, so they are rendered once to an offscreen canvas and
+// cached on the layer. Per frame we just blit that canvas at the parallax offset, instead of
+// re-running the building/window loops every frame. The geometry is in LOGICAL units (e.W is the
+// logical band width, constant per aspect ratio), so the sprite is baked at the real device scale
+// DS = DPR * ls and blitted into a logical rect, staying pixel-crisp at any resolution while the
+// composition (building count + layout) stays identical when only the size changes.
 const PAD = 200;   // horizontal margin so parallax + zoom-out never reveal the sprite's edge
 function layerSprite(e, L) {
-  if (L._sprite && L._spriteW === e.W && L._spriteDPR === e.DPR) return L._sprite;
-  const DPR = e.DPR || 1, CW = e.W + PAD * 2, H = e.H;
-  const cv = document.createElement('canvas'); cv.width = Math.floor(CW * DPR); cv.height = Math.floor(H * DPR);
-  const c = cv.getContext('2d'); c.setTransform(DPR, 0, 0, DPR, 0, 0); c.translate(PAD, 0);
+  const DS = (e.DPR || 1) * (e.ls || 1);
+  if (L._sprite && L._spriteW === e.W && L._spriteDS === DS) return L._sprite;
+  const CW = e.W + PAD * 2, H = e.H;
+  const cv = document.createElement('canvas'); cv.width = Math.floor(CW * DS); cv.height = Math.floor(H * DS);
+  const c = cv.getContext('2d'); c.setTransform(DS, 0, 0, DS, 0, 0); c.translate(PAD, 0);
   c.fillStyle = L.shade;
   for (const b of L.blds) { c.fillRect(b.x, b.top, b.w, b.h + 6); if (b.cap) { if (b.cap.type === 'tank') { c.fillRect(b.cap.x - 7, b.top - 14, 14, 14); c.fillRect(b.cap.x - 9, b.top - 2, 18, 3); } else c.fillRect(b.cap.x - 1, b.top - 22, 2, 22); } }
   for (const b of L.blds) for (const wn of b.wins) { c.fillStyle = wn.warm ? PALETTE.warmWin : PALETTE.coolWin; c.fillRect(wn.x, wn.y, 4, 5); }
-  L._sprite = cv; L._spriteW = e.W; L._spriteDPR = e.DPR;
+  L._sprite = cv; L._spriteW = e.W; L._spriteDS = DS;
   return cv;
 }
 
@@ -1976,16 +2686,17 @@ const WARM = '255,224,164', COOL = '188,204,236';
 
 // bake the steady bloom for a layer (skips the live-flicker windows). Cached like the layer sprite.
 function glowSprite(e, L) {
-  if (L._glow && L._glowW === e.W && L._glowDPR === e.DPR) return L._glow;
-  const DPR = e.DPR || 1, CW = e.W + PAD * 2, r = 4.5;
-  const cv = document.createElement('canvas'); cv.width = Math.floor(CW * DPR); cv.height = Math.floor(e.H * DPR);
-  const c = cv.getContext('2d'); c.setTransform(DPR, 0, 0, DPR, 0, 0); c.translate(PAD, 0); c.globalCompositeOperation = 'lighter';
+  const DS = (e.DPR || 1) * (e.ls || 1);
+  if (L._glow && L._glowW === e.W && L._glowDS === DS) return L._glow;
+  const CW = e.W + PAD * 2, r = 4.5;
+  const cv = document.createElement('canvas'); cv.width = Math.floor(CW * DS); cv.height = Math.floor(e.H * DS);
+  const c = cv.getContext('2d'); c.setTransform(DS, 0, 0, DS, 0, 0); c.translate(PAD, 0); c.globalCompositeOperation = 'lighter';
   c.globalAlpha = 0.6;
   for (const b of L.blds) for (const wn of b.wins) {
     if (wn.flk != null) continue;                       // flicker windows are drawn live
     c.drawImage(softGlow(wn.warm ? WARM : COOL), wn.x - r, wn.y - r, r * 2, r * 2);
   }
-  L._glow = cv; L._glowW = e.W; L._glowDPR = e.DPR; return cv;
+  L._glow = cv; L._glowW = e.W; L._glowDS = DS; return cv;
 }
 
 // a failing-tube value 0..1: dark most of the time, then a short buzzing burst now and then
@@ -2169,7 +2880,7 @@ defineLight('lamp', {
     // the drawn bulb (x + 26, gy - 150), so the shaft starts at the lamp, not the lid. The floor wash
     // gives the pool where it lands.
     e.addLight({
-      x: X + 26 * s, y: e.gy - 150 * s, col: '255,250,225', r: 150 * (this.scale || 1), I: 0.5 * flick, ew: 6 * s, eh: 6 * s,
+      x: X + 26 * s, y: e.gy - 150 * s, col: '255,250,225', r: 50 * s, I: 0.5 * flick, ew: 6 * s, eh: 6 * s,
       glow: false,
       beam: { dir: 0, len: 150 * s, farW: 70 * s, I: flick },
     });
@@ -2194,11 +2905,12 @@ defineLight('neon', {
       if (!covering) { const st = e.sceneT(); flick = st < 0.4 ? 0.04 : (st < 1.9 ? (Math.sin(st * 34) > -0.1 ? flick : 0.12) : flick); if (st >= 0.4 && !e.flags._ign) { e.flags._ign = true; Audio2.neonZap(); } }
       else flick = 0.04;
     }
-    this._flick = flick; this._X = X; this._y = y;
-    const lx = X + this.w / 2 + (this.arrow ? this.h * 0.45 : 0), ly = y + this.h / 2;
-    e.addLight({ x: lx, y: ly, col: hexRgb(this.color), r: Math.max(this.w, this.h) * 1.8, I: 0.9 * flick, ew: this.w * 0.55, eh: this.h * 0.55 });
+    const u3 = e.unit / 3, w = this.w * u3, h = this.h * u3;   // sign + halo scale together (= 1080p sizes at 1080p)
+    this._flick = flick; this._X = X; this._y = y; this._w = w; this._h = h;
+    const lx = X + w / 2 + (this.arrow ? h * 0.45 : 0), ly = y + h / 2;
+    e.addLight({ x: lx, y: ly, col: hexRgb(this.color), r: Math.max(w, h) * 1.8, I: 0.9 * flick, ew: w * 0.55, eh: h * 0.55 });
   },
-  draw(e) { neonFixture(e.ctx, this._X, this._y, this.w, this.h, this.color, this.label, this._flick, this.arrow); },
+  draw(e) { neonFixture(e.ctx, this._X, this._y, this._w, this._h, this.color, this.label, this._flick, this.arrow); },
 });
 
 defineLight('bulb', {
@@ -2206,20 +2918,26 @@ defineLight('bulb', {
     const t = e.t, X = e.X(this), y = (this.y != null ? this.y : 0.5) * e.H;
     const flick = this.flicker ? (Math.sin(t * 30 + (this.seed || 0)) > -0.9 ? 1 : 0.4) * (0.85 + 0.15 * Math.sin(t * 7)) : 1;
     this._flick = flick; this._X = X; this._y = y;
-    e.addLight({ x: X, y, col: '255,244,210', r: 150, I: 0.6 * flick, ew: 5, eh: 5 });
+    const u3 = e.unit / 3;   // radius scales with the screen (= 1080p values at 1080p), so coverage is consistent
+    // a hanging bulb throws a soft cone DOWN onto whatever is below it (the table), so the surface it
+    // hangs over reads as lit, not just the bulb glowing. intensity now actually drives the light.
+    e.addLight({
+      x: X, y, col: '255,244,210', r: 160 * u3, I: 0.8 * (this.intensity || 1) * flick, ew: 5 * u3, eh: 5 * u3,
+      beam: { dir: 0, len: (e.gy - y) * 0.82, farW: 96 * u3, I: 0.6 * flick },
+    });
   },
   draw(e) {
-    const c = e.ctx, x = this._X, y = this._y, fl = (this.intensity || 1) * this._flick;
-    c.strokeStyle = e.palette.ink; c.lineWidth = 1; c.beginPath(); c.moveTo(x, y - 95); c.lineTo(x, y); c.stroke();
+    const c = e.ctx, x = this._X, y = this._y, fl = (this.intensity || 1) * this._flick, u3 = e.unit / 3;
+    c.strokeStyle = e.palette.ink; c.lineWidth = 1; c.beginPath(); c.moveTo(x, y - 95 * u3); c.lineTo(x, y); c.stroke();
     // the air glow comes from the lighting system (emitLight). This draws only the lit filament.
-    c.fillStyle = `rgba(255,246,220,${fl})`; c.shadowColor = '#fff'; c.shadowBlur = 16; c.beginPath(); c.arc(x, y, 3.5, 0, 7); c.fill(); c.shadowBlur = 0;
+    c.fillStyle = `rgba(255,246,220,${fl})`; c.shadowColor = '#fff'; c.shadowBlur = 16 * u3; c.beginPath(); c.arc(x, y, 3.5 * u3, 0, 7); c.fill(); c.shadowBlur = 0;
   },
 });
 
 defineLight('glow', {
   emitLight(e) {
-    const X = e.X(this), y = (this.y != null ? this.y : 0.5) * e.H, I = 0.5 * (this.intensity || 1);
-    e.addLight({ x: X, y, col: cssRgb(this.color), r: this.r, I, ew: this.r * 0.3, eh: this.r * 0.3 });
+    const X = e.X(this), y = (this.y != null ? this.y : 0.5) * e.H, I = 0.5 * (this.intensity || 1), r = this.r * e.unit / 3;
+    e.addLight({ x: X, y, col: cssRgb(this.color), r, I, ew: r * 0.3, eh: r * 0.3 });
   },
 });
 
@@ -2254,13 +2972,14 @@ __mod["src/library/actors/people.js"] = function(__exports, __req){
 const { defineActor } = __req("src/objects/registry.js");
 const { PALETTE, ANIM } = __req("src/style/palette.js");
 const { TWO_PI, lerp, smooth01 } = __req("src/engine/math.js");
-const { rimSign, bodyGrad, shade, ember, cigSmoke, drawFedora, drawPistol, muzzleFlash } = __req("src/library/shared.js");
+const { rimSign, bodyGrad, shade, shadeForm, ember, cigSmoke, drawFedora, drawPistol, muzzleFlash } = __req("src/library/shared.js");
 
 // cloth albedos (the cast's own material colours, noir-desaturated). bodyGrad shades from these, so
 // a dark suit stays dark under a bright light and the detective's pale trench lifts more.
 const TRENCH = [120, 112, 94], HEAVY = [54, 58, 66], PINSTRIPE = [44, 46, 56], SUIT = [66, 70, 80];
-// flat bright surfaces (shirt, bare skin) dimmed by the light through shade(), so an unlit figure goes dark
-const SHIRT = [207, 205, 195], BONE = [220, 220, 220], HAND = [188, 186, 176];
+// flat bright surfaces (shirt, bare skin, the motif red) lit through shade()/shadeForm(), so an unlit
+// figure goes dark and the red deepens in shadow instead of staying a fixed pure red.
+const SHIRT = [207, 205, 195], BONE = [220, 220, 220], HAND = [188, 186, 176], RED = [255, 0, 24];
 
 // a one-shot strike (from the legacy build): rises 0 -> 1 over `rise`, then decays over `fall`, so a
 // lighter ignites quickly and settles, instead of starting at full and fading linearly.
@@ -2282,7 +3001,7 @@ defineActor('trenchMan', function (e) {                       // detective: tren
   c.save(); c.translate(X + sway, gy);
   c.fillStyle = '#050608'; c.fillRect(-13 * s, -32 * s, 11 * s, 32 * s); c.fillRect(3 * s, -32 * s, 11 * s, 32 * s);
   c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-9 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(10 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.fill();
-  c.fillStyle = bodyGrad(c, 96, s, rim, TRENCH);
+  c.fillStyle = bodyGrad(c, 96, s, TRENCH);
   c.beginPath(); c.moveTo(-22 * s, -36 * s); c.lineTo(-18 * s, -92 * s); c.lineTo(18 * s, -92 * s); c.lineTo(22 * s, -36 * s); c.quadraticCurveTo(0, -28 * s, -22 * s, -36 * s); c.closePath(); c.fill();
   c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 1.5 * s; c.beginPath(); c.moveTo(2 * s, -90 * s); c.lineTo(5 * s, -38 * s); c.stroke();
   c.fillStyle = '#0c0d10'; c.fillRect(-20 * s, -58 * s, 40 * s, 6 * s); c.fillStyle = '#26282e'; c.fillRect(-4 * s, -58 * s, 8 * s, 6 * s);
@@ -2299,7 +3018,7 @@ defineActor('trenchMan', function (e) {                       // detective: tren
   // the inner-arm highlight (the crease of a bent arm) only shows as the arm bends to smoke
   c.strokeStyle = `rgba(150,160,178,${0.3 * aim})`; c.lineWidth = 1.4 * s; c.beginPath(); c.moveTo(12 * s, -90 * s); c.lineTo(ex, ey); c.stroke();
   c.fillStyle = shade(HAND); c.beginPath(); c.arc(hx, hy, 2.9 * s, 0, TWO_PI); c.arc(-16 * s, -50 * s, 2.9 * s, 0, TWO_PI); c.fill();
-  c.fillStyle = bodyGrad(c, 24, s, rim, TRENCH);
+  c.fillStyle = bodyGrad(c, 24, s, TRENCH);
   c.beginPath(); c.moveTo(-26 * s, -90 * s); c.quadraticCurveTo(0, -104 * s, 26 * s, -90 * s); c.lineTo(18 * s, -84 * s); c.quadraticCurveTo(0, -94 * s, -18 * s, -84 * s); c.closePath(); c.fill();
   c.fillStyle = PALETTE.ink; c.beginPath(); c.moveTo(-10 * s, -96 * s); c.lineTo(-2 * s, -107 * s); c.lineTo(-1 * s, -92 * s); c.closePath(); c.moveTo(10 * s, -96 * s); c.lineTo(2 * s, -107 * s); c.lineTo(1 * s, -92 * s); c.closePath(); c.fill();
   c.fillStyle = '#15161a'; c.fillRect(-6 * s, -104 * s, 12 * s, 10 * s);
@@ -2348,11 +3067,11 @@ defineActor('thug', function (e) {                            // the heavy: broa
   c.save(); c.translate(X, gy);
   c.fillStyle = '#050608'; c.fillRect(-18 * s, -36 * s, 15 * s, 36 * s); c.fillRect(3 * s, -36 * s, 15 * s, 36 * s);
   c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-11 * s, -1 * s, 12 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(12 * s, -1 * s, 12 * s, 4 * s, 0, 0, TWO_PI); c.fill();
-  c.fillStyle = bodyGrad(c, 82, s, rim, HEAVY);
+  c.fillStyle = bodyGrad(c, 82, s, HEAVY);
   c.beginPath(); c.moveTo(-30 * s, -36 * s); c.lineTo(-34 * s, -78 * s); c.quadraticCurveTo(0, -96 * s, 34 * s, -78 * s); c.lineTo(30 * s, -36 * s); c.quadraticCurveTo(0, -28 * s, -30 * s, -36 * s); c.closePath(); c.fill();
   c.fillStyle = shade(SHIRT); c.beginPath(); c.moveTo(-6 * s, -82 * s); c.lineTo(6 * s, -82 * s); c.lineTo(3 * s, -54 * s); c.lineTo(-3 * s, -54 * s); c.closePath(); c.fill();
-  c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(-2.5 * s, -80 * s); c.lineTo(2.5 * s, -80 * s); c.lineTo(1.5 * s, -56 * s); c.lineTo(-1.5 * s, -56 * s); c.closePath(); c.fill();
-  c.fillStyle = bodyGrad(c, 36, s, rim, HEAVY); c.beginPath(); c.moveTo(-12 * s, -84 * s); c.lineTo(-6 * s, -82 * s); c.lineTo(-7 * s, -52 * s); c.lineTo(-16 * s, -56 * s); c.closePath(); c.moveTo(12 * s, -84 * s); c.lineTo(6 * s, -82 * s); c.lineTo(7 * s, -52 * s); c.lineTo(16 * s, -56 * s); c.closePath(); c.fill();
+  c.fillStyle = shade(RED); c.beginPath(); c.moveTo(-2.5 * s, -80 * s); c.lineTo(2.5 * s, -80 * s); c.lineTo(1.5 * s, -56 * s); c.lineTo(-1.5 * s, -56 * s); c.closePath(); c.fill();
+  c.fillStyle = bodyGrad(c, 36, s, HEAVY); c.beginPath(); c.moveTo(-12 * s, -84 * s); c.lineTo(-6 * s, -82 * s); c.lineTo(-7 * s, -52 * s); c.lineTo(-16 * s, -56 * s); c.closePath(); c.moveTo(12 * s, -84 * s); c.lineTo(6 * s, -82 * s); c.lineTo(7 * s, -52 * s); c.lineTo(16 * s, -56 * s); c.closePath(); c.fill();
   c.fillStyle = PALETTE.ink; c.fillRect(-34 * s, -80 * s, 9 * s, 42 * s); c.fillRect(25 * s, -80 * s, 9 * s, 42 * s);
   c.beginPath(); c.arc(-30 * s, -36 * s, 7 * s, 0, TWO_PI); c.arc(30 * s, -36 * s, 7 * s, 0, TWO_PI); c.fill();
   c.fillStyle = '#1a1b20'; c.beginPath(); c.arc(0, -90 * s, 11 * s, 0, TWO_PI); c.fill();
@@ -2376,11 +3095,11 @@ defineActor('boss', function (e) {                            // mob boss: pinst
   c.save(); c.translate(X, gy);
   c.fillStyle = '#050608'; c.fillRect(-13 * s, -32 * s, 11 * s, 32 * s); c.fillRect(3 * s, -32 * s, 11 * s, 32 * s);
   c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-9 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(10 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.fill();
-  c.fillStyle = bodyGrad(c, 92, s, rim, PINSTRIPE);
+  c.fillStyle = bodyGrad(c, 92, s, PINSTRIPE);
   c.beginPath(); c.moveTo(-24 * s, -34 * s); c.lineTo(-20 * s, -88 * s); c.quadraticCurveTo(0, -100 * s, 20 * s, -88 * s); c.lineTo(24 * s, -34 * s); c.quadraticCurveTo(0, -28 * s, -24 * s, -34 * s); c.closePath(); c.fill();
   c.strokeStyle = 'rgba(150,160,180,0.16)'; c.lineWidth = 1; for (let i = -3; i <= 3; i++) { c.beginPath(); c.moveTo(i * 6 * s, -88 * s); c.lineTo(i * 6 * s + i * 1.2 * s, -34 * s); c.stroke(); }
   c.fillStyle = shade(SHIRT); c.beginPath(); c.moveTo(-5 * s, -88 * s); c.lineTo(5 * s, -88 * s); c.lineTo(3 * s, -60 * s); c.lineTo(-3 * s, -60 * s); c.closePath(); c.fill();
-  c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(-2.5 * s, -86 * s); c.lineTo(2.5 * s, -86 * s); c.lineTo(1.4 * s, -58 * s); c.lineTo(-1.4 * s, -58 * s); c.closePath(); c.fill();
+  c.fillStyle = shade(RED); c.beginPath(); c.moveTo(-2.5 * s, -86 * s); c.lineTo(2.5 * s, -86 * s); c.lineTo(1.4 * s, -58 * s); c.lineTo(-1.4 * s, -58 * s); c.closePath(); c.fill();
   c.fillStyle = '#15161a'; c.fillRect(-5 * s, -100 * s, 10 * s, 10 * s);
   c.fillStyle = '#1a1b20'; c.beginPath(); c.arc(0, -108 * s, 9 * s, 0, TWO_PI); c.fill();
   c.fillStyle = PALETTE.ink; c.beginPath(); c.arc(0, -108 * s, 9 * s, Math.PI * 1.1, Math.PI * 2.0); c.fill();
@@ -2410,7 +3129,7 @@ defineActor('gunman', function (e) {                          // shooter, arm ex
   c.save(); c.translate(X, gy); if (this.flip) c.scale(-1, 1);
   c.fillStyle = '#050608'; c.fillRect(-12 * s, -32 * s, 10 * s, 32 * s); c.fillRect(4 * s, -32 * s, 10 * s, 32 * s);
   c.fillStyle = PALETTE.ink; c.beginPath(); c.ellipse(-8 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.ellipse(11 * s, -1 * s, 10 * s, 4 * s, 0, 0, TWO_PI); c.fill();
-  c.fillStyle = bodyGrad(c, 88, s, rim, SUIT);
+  c.fillStyle = bodyGrad(c, 88, s, SUIT);
   c.beginPath(); c.moveTo(-20 * s, -34 * s); c.lineTo(-16 * s, -86 * s); c.quadraticCurveTo(0, -98 * s, 16 * s, -86 * s); c.lineTo(20 * s, -34 * s); c.quadraticCurveTo(0, -28 * s, -20 * s, -34 * s); c.closePath(); c.fill();
   c.fillStyle = '#1a1b20'; c.beginPath(); c.arc(0, -104 * s, 9 * s, 0, TWO_PI); c.fill();
   c.fillStyle = PALETTE.ink; c.beginPath(); c.arc(0, -104 * s, 9 * s, Math.PI * 1.1, Math.PI * 2.0); c.fill();
@@ -2455,7 +3174,7 @@ defineActor('womanInRed', function (e) {                      // femme fatale �
   c.save(); c.translate(X, gy);
   // a leg through the thigh slit (bone) + a red heel
   c.fillStyle = shade(BONE); c.save(); c.translate(walk * 2 * s, 0); c.beginPath(); c.moveTo(-2 * s, -36 * s); c.lineTo(3 * s, -36 * s); c.lineTo(4 * s, -2 * s); c.lineTo(0, -2 * s); c.closePath(); c.fill(); c.restore();
-  c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(sw, -2 * s); c.lineTo(8 * s + sw, 0); c.lineTo(sw, 1 * s); c.closePath(); c.fill();
+  c.fillStyle = shade(RED); c.beginPath(); c.moveTo(sw, -2 * s); c.lineTo(8 * s + sw, 0); c.lineTo(sw, 1 * s); c.closePath(); c.fill();
   // slim bone arms with a soft bend, hands resting at the waist
   c.strokeStyle = shade(BONE); c.lineWidth = 3.2 * s; c.lineCap = 'round'; c.lineJoin = 'round';
   c.beginPath(); c.moveTo(-7 * s, -70 * s); c.lineTo(-12 * s, -56 * s); c.lineTo(-9 * s, -44 * s); c.stroke();
@@ -2465,7 +3184,7 @@ defineActor('womanInRed', function (e) {                      // femme fatale �
   // the gown: shaded by the lighting system (a red material, lit edge toward the light, not a baked
   // sheen), sweetheart neckline, cinched waist, curvy hips, a long mermaid skirt. The soft red bleed
   // is her motif (the colour that bleeds).
-  c.fillStyle = bodyGrad(c, 80, s, rim, [205, 14, 24]); c.shadowColor = 'rgba(210,0,24,0.45)'; c.shadowBlur = 16 * s;
+  c.fillStyle = bodyGrad(c, 80, s, [205, 14, 24]);
   c.beginPath();
   c.moveTo(-9 * s, -66 * s);                                   // left bust
   c.quadraticCurveTo(-5 * s, -52 * s, -5 * s, -48 * s);        // into the cinched waist
@@ -2477,14 +3196,13 @@ defineActor('womanInRed', function (e) {                      // femme fatale �
   c.quadraticCurveTo(0, -67 * s, -3 * s, -72 * s);             // the sweetheart dip
   c.quadraticCurveTo(-7 * s, -74 * s, -9 * s, -66 * s);        // left cup
   c.closePath(); c.fill();
-  c.shadowBlur = 0;
   c.strokeStyle = '#b8000d'; c.lineWidth = 1.3 * s;            // thin shoulder straps
   c.beginPath(); c.moveTo(-6 * s, -73 * s); c.lineTo(-3 * s, -82 * s); c.moveTo(6 * s, -73 * s); c.lineTo(3 * s, -82 * s); c.stroke();
   // head (bone), dark bob, red lips
-  c.fillStyle = shade(BONE); c.beginPath(); c.arc(0, -84 * s, 6.5 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = shadeForm(c, 0, -84 * s, 6.5 * s, BONE); c.beginPath(); c.arc(0, -84 * s, 6.5 * s, 0, TWO_PI); c.fill();
   c.fillStyle = '#070708'; c.beginPath(); c.arc(0, -86 * s, 8 * s, Math.PI * 0.9, Math.PI * 2.2); c.fill();
   c.beginPath(); c.moveTo(6 * s, -88 * s); c.quadraticCurveTo(12 * s, -78 * s, 7 * s, -66 * s); c.quadraticCurveTo(4 * s, -74 * s, 4 * s, -84 * s); c.closePath(); c.fill();
-  c.fillStyle = PALETTE.redHot; c.beginPath(); c.ellipse(-1 * s, -81 * s, 2.2 * s, 1.1 * s, 0, 0, TWO_PI); c.fill();
+  c.fillStyle = shade(RED); c.beginPath(); c.ellipse(-1 * s, -81 * s, 2.2 * s, 1.1 * s, 0, 0, TWO_PI); c.fill();
   c.restore();
 }, {
   shadowW: 15, shadowH: 91,
@@ -2501,11 +3219,11 @@ defineActor('womanInRed', function (e) {                      // femme fatale �
 defineActor('dealer', function (e) {                          // croupier behind the table (the felt covers his lower half)
   const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, rim = rimSign(e, this);
   c.save(); c.translate(X, gy);
-  c.fillStyle = bodyGrad(c, 70, s, rim);
+  c.fillStyle = bodyGrad(c, 70, s);
   c.beginPath(); c.moveTo(-19 * s, 0); c.lineTo(-17 * s, -52 * s); c.quadraticCurveTo(-22 * s, -64 * s, -12 * s, -68 * s); c.quadraticCurveTo(0, -76 * s, 12 * s, -68 * s); c.quadraticCurveTo(22 * s, -64 * s, 17 * s, -52 * s); c.lineTo(19 * s, 0); c.closePath(); c.fill();
   c.fillStyle = shade([205, 203, 193]); c.beginPath(); c.moveTo(-4 * s, -66 * s); c.lineTo(4 * s, -66 * s); c.lineTo(3 * s, -30 * s); c.lineTo(-3 * s, -30 * s); c.closePath(); c.fill();
   c.fillStyle = '#0c0e13'; c.beginPath(); c.moveTo(-12 * s, -68 * s); c.lineTo(-4 * s, -66 * s); c.lineTo(-3 * s, -30 * s); c.lineTo(-13 * s, -36 * s); c.closePath(); c.moveTo(12 * s, -68 * s); c.lineTo(4 * s, -66 * s); c.lineTo(3 * s, -30 * s); c.lineTo(13 * s, -36 * s); c.closePath(); c.fill();
-  c.fillStyle = PALETTE.redHot; c.beginPath(); c.moveTo(-4.5 * s, -67 * s); c.lineTo(0, -64 * s); c.lineTo(-4.5 * s, -61 * s); c.closePath(); c.moveTo(4.5 * s, -67 * s); c.lineTo(0, -64 * s); c.lineTo(4.5 * s, -61 * s); c.closePath(); c.fill();
+  c.fillStyle = shade(RED); c.beginPath(); c.moveTo(-4.5 * s, -67 * s); c.lineTo(0, -64 * s); c.lineTo(-4.5 * s, -61 * s); c.closePath(); c.moveTo(4.5 * s, -67 * s); c.lineTo(0, -64 * s); c.lineTo(4.5 * s, -61 * s); c.closePath(); c.fill();
   c.fillStyle = '#7a0008'; c.fillRect(-1.2 * s, -65.5 * s, 2.4 * s, 3 * s);
   c.strokeStyle = '#101319'; c.lineWidth = 7 * s; c.lineCap = 'round';
   c.beginPath(); c.moveTo(-13 * s, -56 * s); c.lineTo(-22 * s, -30 * s); c.moveTo(13 * s, -56 * s); c.lineTo(22 * s, -30 * s); c.stroke();
@@ -2526,9 +3244,9 @@ defineActor('singer', function (e) {                          // lounge singer a
   c.beginPath(); c.moveTo(-6 * s, -66 * s); c.quadraticCurveTo(-7 * s, -78 * s, -4 * s, -84 * s); c.lineTo(4 * s, -84 * s); c.quadraticCurveTo(7 * s, -78 * s, 6 * s, -66 * s); c.closePath(); c.fill(); c.shadowBlur = 0;
   c.strokeStyle = gown; c.lineWidth = 5 * s; c.lineCap = 'round'; c.beginPath(); c.moveTo(4 * s, -80 * s); c.lineTo(16 * s, -92 * s); c.stroke();
   c.fillStyle = shade(BONE); c.beginPath(); c.arc(16 * s, -92 * s, 3.5 * s, 0, TWO_PI); c.fill();
-  c.beginPath(); c.arc(0, -92 * s, 6.5 * s, 0, TWO_PI); c.fill();
+  c.fillStyle = shadeForm(c, 0, -92 * s, 6.5 * s, BONE); c.beginPath(); c.arc(0, -92 * s, 6.5 * s, 0, TWO_PI); c.fill();
   c.fillStyle = '#070708'; c.beginPath(); c.arc(0, -94 * s, 8 * s, Math.PI * 0.85, Math.PI * 2.25); c.fill();
-  c.fillStyle = PALETTE.redHot; c.beginPath(); c.ellipse(0, -89 * s, 2.2 * s, 1.1 * s, 0, 0, TWO_PI); c.fill();
+  c.fillStyle = shade(RED); c.beginPath(); c.ellipse(0, -89 * s, 2.2 * s, 1.1 * s, 0, 0, TWO_PI); c.fill();
   c.strokeStyle = PALETTE.ink; c.lineWidth = 2.5 * s; c.beginPath(); c.moveTo(21 * s, -86 * s); c.lineTo(21 * s, 0); c.stroke();
   c.fillStyle = '#1a1d22'; c.beginPath(); c.ellipse(20 * s, -90 * s, 4 * s, 5 * s, 0, 0, TWO_PI); c.fill();
   c.strokeStyle = 'rgba(200,210,225,0.4)'; c.lineWidth = 1; c.beginPath(); c.ellipse(20 * s, -90 * s, 4 * s, 5 * s, 0, 0, TWO_PI); c.stroke();
@@ -2553,7 +3271,7 @@ __mod["src/library/shared.js"] = function(__exports, __req){
 // helpers so library files import their shading from one place.
 const { TWO_PI } = __req("src/engine/math.js");
 const { PALETTE, ANIM } = __req("src/style/palette.js");
-{ const __m = __req("src/style/materials.js"); __exports.rimSign = __m.rimSign; __exports.bodyGrad = __m.bodyGrad; __exports.shade = __m.shade; }
+{ const __m = __req("src/style/materials.js"); __exports.rimSign = __m.rimSign; __exports.bodyGrad = __m.bodyGrad; __exports.shade = __m.shade; __exports.shadeForm = __m.shadeForm; }
 
 function ember(c, x, y, s, t) { const em = 0.6 + 0.4 * Math.sin(t * ANIM.emberSpeed); c.save(); c.fillStyle = `rgba(255,60,30,${0.7 + 0.3 * em})`; c.shadowColor = PALETTE.ember; c.shadowBlur = 10 * em; c.beginPath(); c.arc(x, y, 1.9 * s, 0, TWO_PI); c.fill(); c.restore(); }
 
@@ -2670,38 +3388,54 @@ function rimSign(e, node) {
   return node._rim = sign;
 }
 
-// the cloth: ambient fill + a half-Lambert wrap of direct light, sampled across the body as a smooth
-// multi-stop gradient (no hard knee), the axis tilted by the light's vertical lean.
-function bodyGrad(c, h, s, rim, albedo) {
-  const A = albedo || BASE, cl = v => v < 0 ? 0 : v > 255 ? 255 : Math.round(v);
-  const dir = _lhx >= 0 ? 1 : -1, obl = Math.min(1, Math.abs(_lhx) + 0.15);   // how side-on the light is
-  const gx = dir * 36 * s, gvy = -_vb * 18 * s;                  // axis: lit edge -> far edge
-  const g = c.createLinearGradient(gx, gvy, -gx, -gvy);
+// one band of the surface at direct-light level d (0..1): albedo x (ambient fill + direct light).
+const _cl = v => v < 0 ? 0 : v > 255 ? 255 : Math.round(v);
+const band = (A, d) => `rgb(${_cl(A[0] * (_fill * _amb[0] + (1 - _fill) * d * _lcol[0]))},${_cl(A[1] * (_fill * _amb[1] + (1 - _fill) * d * _lcol[1]))},${_cl(A[2] * (_fill * _amb[2] + (1 - _fill) * d * _lcol[2]))})`;
+
+// the light's direction in screen space (horizontal lean _lhx, vertical lean _vb), normalised. The
+// shading ramp points AT the light, so an overhead source reads top-lit, a side source side-lit, a
+// low fire up-lit. This is what makes light DIRECTION visible on the form (not just its amount).
+function lightAxis() {
+  let dx = _lhx, dy = -_vb; const m = Math.hypot(dx, dy);
+  return m < 0.001 ? [0, -1] : [dx / m, dy / m];
+}
+
+const WRAP = 0.8;   // how directional the form light is (a clear lit -> shadow ramp; ambient fills the shadow)
+
+// the cloth: ambient fill + a half-Lambert wrap of direct light along the light direction, sampled
+// as a smooth multi-stop gradient (no hard knee). The shadow side falls to the ambient fill, never black.
+function bodyGrad(c, h, s, albedo) {
+  const A = albedo || BASE, [dx, dy] = lightAxis(), R = 34 * s;
+  const g = c.createLinearGradient(dx * R, dy * R, -dx * R, -dy * R);
   for (let i = 0; i <= 6; i++) {
-    const t = i / 6, u = 1 - 2 * t;                             // +1 lit edge .. -1 far edge
-    const hl = (1 - obl) + obl * Math.max(0, 0.5 + 0.5 * u);     // half-Lambert wrap (smooth)
-    const d = _lit * hl * hl;                                    // direct light at this band, soft terminator
-    const r = A[0] * (_fill * _amb[0] + (1 - _fill) * d * _lcol[0]);
-    const gg = A[1] * (_fill * _amb[1] + (1 - _fill) * d * _lcol[1]);
-    const b = A[2] * (_fill * _amb[2] + (1 - _fill) * d * _lcol[2]);
-    g.addColorStop(t, `rgb(${cl(r)},${cl(gg)},${cl(b)})`);
+    const t = i / 6, u = 1 - 2 * t, hl = (1 - WRAP) + WRAP * Math.max(0, 0.5 + 0.5 * u);
+    g.addColorStop(t, band(A, _lit * hl * hl));
   }
   return g;
 }
 
-// a FLAT surface (a white shirt, bare skin, a tie): the same ambient fill + direct light without a
-// gradient, since these are small. Keeps a shirt or a face consistent with the cloth around it, so
-// an unlit figure goes uniformly dark and lifts (and takes the light's hue) as light reaches it.
-function shade(rgb) {
-  const cl = v => v < 0 ? 0 : v > 255 ? 255 : Math.round(v), d = _lit;
-  const r = rgb[0] * (_fill * _amb[0] + (1 - _fill) * d * _lcol[0]);
-  const g = rgb[1] * (_fill * _amb[1] + (1 - _fill) * d * _lcol[1]);
-  const b = rgb[2] * (_fill * _amb[2] + (1 - _fill) * d * _lcol[2]);
-  return `rgb(${cl(r)},${cl(g)},${cl(b)})`;
+// a round FORM (a face, a head): a GENTLE directional wrap across a small disc, so a face catches the
+// light direction (a touch brighter on the side toward the light) but stays readable, not half black.
+// Skin is a highlight feature, so it leans bright: a soft wrap, no squared falloff.
+const FACE_WRAP = 0.4;
+function shadeForm(c, cx, cy, r, rgb) {
+  const [dx, dy] = lightAxis();
+  const g = c.createLinearGradient(cx + dx * r, cy + dy * r, cx - dx * r, cy - dy * r);
+  for (let i = 0; i <= 3; i++) {
+    const t = i / 3, u = 1 - 2 * t, hl = (1 - FACE_WRAP) + FACE_WRAP * Math.max(0, 0.5 + 0.5 * u);
+    g.addColorStop(t, band(rgb, _lit * hl));
+  }
+  return g;
 }
+
+// a small FLAT surface (a tie, lips, a cigarette): ambient fill + direct light, no gradient. So a
+// motif red still reacts to the light (deepens in shadow, lifts and warms under a source) instead of
+// staying a fixed pure red, but stays small enough not to need a directional ramp.
+function shade(rgb) { return band(rgb, _lit); }
 
 __exports.rimSign = rimSign;
 __exports.bodyGrad = bodyGrad;
+__exports.shadeForm = shadeForm;
 __exports.shade = shade;
 };
 __mod["src/library/actors/animals.js"] = function(__exports, __req){

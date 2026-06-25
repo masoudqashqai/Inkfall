@@ -31,19 +31,23 @@ export function buildSkyline(e, seed, cfgList, groundY) {
   return layers;
 }
 
-// Each layer's buildings + windows are static, so they are rendered once to an offscreen canvas
-// (at device resolution) and cached on the layer. Per frame we just blit that canvas at the
-// parallax offset, instead of re-running the building/window loops every frame.
+// Each layer's buildings + windows are static, so they are rendered once to an offscreen canvas and
+// cached on the layer. Per frame we just blit that canvas at the parallax offset, instead of
+// re-running the building/window loops every frame. The geometry is in LOGICAL units (e.W is the
+// logical band width, constant per aspect ratio), so the sprite is baked at the real device scale
+// DS = DPR * ls and blitted into a logical rect, staying pixel-crisp at any resolution while the
+// composition (building count + layout) stays identical when only the size changes.
 const PAD = 200;   // horizontal margin so parallax + zoom-out never reveal the sprite's edge
 function layerSprite(e, L) {
-  if (L._sprite && L._spriteW === e.W && L._spriteDPR === e.DPR) return L._sprite;
-  const DPR = e.DPR || 1, CW = e.W + PAD * 2, H = e.H;
-  const cv = document.createElement('canvas'); cv.width = Math.floor(CW * DPR); cv.height = Math.floor(H * DPR);
-  const c = cv.getContext('2d'); c.setTransform(DPR, 0, 0, DPR, 0, 0); c.translate(PAD, 0);
+  const DS = (e.DPR || 1) * (e.ls || 1);
+  if (L._sprite && L._spriteW === e.W && L._spriteDS === DS) return L._sprite;
+  const CW = e.W + PAD * 2, H = e.H;
+  const cv = document.createElement('canvas'); cv.width = Math.floor(CW * DS); cv.height = Math.floor(H * DS);
+  const c = cv.getContext('2d'); c.setTransform(DS, 0, 0, DS, 0, 0); c.translate(PAD, 0);
   c.fillStyle = L.shade;
   for (const b of L.blds) { c.fillRect(b.x, b.top, b.w, b.h + 6); if (b.cap) { if (b.cap.type === 'tank') { c.fillRect(b.cap.x - 7, b.top - 14, 14, 14); c.fillRect(b.cap.x - 9, b.top - 2, 18, 3); } else c.fillRect(b.cap.x - 1, b.top - 22, 2, 22); } }
   for (const b of L.blds) for (const wn of b.wins) { c.fillStyle = wn.warm ? PALETTE.warmWin : PALETTE.coolWin; c.fillRect(wn.x, wn.y, 4, 5); }
-  L._sprite = cv; L._spriteW = e.W; L._spriteDPR = e.DPR;
+  L._sprite = cv; L._spriteW = e.W; L._spriteDS = DS;
   return cv;
 }
 
@@ -68,16 +72,17 @@ const WARM = '255,224,164', COOL = '188,204,236';
 
 // bake the steady bloom for a layer (skips the live-flicker windows). Cached like the layer sprite.
 function glowSprite(e, L) {
-  if (L._glow && L._glowW === e.W && L._glowDPR === e.DPR) return L._glow;
-  const DPR = e.DPR || 1, CW = e.W + PAD * 2, r = 4.5;
-  const cv = document.createElement('canvas'); cv.width = Math.floor(CW * DPR); cv.height = Math.floor(e.H * DPR);
-  const c = cv.getContext('2d'); c.setTransform(DPR, 0, 0, DPR, 0, 0); c.translate(PAD, 0); c.globalCompositeOperation = 'lighter';
+  const DS = (e.DPR || 1) * (e.ls || 1);
+  if (L._glow && L._glowW === e.W && L._glowDS === DS) return L._glow;
+  const CW = e.W + PAD * 2, r = 4.5;
+  const cv = document.createElement('canvas'); cv.width = Math.floor(CW * DS); cv.height = Math.floor(e.H * DS);
+  const c = cv.getContext('2d'); c.setTransform(DS, 0, 0, DS, 0, 0); c.translate(PAD, 0); c.globalCompositeOperation = 'lighter';
   c.globalAlpha = 0.6;
   for (const b of L.blds) for (const wn of b.wins) {
     if (wn.flk != null) continue;                       // flicker windows are drawn live
     c.drawImage(softGlow(wn.warm ? WARM : COOL), wn.x - r, wn.y - r, r * 2, r * 2);
   }
-  L._glow = cv; L._glowW = e.W; L._glowDPR = e.DPR; return cv;
+  L._glow = cv; L._glowW = e.W; L._glowDS = DS; return cv;
 }
 
 // a failing-tube value 0..1: dark most of the time, then a short buzzing burst now and then
