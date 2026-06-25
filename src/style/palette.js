@@ -13,5 +13,7 @@ export const ANIM = {
   swaySpeed: 1.1, walkSpeed: 2.2, emberSpeed: 6, flickerSpeed: 9,
   rainAlpha: 0.35, grainAlpha: 0.015, grainAlphaEnd: 0.15, vignette: 0.7, parallaxLerp: 0.08,
   boltGap: [5, 13],
-  transIn: 2.0, transOut: 1.6, cardHold: 1.7,   // scene-transition speed: higher in/out = faster wipe; cardHold = act-card dwell (s)
+  transIn: 2.0, transOut: 1.6, cardHold: 2.0,   // scene-transition speed: higher in/out = faster wipe; cardHold = act-card dwell (s)
+  openCardHold: 2.8,                             // the first act card (right after the story title) lingers a touch longer
+  titleHold: 3.4,                                // opening story-title card dwell (s), spans the fullscreen toast
 };

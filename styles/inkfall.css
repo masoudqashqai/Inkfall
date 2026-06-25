@@ -43,65 +43,174 @@
   --hud-w2: calc(var(--hud-cell) * 2 + var(--hud-gap));              /* medium: 2 cells, icon + text */
   --hud-w3: calc(var(--hud-cell) * 3 + var(--hud-gap) * 2);         /* large:  3 cells, text (or icon + text) */
 }
-/* one noir button skin, shared by the HUD, the act list, the poster row and the story menu */
-.hud-btn, #scenenav button, #poster a, #poster button, #storymenu button {
+/* HUD chips: compact bordered controls (the icon buttons + the REVIEW ACT toggle), red on interact */
+.hud-btn {
   cursor: pointer; font-family: var(--f-mono); color: var(--c-fg-2);
   background: var(--c-panel); border: 1px solid var(--c-line);
-  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease; }
-.hud-btn:hover, .hud-btn:active, #scenenav button:hover,
-#poster a:hover, #poster button:hover, #storymenu button:hover, #storymenu button:active {
-  color: #fff; border-color: var(--c-line-hi); }
+  transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease; }
+.hud-btn:hover, .hud-btn:active { color: #fff; border-color: var(--c-red); }
 /* HUD button sizing: every control is one cell tall, the size class sets the width */
 .hud-btn { height: var(--hud-cell); line-height: 1; display: inline-flex; align-items: center;
   justify-content: center; gap: 0.5em; letter-spacing: 0.14em; font-size: var(--fs-hud); }
 .hud-sm { width: var(--hud-w1); padding: 0; font-size: var(--fs-icon); }
 .hud-md { width: var(--hud-w2); }
 .hud-lg { width: var(--hud-w3); }
+/* HUD icons drawn in CSS (currentColor), so they centre exactly and render the same everywhere */
+.hud-btn .ic { display: block; pointer-events: none; }
+.ic-menu, .ic-menu::before, .ic-menu::after { width: 16px; height: 2px; background: currentColor; }
+.ic-menu { position: relative; }
+.ic-menu::before, .ic-menu::after { content: ''; position: absolute; left: 0; }
+.ic-menu::before { top: -5px; }
+.ic-menu::after { top: 5px; }
+.ic-poster { width: 17px; height: 14px; border: 2px solid currentColor; border-radius: 1px; }
+.ic-fs { width: 18px; height: 16px; position: relative; }
+.ic-fs::before, .ic-fs::after { content: ''; position: absolute; width: 8px; height: 8px; }
+.ic-fs::before { top: 0; left: 0; border-top: 2px solid currentColor; border-left: 2px solid currentColor; }
+.ic-fs::after { right: 0; bottom: 0; border-bottom: 2px solid currentColor; border-right: 2px solid currentColor; }
 /* shared modal overlay: a centered card on a dark wash (poster, story menu, rotate prompt) */
 .overlay { position: fixed; inset: 0; z-index: var(--z-overlay); display: none;
   flex-direction: column; align-items: center; justify-content: center; padding: 24px;
   background: var(--c-scrim); }
 .overlay.show { display: flex; }
+
+/* ===================== NOIR DESIGN LANGUAGE =====================
+   A framed title card, a hairline-ruled heading, a typewriter note, a diamond separator, and
+   typographic actions that take red diamond marks. Reused by every panel, menu and on-screen list. */
+.noir-panel { display: flex; flex-direction: column; align-items: stretch; gap: clamp(2px, 0.6vmin, 6px);
+  background: rgba(3,3,4,0.55); border: 1px solid rgba(220,216,200,0.42);
+  outline: 1px solid rgba(220,216,200,0.16); outline-offset: 5px;   /* the double rule of a film card */
+  box-shadow: 0 24px 80px rgba(0,0,0,0.75);
+  padding: clamp(26px, 5vmin, 42px) clamp(22px, 5vmin, 40px); }
+.noir-title { color: var(--c-cream); font-family: var(--f-display); font-weight: 700; text-align: center;
+  letter-spacing: 0.4em; font-size: clamp(20px, 4.4vmin, 28px); text-transform: uppercase; position: relative;
+  padding-bottom: clamp(12px, 2.2vmin, 18px); margin-bottom: clamp(10px, 2vmin, 16px); }
+.noir-title::after { content: ''; position: absolute; left: 50%; bottom: 0; transform: translateX(-50%);
+  width: 46px; height: 2px; background: var(--c-red); }
+.noir-note { color: rgba(236,230,214,0.6); font-family: var(--f-type); font-size: var(--fs-menu);
+  letter-spacing: 0.03em; line-height: 1.6; text-align: center; margin: 2px 0 clamp(8px, 1.6vmin, 14px); }
+.noir-sep { height: 0; border-top: 1px solid rgba(220,216,200,0.16); position: relative; margin: clamp(8px, 1.6vmin, 14px) 0; }
+.noir-sep::after { content: '\25C6'; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  color: rgba(220,216,200,0.45); font-size: 8px; background: var(--c-bg); padding: 0 7px; }
+/* typographic action: borderless, tracked caps, red diamond marks flanking it on hover/active */
+.noir-item, #poster a, #poster button {
+  background: transparent; border: 0; cursor: pointer; color: rgba(236,230,214,0.82); text-decoration: none;
+  font-family: var(--f-display); font-weight: 500; text-transform: uppercase; text-align: center;
+  letter-spacing: 0.26em; font-size: clamp(14px, 2.9vmin, 18px); padding: clamp(9px, 1.9vmin, 13px) 22px;
+  position: relative; transition: color 0.18s ease, letter-spacing 0.18s ease; }
+.noir-item:hover, .noir-item:active, #poster a:hover, #poster button:hover, #poster button:active {
+  color: #fff; letter-spacing: 0.3em; }
+.noir-item::before, .noir-item::after, #poster a::before, #poster a::after, #poster button::before, #poster button::after {
+  content: '\25C6'; position: absolute; top: 50%; transform: translateY(-50%); color: var(--c-red); font-size: 0.46em;
+  opacity: 0; transition: opacity 0.18s ease; }
+.noir-item::before, #poster a::before, #poster button::before { left: 8%; }
+.noir-item::after, #poster a::after, #poster button::after { right: 8%; }
+.noir-item:hover::before, .noir-item:hover::after, .noir-item:active::before, .noir-item:active::after,
+#poster a:hover::before, #poster a:hover::after, #poster button:hover::before, #poster button:hover::after { opacity: 1; }
+.noir-item.is-primary { color: #fff; font-weight: 700; }                       /* the marked default action */
+.noir-item.is-primary::before, .noir-item.is-primary::after { opacity: 1; }
+.noir-item.is-danger { color: rgba(225,86,90,0.9); }
+.noir-item.is-danger:hover, .noir-item.is-danger:active { color: var(--c-red); }
+/* ================================================================ */
+
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
 html, body { height: 100%; overflow: hidden; background: #000; font-family: "Courier New", monospace; }
 #c { position: fixed; left: 0; top: 0; display: block; touch-action: none; }
 /* the canvas is sized + centered by the engine to a landscape band, so the body's black shows
    through as letterbox bars (top/bottom on a tall screen, left/right on a wide one) */
-#scenetag { position: fixed; top: max(12px, env(safe-area-inset-top)); left: 14px; z-index: var(--z-caption);
+#scenetag { position: fixed; top: max(6px, env(safe-area-inset-top)); left: max(8px, env(safe-area-inset-left)); z-index: var(--z-caption);
   font-family: var(--f-type);
   color: var(--c-fg); font-size: var(--fs-label); letter-spacing: 0.25em; font-weight: 400; text-shadow: 2px 2px 0 #000;
   opacity: 0; transition: opacity 0.5s ease; }
 #scenetag b { color: var(--c-red-deep); }
 #caption { position: fixed; left: 50%; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 10px); transform: translateX(-50%);
-  z-index: var(--z-caption); width: min(90vw, 600px); background: var(--c-paper); color: var(--c-ink);
+  z-index: var(--z-caption); width: fit-content; max-width: min(90vw, 600px); background: var(--c-paper); color: var(--c-ink);
   border: 2px solid #000; box-shadow: 4px 4px 0 rgba(0,0,0,0.5);
   padding: clamp(9px, 1.7vmin, 13px) clamp(12px, 2.2vmin, 18px);
-  font-family: var(--f-type); display: none; opacity: 0;
-  font-size: var(--fs-caption); line-height: 1.4; letter-spacing: 0.005em; transition: opacity 0.35s ease; }
+  font-family: var(--f-type); display: none; opacity: 0; text-align: center;
+  font-size: var(--fs-caption); line-height: 1.4; letter-spacing: 0.005em; }
 #caption b { color: var(--c-red-deep); font-weight: 700; }
+/* narration lines render in with a torn, inky leading edge that settles clean once the print
+   finishes, then wipe out the same way. The direction varies per line (set by data-anim from the
+   manager, deterministic so a replay always matches): left to right, right to left, or centre out.
+   Independent of the scene wipe. */
+#caption.cap-in { opacity: 1; animation: capInLR 1.15s cubic-bezier(0.25, 0.6, 0.3, 1) forwards; }
+#caption.cap-out { opacity: 1; animation: capOutLR 0.46s ease-in forwards; }
+#caption[data-anim="rl"].cap-in { animation-name: capInRL; }
+#caption[data-anim="rl"].cap-out { animation-name: capOutRL; }
+#caption[data-anim="co"].cap-in { animation-name: capInCO; }
+#caption[data-anim="co"].cap-out { animation-name: capOutCO; }
+/* left to right: a torn right edge sweeps across, then settles clean */
+@keyframes capInLR {
+  0%   { clip-path: polygon(0 0, 3% 0, 0 12.5%, 2% 25%, 0 37.5%, 3% 50%, 0 62.5%, 2% 75%, 0 87.5%, 3% 100%, 0 100%); }
+  72%  { clip-path: polygon(0 0, 100% 0, 97% 12.5%, 100% 25%, 96% 37.5%, 100% 50%, 98% 62.5%, 100% 75%, 96% 87.5%, 100% 100%, 0 100%); }
+  100% { clip-path: polygon(0 0, 100% 0, 100% 12.5%, 100% 25%, 100% 37.5%, 100% 50%, 100% 62.5%, 100% 75%, 100% 87.5%, 100% 100%, 0 100%); }
+}
+@keyframes capOutLR {
+  0%   { clip-path: polygon(3% 0, 100% 0, 100% 100%, 3% 100%, 0 87.5%, 2% 75%, 0 62.5%, 3% 50%, 0 37.5%, 2% 25%, 0 12.5%); }
+  72%  { clip-path: polygon(97% 0, 100% 0, 100% 100%, 97% 100%, 100% 87.5%, 98% 75%, 100% 62.5%, 97% 50%, 100% 37.5%, 98% 25%, 100% 12.5%); }
+  100% { clip-path: polygon(100% 0, 100% 0, 100% 100%, 100% 100%, 100% 87.5%, 100% 75%, 100% 62.5%, 100% 50%, 100% 37.5%, 100% 25%, 100% 12.5%); }
+}
+/* right to left: a torn left edge sweeps across */
+@keyframes capInRL {
+  0%   { clip-path: polygon(100% 0, 97% 0, 100% 12.5%, 98% 25%, 100% 37.5%, 97% 50%, 100% 62.5%, 98% 75%, 100% 87.5%, 97% 100%, 100% 100%); }
+  72%  { clip-path: polygon(100% 0, 3% 0, 0 12.5%, 4% 25%, 0 37.5%, 3% 50%, 0 62.5%, 4% 75%, 0 87.5%, 3% 100%, 100% 100%); }
+  100% { clip-path: polygon(100% 0, 0 0, 0 12.5%, 0 25%, 0 37.5%, 0 50%, 0 62.5%, 0 75%, 0 87.5%, 0 100%, 100% 100%); }
+}
+@keyframes capOutRL {
+  0%   { clip-path: polygon(0 0, 100% 0, 97% 12.5%, 100% 25%, 96% 37.5%, 100% 50%, 98% 62.5%, 100% 75%, 96% 87.5%, 100% 100%, 0 100%); }
+  100% { clip-path: polygon(0 0, 3% 0, 0 12.5%, 2% 25%, 0 37.5%, 3% 50%, 0 62.5%, 2% 75%, 0 87.5%, 3% 100%, 0 100%); }
+}
+/* centre out: torn edges open from the middle to both sides */
+@keyframes capInCO {
+  0%   { clip-path: polygon(49% 0, 51% 0, 51% 25%, 52% 50%, 51% 75%, 51% 100%, 49% 100%, 49% 75%, 48% 50%, 49% 25%); }
+  72%  { clip-path: polygon(1% 0, 99% 0, 100% 25%, 98% 50%, 100% 75%, 99% 100%, 1% 100%, 0 75%, 2% 50%, 0 25%); }
+  100% { clip-path: polygon(0 0, 100% 0, 100% 25%, 100% 50%, 100% 75%, 100% 100%, 0 100%, 0 75%, 0 50%, 0 25%); }
+}
+@keyframes capOutCO {
+  0%   { clip-path: polygon(0 0, 100% 0, 100% 25%, 100% 50%, 100% 75%, 100% 100%, 0 100%, 0 75%, 0 50%, 0 25%); }
+  72%  { clip-path: polygon(48% 0, 52% 0, 53% 25%, 51% 50%, 53% 75%, 52% 100%, 48% 100%, 47% 75%, 49% 50%, 47% 25%); }
+  100% { clip-path: polygon(50% 0, 50% 0, 50% 25%, 50% 50%, 50% 75%, 50% 100%, 50% 100%, 50% 75%, 50% 50%, 50% 25%); }
+}
 #tapnote { position: fixed; left: 50%; bottom: 6px; transform: translateX(-50%); z-index: var(--z-caption); white-space: nowrap;
   display: none; color: #7c7c7c; font-size: var(--fs-note); letter-spacing: 0.06em; }
 #build { position: fixed; left: 8px; bottom: 4px; z-index: var(--z-build); color: #3a3a3a; font-size: 9px;
   letter-spacing: 0.1em; font-family: var(--f-mono); }
-#menubtn, #shoot, #fsbtn { font-variant-emoji: text; }   /* keep the HUD glyphs monochrome (noir), never colour emoji */
 #fsbtn { display: none; }                                /* the HUD fullscreen button, shown by the viewport when not immersive */
 #fsbtn.show { display: inline-flex; }
-#topbar { position: fixed; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); z-index: var(--z-hud);
+#topbar { position: fixed; top: max(6px, env(safe-area-inset-top)); right: max(6px, env(safe-area-inset-right)); z-index: var(--z-hud);
   display: flex; flex-direction: column; align-items: flex-end; gap: var(--hud-gap); }
 .hud-row { display: flex; gap: var(--hud-gap); }
-/* act selector: a REVIEW ACT toggle that drops the act list open right below the HUD buttons */
-#actsel { flex-direction: column; align-items: stretch; gap: var(--hud-gap); width: max-content; }
+/* act selector: a REVIEW ACT toggle at the top left that drops the act list open beneath it */
+#actsel { position: fixed; top: max(6px, env(safe-area-inset-top)); left: max(6px, env(safe-area-inset-left));
+  z-index: var(--z-hud); flex-direction: column; align-items: stretch; gap: var(--hud-gap); width: max-content; }
 #actbtn { min-width: var(--hud-w3); }
 #actbtn::after { content: "\25BE"; font-size: 0.82em; transition: transform 0.3s ease; }   /* caret flips when open */
 #actbtn.open::after { transform: rotate(180deg); }
+/* REVIEW ACT reveals with a noir neon flicker: it slides in from the left, a red glow settling out */
+body[data-stage="playing"] #actsel.unlocked #actbtn { animation: actReveal 0.9s ease-out; }
+@keyframes actReveal {
+  0%   { opacity: 0; transform: translateX(-16px); border-color: var(--c-red); box-shadow: 0 0 16px rgba(225,0,16,0.55); }
+  22%  { opacity: 0.9; }
+  34%  { opacity: 0.12; }                 /* the stutter of a tube catching */
+  50%  { opacity: 1; }
+  62%  { opacity: 0.4; }
+  100% { opacity: 1; transform: translateX(0); border-color: var(--c-line); box-shadow: 0 0 0 rgba(225,0,16,0); }
+}
 /* stage-driven HUD presence: the in-story controls + narration appear only while playing */
 #shoot, #actsel { display: none; }
 body[data-stage="playing"] #shoot { display: inline-flex; }
 body[data-stage="playing"] #actsel.unlocked { display: flex; }   /* only after THE END has been reached once */
 body[data-stage="playing"] #caption, body[data-stage="playing"] #tapnote { display: block; }
+/* clean scene mode (toggled from Story Engine): leave only the menu button + the build mark */
+body.clean #caption, body.clean #tapnote, body.clean #scenetag,
+body.clean #shoot, body.clean #fsbtn { display: none; }
+body.clean #actsel.unlocked { display: none; }   /* match the .unlocked show rule's specificity so clean wins */
+/* the controls hint shows only until the viewer has seen it once (then it lives in the menu) */
+body.controls-seen #tapnote { display: none; }
+/* once REVIEW ACT is present (top left), drop the top-left act-name text so they do not clash */
+body.acts-unlocked #scenetag { display: none; }
 #poster img { max-width: 88vw; max-height: 70vh; border: 1px solid rgba(216,212,200,0.4); box-shadow: 0 0 40px rgba(0,0,0,0.8); }
-#poster .poster-row { margin-top: 18px; display: flex; gap: 12px; }
-#poster a, #poster button { padding: 13px 28px; text-align: center; font-size: var(--fs-menu); letter-spacing: 0.16em; text-decoration: none; }
+#poster .poster-row { margin-top: 18px; display: flex; gap: clamp(12px, 3vmin, 28px); }   /* SAVE / BACK use .noir-item */
 /* the act list drops open below the toggle: a clipped column that grows downward, each button
    easing down in turn for a noir, rope ladder feel. Every button shares one width (the widest
    title, floored at the 3 cell size) and stays one cell tall on a single line. */
@@ -122,24 +231,32 @@ body[data-stage="playing"] #caption, body[data-stage="playing"] #tapnote { displ
 #scenenav.open button:nth-child(6) { transition-delay: 0.29s; }
 #scenenav.open button:nth-child(7) { transition-delay: 0.34s; }
 #scenenav.open button:nth-child(8) { transition-delay: 0.39s; }
-#scenenav button.cur { color: #fff; border-color: var(--c-red); box-shadow: 0 0 12px rgba(225,0,16,0.45); }
-/* story menu: same treatment as the poster overlay (the .overlay primitive + shared button skin) */
-#storymenu .sm-panel { display: flex; flex-direction: column; gap: 12px; width: min(86vw, 340px); }
-#storymenu .sm-head { color: var(--c-red); letter-spacing: 0.3em; font-weight: 700; text-align: center;
-  font-family: var(--f-display); font-size: var(--fs-head); margin-bottom: 6px; }
-#storymenu button { padding: 13px 28px; text-align: center; font-size: var(--fs-menu); letter-spacing: 0.16em; }
+#scenenav button.cur { color: #fff; }                                   /* current act: marked with the diamonds */
+#scenenav button.cur::before, #scenenav button.cur::after { opacity: 1; }
+/* PAUSE MENU — a vignette behind the noir panel. Several views (main, story engine, controls, exit
+   confirm) share one panel slot; data-view on #storymenu picks which shows. */
+#storymenu { background: radial-gradient(ellipse at center, rgba(4,4,5,0.88), rgba(0,0,0,0.97)); }
+#storymenu .noir-panel { width: min(88vw, 400px); }
+#storymenu .sm-view { display: none; }
+#storymenu[data-view="main"] .v-main,
+#storymenu[data-view="engine"] .v-engine,
+#storymenu[data-view="controls"] .v-controls,
+#storymenu[data-view="confirm"] .v-confirm { display: flex; }
+/* controls review: a small key/role list in the noir voice */
+.sm-keys { display: flex; flex-direction: column; gap: clamp(8px, 1.8vmin, 14px); margin: clamp(4px,1vmin,10px) 0 clamp(10px,2vmin,16px); }
+.sm-key { display: flex; align-items: baseline; justify-content: center; gap: 14px; }
+.sm-key b { color: var(--c-red); font-family: var(--f-display); font-weight: 700; letter-spacing: 0.2em;
+  font-size: var(--fs-menu); min-width: 64px; text-align: right; }
+.sm-key span { color: rgba(236,230,214,0.82); font-family: var(--f-type); letter-spacing: 0.04em; font-size: var(--fs-menu); text-align: left; }
+/* the story editor: full screen for the JSON, but its heading and actions use the noir language */
 #editor { position: fixed; inset: 0; z-index: var(--z-overlay); display: none; flex-direction: column; gap: 10px;
   background: rgba(6,7,10,0.97); padding: max(16px, env(safe-area-inset-top)) 16px 16px; }
-#editor .ed-head { color: var(--c-red); letter-spacing: 0.3em; font-weight: 700; font-size: var(--fs-head); }
+#editor .ed-head { padding-bottom: clamp(8px, 1.6vmin, 12px); margin-bottom: 2px; }   /* .noir-title sets the rest */
 #editor .ed-help { color: #8a8a8a; font-size: clamp(11px, 2vmin, 13px); line-height: 1.8; }
-#ed-text { flex: 1; width: 100%; resize: none; background: #0e1014; color: #d6e0c8; border: 1px solid #2a2e36;
+#ed-text { flex: 1; width: 100%; resize: none; background: #0e1014; color: #d6e0c8; border: 1px solid var(--c-line);
   font-family: var(--f-mono); font-size: clamp(13px, 2.4vmin, 15px); line-height: 1.5; padding: 12px; }
-#ed-err { color: #ff6a6a; font-size: clamp(12px, 2.2vmin, 14px); min-height: 16px; }
-.ed-btns { display: flex; gap: 12px; flex-wrap: wrap; }
-.ed-btns button { flex: 1; min-width: 100px; padding: 16px; cursor: pointer; font-family: var(--f-mono); font-weight: 700;
-  letter-spacing: 0.18em; font-size: var(--fs-menu); background: transparent; color: #fff; border: 1px solid #fff; }
-#ed-play { background: var(--c-red); border-color: var(--c-red); }
-.ed-btns button:active { opacity: 0.7; }
+#ed-err { color: #ff6a6a; font-size: clamp(12px, 2.2vmin, 14px); min-height: 16px; text-align: center; }
+.ed-btns { display: flex; gap: clamp(10px, 3vmin, 28px); flex-wrap: wrap; justify-content: center; }
 /* the start screen is always present but fades in/out by stage (no display swap, so the fade shows) */
 #intro { position: fixed; inset: 0; z-index: var(--z-intro); display: flex; flex-direction: column; align-items: center;
   justify-content: center; text-align: center; padding: 28px 22px; overflow-y: auto;
@@ -166,6 +283,16 @@ body[data-stage="menu"] #intro { opacity: 1; pointer-events: auto; }
 #enter { font-family: var(--f-display); margin-top: clamp(20px, 4vmin, 36px); padding: clamp(14px, 2.6vmin, 22px) clamp(36px, 8vmin, 64px); cursor: pointer; background: transparent; color: #fff;
   border: 1px solid #fff; font-size: var(--fs-sub); letter-spacing: 0.26em; font-weight: 600; transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease; }
 #enter:hover, #enter:active { background: var(--c-red); border-color: var(--c-red); }
+/* while the stories load, the picker label, picker and ENTER are replaced by a noir spinner */
+#intro.loading .pick-label, #intro.loading #storypick, #intro.loading #enter { display: none; }
+#introloading { display: none; flex-direction: column; align-items: center; gap: clamp(10px, 2vmin, 16px); margin-top: clamp(22px, 5vmin, 44px); }
+#intro.loading #introloading { display: flex; }
+#introloading .spin { width: clamp(28px, 5vmin, 40px); height: clamp(28px, 5vmin, 40px); border-radius: 50%;
+  border: 2px solid rgba(236,230,214,0.18); border-top-color: var(--c-red); animation: introspin 0.85s linear infinite; }
+#introloading .loadlabel { font-family: var(--f-display); color: rgba(236,230,214,0.55); font-size: var(--fs-label);
+  letter-spacing: 0.34em; font-weight: 600; animation: loadpulse 1.5s ease-in-out infinite; }
+@keyframes introspin { to { transform: rotate(360deg); } }
+@keyframes loadpulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.9; } }
 
 /* short viewports (landscape phones, small desktop windows): tuck the caption down a touch
    (the font already scales with height via vmin) */
@@ -174,7 +301,7 @@ body[data-stage="menu"] #intro { opacity: 1; pointer-events: auto; }
 }
 /* wide desktops: a touch larger so it reads from a distance, still within the standard scale */
 @media (min-width: 1100px) {
-  #caption { font-size: 18px; width: min(52vw, 600px); }
+  #caption { font-size: 18px; max-width: min(52vw, 600px); }
 }
 
 /* immersion prompt: the .overlay primitive, but opaque and on top of everything */
@@ -185,14 +312,8 @@ body[data-stage="menu"] #intro { opacity: 1; pointer-events: auto; }
 #rotate.no-fs .rt-fs { display: none; }
 #rotate.no-fs .rt-nofs { display: block; }
 #rotate.no-fs .rotate-fs { display: none; }              /* no fullscreen button where it cannot work */
-#rotate .rotate-fs { font-family: var(--f-display); cursor: pointer; background: var(--c-red); color: #fff;
-  border: 1px solid var(--c-red); font-size: var(--fs-menu); letter-spacing: 0.18em; font-weight: 600; padding: 15px 34px; }
-#rotate .rotate-fs:hover, #rotate .rotate-fs:active { background: #c2000e; border-color: #c2000e; }
-#rotate .rotate-skip { display: none; font-family: var(--f-display); cursor: pointer;
-  background: transparent; color: rgba(236,230,214,0.85); border: 1px solid rgba(236,230,214,0.45);
-  font-size: var(--fs-menu); letter-spacing: 0.22em; font-weight: 600; padding: 14px 28px; }
+#rotate .rotate-skip { display: none; }              /* the buttons use .noir-item, this only gates the fallback */
 #rotate .rotate-skip.show { display: inline-block; }
-#rotate .rotate-skip:hover, #rotate .rotate-skip:active { color: #fff; border-color: #fff; }
 /* a little phone that tips from portrait to landscape on a loop */
 .rotate-phone { width: 58px; height: 102px; border: 4px solid var(--c-fg); border-radius: 12px;
   position: relative; transform-origin: 50% 50%; animation: rotatehint 2.6s ease-in-out infinite; }

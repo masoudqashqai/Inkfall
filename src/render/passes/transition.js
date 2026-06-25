@@ -5,7 +5,7 @@ import { ANIM } from '../../style/palette.js';
 
 export function transition(e) {
   const f = e.flow;
-  if (f.transState === 'card') { panelWipe(e, 1); drawCard(e); }
+  if (f.transState === 'card' || f.transState === 'title') { panelWipe(e, 1); drawCard(e); }
   else if (f.transAlpha > 0) panelWipe(e, f.transAlpha);
   if (f.finishing || f.ended) drawEnd(e);   // rises over the closing wipe and stays through the reveal
 }
@@ -39,12 +39,17 @@ function panelWipe(e, p) {
   c.restore();
 }
 
+// the act-name title card, reused for the opening story-title card ('title' state). The opening one
+// shows the story name from f.titleText and dwells longer (titleHold).
 function drawCard(e) {
-  const c = e.ctx, f = e.flow, title = (e.scene.data.title || '').replace(/&nbsp;/g, ' '), hold = ANIM.cardHold;
+  const c = e.ctx, f = e.flow, isTitle = f.transState === 'title', hold = isTitle ? ANIM.titleHold : (f.cardDur || ANIM.cardHold);
+  const title = isTitle ? (f.titleText || '') : (e.scene.data.title || '').replace(/&nbsp;/g, ' ');
   let a = 1; if (f.cardT < 0.3) a = f.cardT / 0.3; else if (f.cardT > hold - 0.3) a = Math.max(0, (hold - f.cardT) / 0.3);
   c.save(); c.globalAlpha = a; c.fillStyle = '#f3f0e6'; c.textAlign = 'center'; c.textBaseline = 'middle';
-  c.font = `600 ${Math.round(Math.min(e.W, e.H) * 0.07)}px "Oswald",sans-serif`;
   if ('letterSpacing' in c) c.letterSpacing = '0.32em';
+  let fs = Math.round(Math.min(e.W, e.H) * (isTitle ? 0.06 : 0.07));   // story names run longer than act names
+  c.font = `600 ${fs}px "Oswald",sans-serif`;
+  while (fs > 12 && c.measureText(title).width > e.W * 0.84) { fs -= 2; c.font = `600 ${fs}px "Oswald",sans-serif`; }
   c.fillText(title, e.W / 2, e.H / 2);
   if ('letterSpacing' in c) c.letterSpacing = '0px';
   c.restore();

@@ -9,6 +9,8 @@ import { Audio2 } from '../assets/audio.js';
 import { lerp, smooth01 } from '../engine/math.js';
 import { ANIM } from '../style/palette.js';
 
+const CAP_VARIANTS = ['lr', 'rl', 'co'];   // narration render directions, chosen deterministically per line
+
 export class Manager {
   constructor(engine) {
     this.engine = engine;
@@ -59,9 +61,14 @@ export class Manager {
   }
 
   doStart(e) {
-    this.started = true; this.seen = []; this.navShown = false; this.opening = true;
+    this.started = true; this.seen = []; this.navShown = false; this.opening = false;
     this.finishing = false; this.ended = false;
-    this.transAlpha = 1; this.enterScene(0, e); this.transState = 'card'; this.cardT = 0;
+    this.transAlpha = 1;
+    // open on the story-name card (act-card style) before any audio or scene runs. titleHold spans
+    // the browser's fullscreen toast, so the story proper begins once that has gone.
+    this.titleText = ((this.story && (this.story.subtitle || this.story.title)) || '').replace(/&nbsp;/g, ' ');
+    if (this.titleText) { this.transState = 'title'; this.cardT = 0; }
+    else { this.opening = true; this.cardDur = ANIM.openCardHold; this.enterScene(0, e); this.transState = 'card'; this.cardT = 0; }
   }
 
   // establishing shot: open wide and push in to the framed view. The zoom goes below 1 (a true
@@ -76,16 +83,24 @@ export class Manager {
   }
 
   runFlow(e) {
+    if (this.transState === 'title') {                 // opening story-title card, then the story proper begins
+      this.cardT += e.dt;
+      if (this.cardT >= ANIM.titleHold) {
+        if (this.onBegin) this.onBegin();              // start audio only now, as the first act opens
+        this.opening = true; this.cardDur = ANIM.openCardHold; this.enterScene(0, e); this.transState = 'card'; this.cardT = 0;
+      }
+      return;
+    }
     if (this.transState === 'in') {
       this.transAlpha += e.dt * ANIM.transIn;
       if (this.transAlpha >= 1) {
         this.transAlpha = 1;
         if (this.finishing) { this.finishing = false; this.ended = true; this.transState = null; this.transAlpha = 0; this.revealNav(); Audio2.whoosh(); }  // last act done: cut to the black THE END screen + scene picker
-        else { this.enterScene(this.pending, e); this.transState = 'card'; this.cardT = 0; }
+        else { this.enterScene(this.pending, e); this.cardDur = ANIM.cardHold; this.transState = 'card'; this.cardT = 0; }
       }
     } else if (this.transState === 'card') {
       this.cardT += e.dt;
-      if (this.cardT >= ANIM.cardHold) { this.current.sceneStart = e.t; this.showLine(e); this.showTag(); this.transState = 'out'; }
+      if (this.cardT >= (this.cardDur || ANIM.cardHold)) { this.current.sceneStart = e.t; this.showLine(e); this.showTag(); this.transState = 'out'; }
     } else if (this.transState === 'out') {
       this.transAlpha -= e.dt * ANIM.transOut;
       if (this.transAlpha <= 0) { this.transAlpha = 0; this.transState = null; }
@@ -101,7 +116,7 @@ export class Manager {
   }
 
   // on THE END, unlock the act picker (hidden until the story is finished once) and drop it open
-  revealNav() { this.navShown = true; if (this.dom.actsel) this.dom.actsel.classList.add('unlocked'); this.openNav(true); this.highlightNav(); }
+  revealNav() { this.navShown = true; if (this.dom.actsel) this.dom.actsel.classList.add('unlocked'); document.body.classList.add('acts-unlocked'); this.openNav(true); this.highlightNav(); }
   openNav(on) { if (this.dom.nav) this.dom.nav.classList.toggle('open', on); if (this.dom.act) this.dom.act.classList.toggle('open', on); }
   highlightNav() { if (this.dom.nav) this.dom.nav.querySelectorAll('button').forEach(b => b.classList.toggle('cur', +b.dataset.s === this.idx)); }
 
@@ -129,7 +144,16 @@ export class Manager {
   showLine(e) {
     const s = this.current, line = s.data.script[s.lineIdx]; s.lineStart = e.t;
     const cap = this.dom.cap;
-    if (cap) { cap.style.opacity = '0'; setTimeout(() => { cap.innerHTML = line.text; cap.style.opacity = '1'; }, 170); }
+    if (cap) {
+      const wasShown = cap.classList.contains('cap-in');   // animate the old line out first, but not on the first line
+      cap.classList.remove('cap-in'); if (wasShown) cap.classList.add('cap-out');
+      // pick the render direction deterministically from act + line, so a replay always matches
+      const variant = CAP_VARIANTS[(this.idx * 31 + s.lineIdx) % CAP_VARIANTS.length];
+      setTimeout(() => {
+        cap.innerHTML = line.text; cap.style.opacity = ''; cap.dataset.anim = variant;
+        cap.classList.remove('cap-out'); void cap.offsetWidth; cap.classList.add('cap-in');
+      }, wasShown ? 440 : 0);
+    }
     for (const fx of (line.fx || [])) {
       if (fx === 'muzzle') { s.flags.muzzle = 1.0; s.fireGun(e); this.camera.shake(6); }
       else if (fx === 'blood') { s.flags.blood = true; s.flags._bloodT = e.t; }
@@ -142,17 +166,17 @@ export class Manager {
   showTag() { const t = this.dom.tag; if (!t) return; t.innerHTML = this.current.title; t.style.opacity = '0.85'; clearTimeout(this._tag); this._tag = setTimeout(() => t.style.opacity = '0', 2600); }
 
   applyOverlayVisibility() {
-    const covering = this.transState === 'in' || this.transState === 'card';
-    if (this.dom.cap && (covering || this.ended)) this.dom.cap.style.opacity = '0';   // no caption over THE END
+    const covering = this.transState === 'in' || this.transState === 'card' || this.transState === 'title';
+    if (this.dom.cap && (covering || this.ended)) { this.dom.cap.classList.remove('cap-in', 'cap-out'); this.dom.cap.style.opacity = '0'; }   // no caption over a wipe or THE END
     if (this.dom.tap) this.dom.tap.style.opacity = (covering || this.ended) ? '0' : (this.started ? '1' : '0');
   }
 
   buildSceneNav() {
     const nav = this.dom.nav; if (!nav) return;
     nav.innerHTML = ''; this.openNav(false); this.navShown = false;
-    if (this.dom.actsel) this.dom.actsel.classList.remove('unlocked');   // re-lock until this story is finished again
+    if (this.dom.actsel) this.dom.actsel.classList.remove('unlocked'); document.body.classList.remove('acts-unlocked');   // re-lock until this story is finished again
     (this.scenes || []).forEach((s, i) => {
-      const b = document.createElement('button'); b.dataset.s = i;
+      const b = document.createElement('button'); b.className = 'noir-item'; b.dataset.s = i;
       b.innerHTML = (s.data.title || ('SCENE ' + i)).replace(/&nbsp;/g, ' ');
       b.addEventListener('click', () => { this.jumpTo(i); this.openNav(false); });   // pick an act, then collapse the drawer
       nav.appendChild(b);

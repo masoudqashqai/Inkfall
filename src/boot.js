@@ -10,13 +10,14 @@ import './library/index.js';
 import { STORIES } from '../stories/manifest.js';
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 43 · fullscreen immersion + menu'
+const BUILD = 'v2 build 44 · noir UI + clean audio pause'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 
 const engine = new Engine(); engine.init();
 const manager = new Manager(engine);
 manager.attachDom({ cap: el('caption'), tag: el('scenetag'), tap: el('tapnote'), nav: el('scenenav'), act: el('actbtn'), actsel: el('actsel') });
+manager.onBegin = () => Audio2.start();   // audio starts as the opening title card lifts, not before
 
 // REVIEW ACT toggle: drop the act list open/closed below the HUD
 el('actbtn').addEventListener('click', () => {
@@ -32,17 +33,34 @@ viewport.onStart = () => manager.requestStart();
 viewport.onPause = () => Audio2.suspend();     // full story pause behind the prompt: clock + sound
 viewport.onResume = () => Audio2.resumeAll();
 
+// the TAP/DRAG/HOLD hint is shown once ever, then retired to the menu's CONTROLS panel
+if (localStorage.getItem('inkfall_controls_seen')) document.body.classList.add('controls-seen');
+const markControlsSeen = () => {
+  if (document.body.classList.contains('controls-seen')) return;
+  document.body.classList.add('controls-seen');
+  try { localStorage.setItem('inkfall_controls_seen', '1'); } catch (e) {}
+};
+
 // input → manager
 import { bindInput } from './engine/input.js';
 bindInput(engine.cv, {
   isReady: () => manager.started,
-  onTap: () => manager.advance(),
+  onTap: () => { const live = manager.started && !manager.transState; manager.advance(); if (live) markControlsSeen(); },   // retire the hint on a real advance
   onDrag: dx => manager.drag(dx),
   onHold: () => manager.holdLightning(),
 });
 
 const cache = {};
-const loadStory = i => (cache[i] ||= STORIES[i].load());
+// load + cache a story, but never cache a failure or an empty module, so a transient error (a fetch
+// that fails while the dev server is still warming up) can be retried instead of sticking forever
+function loadStory(i) {
+  if (cache[i]) return cache[i];
+  const p = STORIES[i].load()
+    .then(s => { if (!s) throw new Error('empty story ' + i); return s; })
+    .catch(err => { delete cache[i]; throw err; });
+  cache[i] = p;
+  return p;
+}
 let defaultStory = null;
 
 function applyIntroText(s) {
@@ -56,7 +74,7 @@ function buildStoryPicker() {
   STORIES.forEach((s, i) => {
     const b = document.createElement('button'); b.className = 'storybtn'; b.dataset.i = i;
     b.innerHTML = `${s.name}<small>${s.tagline}</small>`;
-    b.addEventListener('click', () => selectStory(i));
+    b.addEventListener('click', () => selectStory(i).catch(() => {}));   // a transient load error is retryable by clicking again
     pick.appendChild(b);
   });
 }
@@ -75,7 +93,6 @@ const setStage = s => { document.body.dataset.stage = s; };
 
 function beginPlay() {
   setStage('playing');     // CSS reveals the HUD + narration and fades the intro out
-  Audio2.start();
   viewport.beginStory();   // goes immersive, then starts the story once the screen is landscape
 }
 el('enter').addEventListener('click', beginPlay);
@@ -121,8 +138,8 @@ function makePoster() {
   el('posterclose').textContent = 'BACK TO ' + ((manager.current && manager.current.title || 'THE RAIN').replace(/&nbsp;/g, ' ')).toUpperCase();
   el('poster').classList.add('show');
 }
-el('shoot').addEventListener('click', () => { if (manager.started) makePoster(); });
-el('posterclose').addEventListener('click', () => el('poster').classList.remove('show'));
+el('shoot').addEventListener('click', () => { if (manager.started) { makePoster(); refreshPause(); } });
+el('posterclose').addEventListener('click', () => { el('poster').classList.remove('show'); refreshPause(); });
 
 // ---- story editor (pure-data JSON) ----
 const editor = el('editor'), edText = el('ed-text'), edErr = el('ed-err');
@@ -131,26 +148,41 @@ const noCache = (k, v) => (k && k[0] === '_') ? undefined : v;
 const storymenu = el('storymenu');
 const openEditor = () => { edText.value = JSON.stringify(manager.story, noCache, 2); edErr.textContent = ''; editor.style.display = 'flex'; };
 function goToStartMenu() {
-  storymenu.classList.remove('show'); editor.style.display = 'none'; el('poster').classList.remove('show');
+  storymenu.classList.remove('show'); storymenu.dataset.view = 'main'; document.body.classList.remove('clean');
+  editor.style.display = 'none'; el('poster').classList.remove('show');
   el('scenenav').classList.remove('open'); el('actbtn').classList.remove('open');
   Audio2.setStory(manager.story && manager.story.audio);   // stop the playing audio, reset to the unstarted state
   viewport.reset(); manager.reset();                        // drop back to act one, not started, so ENTER replays cleanly
   setStage('menu');                                          // CSS fades the intro back in and hides the HUD
 }
-const soundBtn = el('sm-sound'), fsItem = el('sm-fs');
+const soundBtn = el('sm-sound'), fsItem = el('sm-fs'), hudItem = el('sm-hud');
+const setView = v => { storymenu.dataset.view = v; };
 const syncMenu = () => {
   soundBtn.textContent = Audio2.isOn() ? 'SOUND: ON' : 'SOUND: OFF';
   fsItem.textContent = viewport.fullscreenOn() ? 'EXIT FULLSCREEN' : 'FULLSCREEN';
+  hudItem.textContent = document.body.classList.contains('clean') ? 'SHOW HUD' : 'HIDE HUD';
 };
+// a true pause menu: while the menu, poster or editor is open, the play clock + audio are paused
+const refreshPause = () => viewport.setMenuPaused(
+  storymenu.classList.contains('show') || el('poster').classList.contains('show') || editor.style.display === 'flex');
+const openMenu = () => { setView('main'); syncMenu(); storymenu.classList.add('show'); refreshPause(); };
+const closeMenu = () => { storymenu.classList.remove('show'); setView('main'); refreshPause(); };
 soundBtn.addEventListener('click', () => { Audio2.toggle(); syncMenu(); });
 fsItem.addEventListener('click', () => { viewport.toggleFullscreen(); setTimeout(syncMenu, 100); });
-el('menubtn').addEventListener('click', () => { syncMenu(); storymenu.classList.add('show'); });
-el('sm-cancel').addEventListener('click', () => storymenu.classList.remove('show'));
-storymenu.addEventListener('click', e => { if (e.target === storymenu) storymenu.classList.remove('show'); });
-el('sm-back').addEventListener('click', goToStartMenu);
-el('sm-edit').addEventListener('click', () => { storymenu.classList.remove('show'); openEditor(); });
-el('ed-close').addEventListener('click', () => editor.style.display = 'none');
-el('ed-reset').addEventListener('click', () => { edText.value = JSON.stringify(defaultStory, noCache, 2); edErr.textContent = 'Default story loaded into the editor — press PLAY to run it.'; });
+hudItem.addEventListener('click', () => { document.body.classList.toggle('clean'); syncMenu(); });   // clean scene mode
+el('menubtn').addEventListener('click', openMenu);
+el('sm-resume').addEventListener('click', closeMenu);
+storymenu.addEventListener('click', e => { if (e.target === storymenu) closeMenu(); });
+el('sm-engine').addEventListener('click', () => setView('engine'));
+el('sm-controls').addEventListener('click', () => setView('controls'));
+el('sm-engine-back').addEventListener('click', () => setView('main'));
+el('sm-controls-back').addEventListener('click', () => setView('main'));
+el('sm-back').addEventListener('click', () => setView('confirm'));     // exiting is destructive: confirm first
+el('sm-confirm-no').addEventListener('click', () => setView('main'));
+el('sm-confirm-yes').addEventListener('click', goToStartMenu);
+el('sm-edit').addEventListener('click', () => { storymenu.classList.remove('show'); openEditor(); refreshPause(); });
+el('ed-close').addEventListener('click', () => { editor.style.display = 'none'; refreshPause(); });
+el('ed-reset').addEventListener('click', () => { edText.value = JSON.stringify(defaultStory, noCache, 2); edErr.textContent = 'Default story loaded into the editor, press PLAY to run it.'; });
 el('ed-play').addEventListener('click', () => {
   let s; try { s = JSON.parse(edText.value); } catch (err) { edErr.textContent = 'JSON error: ' + err.message; return; }
   if (!s || !Array.isArray(s.scenes) || !s.scenes.length) { edErr.textContent = 'A story needs a non-empty "scenes" array.'; return; }
@@ -158,12 +190,18 @@ el('ed-play').addEventListener('click', () => {
   try { localStorage.setItem('inkfall_story', JSON.stringify(s, noCache)); } catch (e) {}
   editor.style.display = 'none';
   if (!manager.started) beginPlay();
+  refreshPause();
 });
 
 // ---- bootstrap ----
 (async () => {
   buildStoryPicker();
-  defaultStory = await loadStory(0);
-  await selectStory(0);
+  let ready = false;
+  for (let attempt = 0; attempt < 12 && !ready; attempt++) {   // the dev server may still be warming up: retry the first load
+    try { defaultStory = await loadStory(0); await selectStory(0); ready = true; }
+    catch (e) { await new Promise(r => setTimeout(r, 350)); }
+  }
+  if (!ready) { const l = el('introloading'); if (l) l.querySelector('.loadlabel').textContent = 'COULD NOT LOAD, REFRESH'; return; }
+  el('intro').classList.remove('loading');   // stories ready: swap the spinner for the picker + ENTER
   engine.run(e => manager.tick(e));
 })();
