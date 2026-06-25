@@ -11,7 +11,7 @@ import { Light } from './light.js';
 const BASES = { node: Node, actor: Actor, mover: Mover, prop: Prop, effect: Effect, light: Light };
 const registry = new Map();
 
-// methods: { draw, update?, emitLight?, castsShadow?, depth? } as plain functions (use `this`)
+// methods: { draw, update?, emitLight?, shadowSil?, castsShadow?, shadowW?, shadowH?, shadowDensity?, depth? } as plain functions (use `this`)
 export function define(name, kind, methods = {}) { registry.set(name, { kind, methods }); }
 export const defineActor = (name, draw, m = {}) => define(name, 'actor', { draw, ...m });
 export const defineMover = (name, draw, m = {}) => define(name, 'mover', { draw, ...m });
@@ -35,7 +35,11 @@ export function create(name, params = {}) {
   if (m.draw) obj.draw = m.draw;
   if (m.update) obj.update = m.update;
   if (m.emitLight) obj.emitLight = m.emitLight;
+  if (m.shadowSil) obj.shadowSil = m.shadowSil;
   if (m.castsShadow != null) obj.castsShadow = m.castsShadow;
+  if (m.shadowW != null && params.shadowW == null) obj.shadowW = m.shadowW;
+  if (m.shadowH != null && params.shadowH == null) obj.shadowH = m.shadowH;
+  if (m.shadowDensity != null && params.shadowDensity == null) obj.shadowDensity = m.shadowDensity;
   if (m.depth != null && params.depth == null) obj.depth = m.depth;
   if (m.layer != null && params.layer == null) obj.layer = m.layer;
   return obj;

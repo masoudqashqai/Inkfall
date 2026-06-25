@@ -50,10 +50,10 @@ export class Scene {
   // visible objects of a layer, back-to-front by depth
   _layer(layer) { return this.objects.filter(o => this.visible(o) && (o.layer || 'mid') === layer).sort((a, b) => (a.depth || 0) - (b.depth || 0)); }
   drawBack(e) { for (const o of this._layer('back')) o.draw(e); }   // distant elements, behind the backdrop
-  drawObjects(e) {
-    for (const o of this._layer('mid')) o.draw(e);
-    this.shells.draw(e);
-  }
+  // the cast, back to front. The compositor walks this so it can paint each caster's shadow right
+  // before its object (so the shadow lands on the cast already behind it), then draw the object.
+  midObjects(e) { return this._layer('mid'); }
+  drawShells(e) { this.shells.draw(e); }
   drawLightExtras(e) { this.ripples.draw(e); }   // additive ripples onto the light buffer
 
   update(dt, e) {

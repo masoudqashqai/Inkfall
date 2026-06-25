@@ -8,6 +8,7 @@ export class Engine {
   constructor() {
     this.cv = null; this.ctx = null; this.DPR = 1; this.W = 0; this.H = 0; this.unit = 1;
     this.lightCv = null; this.lightCtx = null;
+    this.shadowCv = null; this.shadowCtx = null;   // the offscreen shadow buffer (projected onto the stage, blitted under the cast)
     this.snapCv = null; this.snapCtx = null;   // a frozen copy of the last frame, for the beat crossfade
     this.frame = new Frame();
     this.drops = []; this.grain = null;     // rain particles + film-grain tile (persist across scenes)
@@ -20,6 +21,8 @@ export class Engine {
     this.ctx = this.cv.getContext('2d', { alpha: false });   // NOT desynchronized: the low-latency surface tears/flickers badly on real phones (fine on desktop + emulation, so it hid)
     this.lightCv = document.createElement('canvas');
     this.lightCtx = this.lightCv.getContext('2d');
+    this.shadowCv = document.createElement('canvas');
+    this.shadowCtx = this.shadowCv.getContext('2d');
     this.snapCv = document.createElement('canvas');
     this.snapCtx = this.snapCv.getContext('2d');
     addEventListener('resize', () => this.resize());
@@ -37,7 +40,7 @@ export class Engine {
     if (ar < ASPECT_MIN) h = Math.round(vw / ASPECT_MIN);        // too tall: cap the height
     else if (ar > ASPECT_MAX) w = Math.round(vh * ASPECT_MAX);   // too wide: cap the width
     this.W = w; this.H = h;
-    for (const cv of [this.cv, this.lightCv, this.snapCv]) { cv.width = Math.floor(w * this.DPR); cv.height = Math.floor(h * this.DPR); }
+    for (const cv of [this.cv, this.lightCv, this.shadowCv, this.snapCv]) { cv.width = Math.floor(w * this.DPR); cv.height = Math.floor(h * this.DPR); }
     this.cv.style.width = w + 'px'; this.cv.style.height = h + 'px';
     this.cv.style.left = Math.floor((vw - w) / 2) + 'px';
     this.cv.style.top = Math.floor((vh - h) / 2) + 'px';
@@ -63,7 +66,7 @@ export class Engine {
     const f = this.frame;
     f.W = this.W; f.H = this.H; f.unit = Math.min(this.W, this.H) / 360;
     f.t = now / 1000; f.dt = Math.min((now - this.last) / 1000, 0.05);
-    f.main = this.ctx; f.light = this.lightCtx; f.ctx = this.ctx;
+    f.main = this.ctx; f.light = this.lightCtx; f.shadow = this.shadowCtx; f.ctx = this.ctx;
     f.drops = this.drops; f.grain = this.grain; f.DPR = this.DPR;
     this.last = now;
     return f;

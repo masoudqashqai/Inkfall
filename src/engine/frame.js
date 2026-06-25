@@ -1,7 +1,8 @@
 // FRAME — the per-frame facade handed to passes and to every object's draw/update/emitLight.
-// It bundles the live timing + sizes, the three drawing contexts (world buffer, additive
-// light buffer, main), and the coordinate + lighting helpers. Objects read `e.ctx` as their
-// target and call helpers like `e.X(node)`, `e.groundShadow(...)`, `e.pushLight(...)`.
+// It bundles the live timing + sizes, the drawing contexts (main, the additive light buffer, the
+// shadow buffer), and the coordinate + lighting helpers. Objects read `e.ctx` as their target and
+// call helpers like `e.X(node)`, `e.addLight(...)`. Shadows are not registered by objects: the
+// compositor turns every castsShadow object into a caster and paints it (see render/shadows.js).
 import { PALETTE } from '../style/palette.js';
 import { lerp, smooth01 } from './math.js';
 import * as L from '../render/lighting.js';
@@ -9,7 +10,7 @@ import * as L from '../render/lighting.js';
 export class Frame {
   constructor() {
     this.W = this.H = 0; this.unit = 1; this.t = 0; this.dt = 0;
-    this.world = this.light = this.main = null;  // the three 2d contexts
+    this.world = this.light = this.shadow = this.main = null;  // the four 2d contexts (world, light buffer, shadow buffer, main)
     this.ctx = null;                              // active draw target (set per pass)
     this.scene = null;                            // active Scene
     this.lights = [];                             // light records, rebuilt each frame
@@ -51,9 +52,18 @@ export class Frame {
   // Objects describe a light once with addLight({...}); the lighting pass draws halo + refl.
   addLight(rec) { L.addLight(this, rec); }
   dominantLight(x) { return L.dominantLight(this, x); }
-  litTint(x) { return L.litTint(this, x); }
+  // the ambient tint at x. Pass the node to LOW-PASS it on the node over time, so a flickering neon
+  // tints the form steadily instead of strobing the cloth frame to frame.
+  litTint(x, node) {
+    const t = L.litTint(this, x);
+    if (!node) return t;
+    if (!t) { node._tint = null; return null; }
+    const p = node._tint;
+    if (!p) return node._tint = t;
+    const k = 0.03;
+    return node._tint = [p[0] + (t[0] - p[0]) * k, p[1] + (t[1] - p[1]) * k, p[2] + (t[2] - p[2]) * k];
+  }
   litColor(x, gr, gg, gb) { return L.litColor(this, x, gr, gg, gb); }
-  groundShadow(x, halfW, objH) { L.groundShadow(this, x, halfW, objH); }
 }
 
 Frame.prototype.palette = PALETTE;
