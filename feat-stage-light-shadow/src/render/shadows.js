@@ -62,11 +62,12 @@ function stampShape(e, c, cr) {
 function projStamp(e, c, cr, alpha, soft, mat) {
   const taps = SHADE.softTaps, step = 0.05 + Math.min(0.14, soft);
   for (let i = taps - 1; i >= 0; i--) {
-    const f = 1 + i * step;
-    c.save();
+    const f = 1 + i * step;                 // outer taps reach a little further along the projection
+    const grow = 1 + i * SHADE.edgeFeather; // and grow the silhouette outward, so the edge feathers on
+    c.save();                               // every side and fades into the surface, recognisable but soft
     c.globalAlpha = alpha / taps;
     c.fillStyle = '#000';
-    const m = mat(f); c.transform(m[0], m[1], m[2], m[3], 0, 0);
+    const m = mat(f); c.transform(m[0], m[1], m[2], m[3], 0, 0); c.scale(grow, grow);
     stampShape(e, c, cr);
     c.restore();
   }

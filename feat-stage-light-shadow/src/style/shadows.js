@@ -4,14 +4,15 @@
 // WASH the diffuse pools lights paint on the floor and the wall.
 export const SHADE = {
   color: '4,5,8',        // the ink a shadow is tinted with (deep cool near-black, never pure 0)
-  floorAlpha: 0.64,       // peak opacity of a floor shadow at the contact point
-  wallAlpha: 0.58,       // peak opacity of a wall shadow at its base
-  contactAlpha: 0.46,     // the dark grounding dab right under every caster
+  floorAlpha: 0.7,        // peak opacity of a floor shadow at the contact point
+  wallAlpha: 0.64,       // peak opacity of a wall shadow at its base
+  contactAlpha: 0.5,      // the dark grounding dab right under every caster
   floorTilt: 0.32,       // how far a floor shadow lays toward the camera (down screen) vs its length
   lengthGain: 1.0,       // global multiplier on projected shadow length
   maxLen: 3.4,           // cap on shadow length as a multiple of the caster height
   penumbra: 0.5,         // base softness; emitter size and length widen it further
-  softTaps: 3,           // layered stamps used to fake a soft edge (no blur filter on mobile)
+  softTaps: 5,           // layered stamps used to fake a soft edge (no blur filter on mobile)
+  edgeFeather: 0.05,     // per tap outward growth, so the edge fades on all sides (not a razor copy)
   maxLights: 2,          // how many of the strongest lights throw a shadow per caster
   minWeight: 0.07,       // a light weaker than this at the caster throws no shadow
 };
