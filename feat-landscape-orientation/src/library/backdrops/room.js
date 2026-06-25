@@ -5,7 +5,6 @@ import { PALETTE } from '../../style/palette.js';
 
 defineBackdrop('room', data => ({
   indoor: true,
-  wallTop: 0,            // a flat back wall spans the full height above the floor, so shadows climb it
   draw(e) {
     const c = e.ctx, g = e.gy, b = data.backdrop || {}, ox = e.scene.camera.look * 0.3;
     const wall = c.createLinearGradient(0, 0, 0, g); wall.addColorStop(0, b.wallTop || '#0a0c11'); wall.addColorStop(1, b.wall || '#06070b');

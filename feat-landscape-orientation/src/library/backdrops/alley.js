@@ -1,20 +1,9 @@
 // ALLEY — two brick walls converging on a far slice of skyline, with a fire escape.
 import { defineBackdrop } from '../../objects/registry.js';
 import { PALETTE } from '../../style/palette.js';
-import { lerp } from '../../engine/math.js';
 import { buildSkyline, paintSkyline, wetFloor, brickWall, fireEscape, balcony } from './skyline-core.js';
 
-// no window glow here: the brick walls cover most of the skyline, so an additive bloom would leak
-// onto the brick. The far slice is tiny anyway.
 defineBackdrop('alley', data => ({
-  wallTop: 0,            // brick walls rise the full height, so a figure's shadow can climb them
-  // the brick walls hide the moon unless it sits in the central sky gap between them, so a moon to
-  // the side lights nothing (no leaking floor reflection). Same gap the draw carves out.
-  occludesMoon(e, mx, my) {
-    const vx = e.W * 0.5 + e.scene.camera.look * 0.3, vy = e.H * 0.4, t = Math.min(1, Math.max(0, my) / vy);
-    const left = lerp(e.W * 0.4, vx - e.W * 0.1, t), right = lerp(e.W * 0.6, vx + e.W * 0.1, t);
-    return mx < left || mx > right;
-  },
   build(e) { return buildSkyline(e, data.backdrop.seed || 77123, [{ depth: 0.4, top: e.H * 0.3, shade: PALETTE.farInk, minW: 50, maxW: 110, minH: 0.3, maxH: 0.55, win: 0.18 }], e.H * 0.62); },
   draw(e) {
     const c = e.ctx, g = e.gy, look = e.scene.camera.look, vx = e.W * 0.5 + look * 0.3, vy = e.H * 0.4;

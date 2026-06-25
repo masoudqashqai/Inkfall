@@ -24,15 +24,12 @@ src/
     viewport.js       landscape frame: aspect band letterbox, rotate gate (fullscreen + orientation lock), pausable play clock
     frame.js          per-frame facade passed to passes + objects (e.*)
     camera.js         look (drag parallax), zoom (establishing), shake
-    compositor.js     ordered render: set → back light → cast (each caster's shadow just before it) → front light → weather → post → transition
+    compositor.js     ordered render: world → light buffer → composite → weather → post → transition
     input.js          tap=advance, drag=look, hold=lightning
     math.js           rand32, lerp, clamp, clamp01, smooth01, hexRgb, cssRgb, TWO_PI
   style/palette.js    PALETTE + ANIM (central look + timing)
-  style/materials.js  surface light model: rimSign (the per-figure light field), bodyGrad + shade (ambient fill + diffuse wrap)
-  style/shadows.js    SHADE + AMBIENT + WASH + ENV (shadow/ambient/wash knobs + the indoor vs outdoor profile)
-  render/stage.js     the shared floor + wall stage geometry both lighting and shadows read
-  render/lighting.js  light service: addLight, litTint, litColor, drawBackLight/drawFrontLight (beams, glow, washes, refl)
-  render/shadows.js   shadow service: casterRecord, paintCaster, tintBuffer (silhouettes projected onto the stage)
+  style/materials.js  shared shading: rimSign, bodyGrad, shadowPool
+  render/lighting.js  light+shadow service: addLight, dominantLight, litTint, litColor, groundShadow, drawLightLayer
   render/passes/      sky, lighting, weather, post, transition
   objects/            node + actor/mover/prop/effect/light + registry (define*, create, createBackdrop)
   library/            the art by category, self-registering via library/index.js
@@ -47,31 +44,12 @@ _legacy/              archived prior builds (do not edit)
 ## Render model (how a frame is drawn)
 
 `manager.tick(e)` → update world, then `compositor.render(e)`:
-1. the SET → main canvas (camera applied): `sky`, `scene.collectLights` (every light registers
-   first, so rim, washes and shadows are stable), the back layer (distant elements drawn behind the
-   backdrop, e.g. the rooftop searchlight beam, so the buildings occlude it), backdrop, light
-   fixtures.
-2. the BACK light buffer (camera applied, composited with `lighter` BEFORE the cast): a faint
-   ambient lift, the backdrop's distant window bloom (soft halos + the odd failing-tube flicker),
-   then per scene light its volumetric beam (the street lamp shaft), halo, floor + wall washes, and
-   the wet-floor reflection + ripples. Being behind the cast, a foreground figure correctly occludes
-   the light and the beams behind it. (A distant beam like the searchlight uses the same beam model
-   but draws in the back layer in step 1, so the buildings occlude it too.)
-3. the CAST → main, BACK TO FRONT. Each object whose `castsShadow` is true has its shadow painted
-   (to the shadow buffer, projected through the strongest lights onto the floor and, where the set
-   has one, up the back wall) and composited onto the scene RIGHT BEFORE the object is drawn. So a
-   shadow lands not only on the floor and wall but on the cast already drawn behind it (a figure in
-   front shadows a figure behind), and the object then draws over its own shadow. Brass last.
-4. the FRONT light buffer (composited with `lighter` AFTER the cast): only lights flagged `front`
-   (a cigarette ember, a held match), so their glow reads over the figure.
-5. weather (rain, lightning) over the lit scene.
-6. screen-space post (grain, vignette) and transition (ink wipe + act card).
-
-Light and shadow are two services over one shared stage (`render/stage.js`: the floor plane plus an
-optional near wall). A light is described once with `addLight({...})`, the lighting passes paint it.
-A shadow needs nothing from the object beyond `castsShadow` (and an optional `shadowSil`): the
-compositor turns each `castsShadow` object into a caster and paints it in depth order. The look is
-tuned centrally in `style/shadows.js` (SHADE, AMBIENT, WASH).
+1. world → main canvas (camera applied): `sky`, `scene.collectLights` (all lights register first,
+   so rim/shadow are stable), backdrop, light fixtures, objects (depth order) + brass.
+2. additive light buffer (camera applied): every light's halo + floor reflection + ripples.
+3. composite light buffer onto main with `lighter`.
+4. weather (rain, lightning) over the lit scene.
+5. screen-space post (grain, vignette) and transition (ink wipe + act card).
 
 ## Viewport and HUD
 
@@ -83,18 +61,6 @@ system.
   too wide one gets bars left and right. Everything downstream reads `e.W/e.H` (the band), so the
   world never knows it is letterboxed. The cap is loose on purpose, so normal desktops and modern
   phones in landscape fill edge to edge and only genuine ultrawides pillarbox.
-- 1080p anchor (the scaling contract): the world is drawn in a FIXED virtual resolution. The band is
-  always `REF_H` logical units tall (1080, our anchor), so `e.H` is always 1080 and `e.W` is
-  `1080 * aspect`. The engine folds a single scale `ls` (real band height over 1080) into the world
-  transform (`DPR * ls`), so the whole scene is one uniform zoom of the same 1080p composition at any
-  size: a phone, a 1080p screen, a 4K screen all show the identical framing, just at more or fewer
-  pixels. The upshot for draw code: every size literal means "pixels at 1080p", and `e.unit` is a
-  constant 3. Same aspect ratio, bigger or smaller screen is a pure uniform zoom. A different aspect
-  ratio keeps the same vertical scale and only shows more or less world on the sides, it never
-  resizes objects. Offscreen sprites that cache art (the skyline) bake at the real device scale
-  `DPR * ls` so they stay crisp, while their geometry stays in logical units so the composition is
-  identical at any resolution. Pointer drags are CSS px, so `boot.js` divides them by `ls` before the
-  camera, keeping the look feel the same everywhere.
 - Rotate gate (`viewport.js`): on a touch device held in portrait, starting a story goes fullscreen
   and asks for landscape (`screen.orientation.lock`), and the "rotate your screen" prompt shows only
   if that is refused. Reverting to portrait mid story shows the prompt again, and a "watch anyway"
@@ -122,25 +88,14 @@ functions, not arrows (they rely on `this`).
 
 Frame API objects use: `e.ctx` (draw target), `e.W/e.H/e.unit/e.t/e.gy`, `e.X(this)`, `e.scaleOf(this)`,
 `e.walkX(this)`, `e.beat()`, `e.sceneT()`, `e.lineIdx`, `e.flags`, `e.palette`, `e.litTint(x)`,
-`e.litColor(...)`, `e.addLight({...})`, `e.walkSound(bool)`.
+`e.litColor(...)`, `e.groundShadow(x, halfW, objH)`, `e.addLight({...})`, `e.walkSound(bool)`.
 
-`opts`: `castsShadow`, `depth`, the optional hooks `update(dt, e)`, `emitLight(e)`, `shadowSil(e, c)`,
-and shadow sizing `shadowW`/`shadowH`/`shadowDensity`. To emit light, `emitLight` calls
-`e.addLight({ x, y, col:'r,g,b', r, I, ew, eh, beam?, front?, shade?, ... })`; the lighting pass
-draws the halo, washes, reflection and the optional volumetric `beam` (a cone of light in the air),
-so objects never draw their own glow or beam. `front:true` paints a light in front of the cast (a
-cigarette ember), the default is behind it. `shade:true` caps the glow above the emitter (a hooded
-lamp). A backdrop may also paint distant window bloom on the light buffer via an optional `glow(e)`
-hook. Shadows are automatic: the compositor turns each `castsShadow` object into a caster and paints
-its shadow in depth order, right before drawing it. Give it a `shadowSil(e, c)` to cast its real
-shape (draw the solid body in local feet-origin coords, plain fills, into the passed ctx `c`);
-without one it falls back to a billboard from `shadowW`/`shadowH`. Objects never draw their own
-shadow.
+`opts`: `castsShadow`, `depth`, and the optional hooks `update(dt, e)` and `emitLight(e)`. To emit
+light, `emitLight` calls `e.addLight({ x, y, col:'r,g,b', r, I, haloR, haloI, reflW, reflI })`. The
+lighting pass draws the halo + reflection, so objects never draw their own glow.
 
-Backdrops: `defineBackdrop(name, data => ({ indoor?, wallTop?, build(e){ return geom }, draw(e){ /* this.geom */ } }))`.
-`build` precomputes geometry on resize (cached on `this.geom`); `draw` paints each frame. A set with
-a near back wall (room, alley) sets `wallTop` (0..1 or px) so light washes and shadows project onto
-it; omit it on open sets (skyline, rooftop) to keep them floor only.
+Backdrops: `defineBackdrop(name, data => ({ indoor?, build(e){ return geom }, draw(e){ /* this.geom */ } }))`.
+`build` precomputes geometry on resize (cached on `this.geom`); `draw` paints each frame.
 
 ## Extending
 
@@ -149,9 +104,7 @@ it; omit it on open sets (skyline, rooftop) to keep them floor only.
 - New story: `stories/<id>/story.js` (`export default {...}`, see `SCHEMA.md`) + a `manifest.js` entry.
   Per-story behaviour is data (params, `fx`, `onFlag`/`hideOnFlag`), not engine edits.
 - Restyle the world: `style/palette.js` (palette/timing), `style/materials.js` (shading),
-  `style/shadows.js` (shadow + ambient + surface-wash look), `render/lighting.js` (light model),
-  `render/shadows.js` + `render/stage.js` (shadow model + stage geometry), `render/passes/post.js`
-  (screen finish).
+  `render/lighting.js` (light model), `render/passes/post.js` (screen finish).
 - Restyle the HUD chrome: the design tokens in the `:root` block of `styles/inkfall.css`.
 - New HUD control: give it `class="hud-btn hud-sm|hud-md|hud-lg"` and show it from a stage rule
   (`body[data-stage="playing"] ...`) rather than toggling it by hand.
@@ -160,9 +113,8 @@ it; omit it on open sets (skyline, rooftop) to keep them floor only.
 
 - Vanilla JS, native modules, no bundler in dev, no dependencies. Stories are pure data (default
   exports). Do not reintroduce globals.
-- Lighting and shadows go through the two shared services (`render/lighting.js`, `render/shadows.js`)
-  over the one stage (`render/stage.js`). Do not hand-roll per-object lighting or shadows, that is
-  what keeps the look uniform.
+- Lighting and shadows go through the one shared service (`render/lighting.js`). Do not hand-roll
+  per-object lighting, that is what keeps the look uniform.
 - Library draw functions are regular functions (use `this`).
 - Animation today is param-driven from scene timing. The intended growth point is a clip/timeline
   system on `Actor`, and the Node contract is built to absorb it without changing objects.

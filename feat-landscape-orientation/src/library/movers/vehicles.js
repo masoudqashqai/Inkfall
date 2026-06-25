@@ -9,8 +9,11 @@ defineMover('redCar', function (e) {
   const P = pts => { c.beginPath(); c.moveTo(pts[0][0] * s, pts[0][1] * s); for (let i = 1; i < pts.length; i++) c.lineTo(pts[i][0] * s, pts[i][1] * s); c.closePath(); };
   c.save(); c.translate(X, gy); c.scale(this.flip ? 1 : -1, 1);   // authored front-left; default faces RIGHT (its travel direction)
 
-  // the floor shadow is cast by the shadow system now (castsShadow + shadowSil below). The coloured
-  // wet glow comes from the head/tail lamps via the lighting pass, not a red box.
+  // soft contact shadow on the wet floor: a feathered ellipse hugging the ground (no hard slab).
+  // The coloured wet glow comes from the head/tail lamps via the lighting pass, not a red box.
+  c.save(); c.translate(0, 1 * s); c.scale(1, 0.16);
+  const sh = c.createRadialGradient(0, 0, 0, 0, 0, 88 * s); sh.addColorStop(0, 'rgba(0,0,0,0.55)'); sh.addColorStop(0.55, 'rgba(0,0,0,0.3)'); sh.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = sh; c.beginPath(); c.arc(0, 0, 88 * s, 0, TWO_PI); c.fill(); c.restore();
 
   // chrome bumpers (dim steel), front-left + rear-right, behind the body
   for (const [x0, x1] of [[-82, -66], [66, 82]]) { const sg = c.createLinearGradient(0, -16 * s, 0, -7 * s); sg.addColorStop(0, '#454a52'); sg.addColorStop(1, '#1b1f25'); c.fillStyle = sg; c.fillRect(x0 * s, -16 * s, (x1 - x0) * s, 9 * s); }
@@ -48,14 +51,7 @@ defineMover('redCar', function (e) {
   }
   c.restore();
 }, {
-  shadowW: 82, shadowH: 55,
-  shadowSil(e, c) {                                            // the car body footprint, cast on the wet floor
-    const s = e.scaleOf(this);
-    const body = [[-78, -9], [-78, -21], [-72, -31], [-30, -34], [-26, -34], [-13, -54], [-7, -55], [29, -55], [41, -37], [71, -35], [76, -34], [78, -23], [78, -9]];
-    c.beginPath(); c.moveTo(body[0][0] * s, body[0][1] * s); for (let i = 1; i < body.length; i++) c.lineTo(body[i][0] * s, body[i][1] * s); c.closePath(); c.fill();
-    c.fillRect(-80 * s, -12 * s, 160 * s, 12 * s);
-    for (const wx of [-44, 46]) { c.beginPath(); c.arc(wx * s, -12 * s, 12 * s, 0, TWO_PI); c.fill(); }
-  },
+  castsShadow: false,
   emitLight(e) {
     const s = e.scaleOf(this), X = e.walkX(this), gy = e.gy + (this.dy || 0) * e.unit, ly = gy - 9 * s, dir = this.flip ? -1 : 1;
     e.addLight({ x: X + dir * 78 * s, y: ly, col: '255,238,196', r: 150 * s, I: 0.5, ew: 10 * s, eh: 7 * s });   // headlight (front)

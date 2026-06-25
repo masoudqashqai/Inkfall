@@ -11,8 +11,8 @@ export function weather(e) {
 }
 
 function rain(e, bloodRain) {
-  const c = e.ctx, drops = e.drops, drift = [], lit = !bloodRain && e.lights.length > 0, k = e.unit / 3;
-  c.lineWidth = (bloodRain ? 1.6 : 1.1) * k;   // blood rain falls heavier; width tracks the scene scale (1 at 1080p)
+  const c = e.ctx, drops = e.drops, drift = [], lit = !bloodRain && e.lights.length > 0;
+  c.lineWidth = bloodRain ? 1.6 : 1.1;   // blood rain falls heavier
   c.strokeStyle = bloodRain ? `rgba(168,8,16,${ANIM.rainAlpha + 0.22})` : `rgba(180,190,210,${ANIM.rainAlpha})`;
   c.beginPath();
   for (let i = 0; i < drops.length; i++) {

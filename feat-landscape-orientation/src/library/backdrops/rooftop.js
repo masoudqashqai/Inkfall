@@ -1,11 +1,10 @@
 // ROOFTOP — above the city: distant skyline, washing lines, a low parapet.
 import { defineBackdrop } from '../../objects/registry.js';
 import { PALETTE } from '../../style/palette.js';
-import { buildSkyline, paintSkyline, windowGlow } from './skyline-core.js';
+import { buildSkyline, paintSkyline } from './skyline-core.js';
 
 defineBackdrop('rooftop', data => ({
   build(e) { return buildSkyline(e, data.backdrop.seed || 55512, [{ depth: 0.3, top: e.H * 0.4, shade: PALETTE.farInk, minW: 40, maxW: 100, minH: 0.2, maxH: 0.45, win: 0.22 }, { depth: 0.6, top: e.H * 0.46, shade: '#06070b', minW: 60, maxW: 140, minH: 0.16, maxH: 0.38, win: 0.18 }], e.H * 0.72); },
-  glow(e) { windowGlow(e, this.geom, e.scene.camera.look * 0.5); },   // distant window bloom + bokeh + flicker
   draw(e) {
     const c = e.ctx, g = e.gy, par = e.scene.camera.look;
     const glow = c.createLinearGradient(0, e.H * 0.5, 0, e.H * 0.74); glow.addColorStop(0, 'rgba(40,46,60,0)'); glow.addColorStop(1, 'rgba(70,80,105,0.35)'); c.fillStyle = glow; c.fillRect(0, e.H * 0.5, e.W, e.H * 0.24);

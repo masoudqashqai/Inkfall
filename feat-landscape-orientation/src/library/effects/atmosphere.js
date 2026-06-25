@@ -1,7 +1,6 @@
 // ATMOSPHERE — drifting steam, a sweeping rooftop searchlight, and a tabloid that blows in.
 import { defineEffect } from '../../objects/registry.js';
 import { smooth01, lerp } from '../../engine/math.js';
-import { drawBeam } from '../../render/lighting.js';
 
 defineEffect('steam', function (e) {
   const c = e.ctx, X = e.X(this), gy = (this.y != null ? this.y * e.H : e.gy), t = e.t, seed = this.seed || 0;
@@ -10,12 +9,13 @@ defineEffect('steam', function (e) {
   c.restore();
 });
 
-// a distant searchlight sweeping the sky. It uses the lighting system's shared beam, but draws it in
-// the BACK layer (behind the backdrop), so the city buildings occlude it and it reads as far off,
-// instead of painting over the scene. It only emits the shaft, no glow, wash or floor light.
+// a distant searchlight beam sweeping the sky. It lives in the BACK layer (behind the backdrop),
+// so it never lands on the rooftop floor, and it is just the beam: no glow, no floor reflection.
 defineEffect('searchlight', function (e) {
-  const b = { dir: Math.PI, len: e.H, farW: 70 * (this.scale || 1), I: this.intensity || 0.34, sweep: 0.5, sweepSpeed: 0.4 };
-  drawBeam(e.ctx, e.t, (this.x || 0.5) * e.W, e.H, 8, '190,200,220', b);
+  const c = e.ctx, t = e.t, ang = Math.sin(t * 0.4) * 0.5;
+  c.save(); c.translate((this.x || 0.5) * e.W, e.H); c.rotate(ang); c.globalCompositeOperation = 'lighter';
+  const lg = c.createLinearGradient(0, 0, 0, -e.H); lg.addColorStop(0, 'rgba(190,200,220,0.10)'); lg.addColorStop(1, 'rgba(190,200,220,0)');
+  c.fillStyle = lg; c.beginPath(); c.moveTo(0, 0); c.lineTo(-70, -e.H); c.lineTo(70, -e.H); c.closePath(); c.fill(); c.restore();
 }, { layer: 'back' });
 
 defineEffect('newspaper', function (e) {                      // blows in from the left, tumbles, settles
