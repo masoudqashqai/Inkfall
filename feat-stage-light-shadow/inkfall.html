@@ -2245,12 +2245,16 @@ const { rimSign, bodyGrad, ember, cigSmoke, drawFedora, drawPistol, muzzleFlash 
 // a dark suit stays dark under a bright light and the detective's pale trench lifts more.
 const TRENCH = [120, 112, 94], HEAVY = [54, 58, 66], PINSTRIPE = [44, 46, 56], SUIT = [66, 70, 80];
 
+// a one-shot strike (from the legacy build): rises 0 -> 1 over `rise`, then decays over `fall`, so a
+// lighter ignites quickly and settles, instead of starting at full and fading linearly.
+const pulse = (b, rise, fall) => b < rise ? smooth01(b / rise) : Math.max(0, 1 - (b - rise) / fall);
+
 // shared detective pose (so emitLight and draw agree without storing state)
 function trenchPose(e, p) {
   const s = e.scaleOf(p), X = e.X(p), gy = e.gy + (p.dy || 0) * e.unit, t = e.t, sway = Math.sin(t * ANIM.swaySpeed) * 1.2;
   const aim = p.raiseAt == null ? 1 : (e.lineIdx < p.raiseAt ? 0 : (e.lineIdx === p.raiseAt ? smooth01(e.beat() / 2.2) : 1));
   const litCig = p.lightAt == null ? true : (e.lineIdx >= p.lightAt);
-  const flash = (p.lightAt != null && e.lineIdx === p.lightAt) ? Math.max(0, 1 - e.beat() / 0.8) : 0;
+  const flash = (p.lightAt != null && e.lineIdx === p.lightAt) ? pulse(e.beat(), 0.12, 0.6) : 0;
   const hx = lerp(17 * s, 13 * s, aim), hy = lerp(-44 * s, -101 * s, aim);
   return { s, X, gy, t, sway, aim, litCig, flash, hx, hy };
 }
@@ -2310,6 +2314,8 @@ defineActor('trenchMan', function (e) {                       // detective: tren
     if (!(P.aim > 0.5 && P.litCig)) return;
     const cwx = P.X + P.sway + P.hx + 9 * P.s, cwy = P.gy + P.hy;
     e.addLight({ x: cwx, y: cwy, col: '255,150,60', r: 84 * P.s, I: 0.21, ew: 4 * P.s, eh: 4 * P.s, front: true });   // the steady ember
+    // its glint on the wet floor, faint for the ember and flaring as the lighter strikes (legacy floorRefl)
+    e.addLight({ x: cwx, y: cwy, col: '255,160,70', r: 100 * P.s, I: 0.3, glow: false, wash: false, reflW: (8 + 6 * P.flash) * P.s, reflI: 0.13 + 0.5 * P.flash, reflLen: 0.32 + 0.12 * P.flash });
     // the lighter's flame: a brief, brighter, warmer flare at the instant of lighting, then gone
     if (P.flash > 0) e.addLight({ x: cwx, y: cwy - 4 * P.s, col: '255,214,150', r: 150 * P.s, I: 0.95 * P.flash, ew: 6 * P.s, eh: 9 * P.s, front: true });
   },
