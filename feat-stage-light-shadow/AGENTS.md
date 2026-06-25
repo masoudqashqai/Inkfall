@@ -46,16 +46,18 @@ _legacy/              archived prior builds (do not edit)
 
 `manager.tick(e)` → update world, then `compositor.render(e)`:
 1. the SET → main canvas (camera applied): `sky`, `scene.collectLights` + `scene.collectCasters`
-   (every light and caster registers first, so rim, washes and shadows are stable), backdrop, light
-   fixtures.
+   (every light and caster registers first, so rim, washes and shadows are stable), the back layer
+   (distant elements drawn behind the backdrop, e.g. the rooftop searchlight beam, so the buildings
+   occlude it), backdrop, light fixtures.
 2. the SHADOW buffer (camera applied): every caster's silhouette projected through the strongest
    lights onto the stage floor and, where the set has one, up the back wall. Composited onto the set
    (darken) UNDER the cast, so a figure stands on its own shadow.
 3. the BACK light buffer (camera applied, composited with `lighter` BEFORE the cast): a faint
    ambient lift, the backdrop's distant window bloom (soft halos + the odd failing-tube flicker),
-   then per scene light its volumetric beam (the lamp shaft, the searchlight sweep), halo, floor +
-   wall washes, and the wet-floor reflection + ripples. Being behind the cast, a foreground figure
-   correctly occludes the light and the beams behind it.
+   then per scene light its volumetric beam (the street lamp shaft), halo, floor + wall washes, and
+   the wet-floor reflection + ripples. Being behind the cast, a foreground figure correctly occludes
+   the light and the beams behind it. (A distant beam like the searchlight uses the same beam model
+   but draws in the back layer in step 1, so the buildings occlude it too.)
 4. the CAST → main (depth order) + brass, painted over the shadows and the back light.
 5. the FRONT light buffer (composited with `lighter` AFTER the cast): only lights flagged `front`
    (a cigarette ember, a held match), so their glow reads over the figure.

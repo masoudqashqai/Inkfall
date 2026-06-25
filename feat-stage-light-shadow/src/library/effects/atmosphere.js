@@ -1,6 +1,7 @@
 // ATMOSPHERE — drifting steam, a sweeping rooftop searchlight, and a tabloid that blows in.
 import { defineEffect } from '../../objects/registry.js';
 import { smooth01, lerp } from '../../engine/math.js';
+import { drawBeam } from '../../render/lighting.js';
 
 defineEffect('steam', function (e) {
   const c = e.ctx, X = e.X(this), gy = (this.y != null ? this.y * e.H : e.gy), t = e.t, seed = this.seed || 0;
@@ -9,18 +10,13 @@ defineEffect('steam', function (e) {
   c.restore();
 });
 
-// a distant searchlight sweeping the sky. It is now a lighting-system beam (was a hand-drawn cone):
-// emitLight registers an upward sweeping beam with negligible influence, so it lights nothing on the
-// ground, it is purely the shaft of light in the air. No glow, washes or reflection.
-defineEffect('searchlight', function (e) {}, {
-  emitLight(e) {
-    e.addLight({
-      x: (this.x || 0.5) * e.W, y: e.H, col: '190,200,220',
-      r: 1, I: 0, glow: false, surface: false, refl: false, wash: false,
-      beam: { dir: Math.PI, len: e.H, farW: 70 * (this.scale || 1), I: this.intensity || 0.34, sweep: 0.5, sweepSpeed: 0.4 },
-    });
-  },
-});
+// a distant searchlight sweeping the sky. It uses the lighting system's shared beam, but draws it in
+// the BACK layer (behind the backdrop), so the city buildings occlude it and it reads as far off,
+// instead of painting over the scene. It only emits the shaft, no glow, wash or floor light.
+defineEffect('searchlight', function (e) {
+  const b = { dir: Math.PI, len: e.H, farW: 70 * (this.scale || 1), I: this.intensity || 0.34, sweep: 0.5, sweepSpeed: 0.4 };
+  drawBeam(e.ctx, e.t, (this.x || 0.5) * e.W, e.H, 8, '190,200,220', b);
+}, { layer: 'back' });
 
 defineEffect('newspaper', function (e) {                      // blows in from the left, tumbles, settles
   const c = e.ctx, st = e.sceneT(), pP = smooth01(st / 4.5), tumbling = pP < 0.97;
