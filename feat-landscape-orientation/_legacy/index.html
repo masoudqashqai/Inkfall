@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#000000" />
+<title>INKFALL — a hallucination of Sin City</title>
+<style>
+  :root { color-scheme: dark; }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+  html, body { height: 100%; overflow: hidden; background: #000; font-family: "Courier New", monospace; }
+  #c { position: fixed; inset: 0; display: block; touch-action: none; }
+
+  #scenetag {
+    position: fixed; top: max(18px, env(safe-area-inset-top)); left: 20px; z-index: 10;
+    color: #f0ece0; font-size: 24px; letter-spacing: 0.34em; font-weight: 900;
+    text-shadow: 0 0 14px rgba(0,0,0,0.9), 3px 3px 0 #000; opacity: 0.0; transition: opacity 0.5s ease;
+  }
+  #scenetag b { color: #e10010; }
+
+  #caption {
+    position: fixed; left: 50%; bottom: max(26px, env(safe-area-inset-bottom)); transform: translateX(-50%);
+    z-index: 10; width: min(92vw, 640px);
+    background: rgba(245,242,232,0.93); color: #111;
+    border: 2px solid #000; box-shadow: 6px 6px 0 rgba(0,0,0,0.6);
+    padding: 12px 16px; font-size: clamp(13px, 4vw, 18px); line-height: 1.45;
+    letter-spacing: 0.02em; transition: opacity 0.35s ease;
+  }
+  #caption b { color: #c20012; font-weight: 700; }
+  #tapnote { position: fixed; left: 50%; bottom: 5px; transform: translateX(-50%); z-index: 10;
+             color: #6a6a6a; font-size: 10px; letter-spacing: 0.22em; }
+
+  #intro {
+    position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; text-align: center; padding: 24px;
+    background: radial-gradient(circle at 50% 38%, #161616 0%, #000 72%); transition: opacity 0.8s ease;
+  }
+  #intro h1 { color: #fff; font-size: clamp(46px, 15vw, 130px); letter-spacing: 0.06em; font-weight: 900;
+              transform: skewX(-7deg); text-shadow: 0 0 30px rgba(255,255,255,0.22); }
+  #intro h1 .b { color: #e10010; text-shadow: 0 0 34px rgba(225,0,16,0.75); }
+  #intro p { color: #9a9a9a; margin-top: 14px; font-size: clamp(11px, 3.4vw, 15px); letter-spacing: 0.22em; }
+  #intro .sub { color: #5a5a5a; margin-top: 8px; font-size: clamp(10px, 2.7vw, 12px); letter-spacing: 0.1em;
+                max-width: 470px; line-height: 1.7; }
+  #enter { margin-top: 36px; padding: 15px 38px; cursor: pointer; background: transparent; color: #fff;
+           border: 1px solid #fff; font-family: inherit; font-size: 15px; letter-spacing: 0.3em; font-weight: 700;
+           transition: all 0.2s ease; }
+  #enter:hover, #enter:active { background: #e10010; border-color: #e10010; box-shadow: 0 0 30px rgba(225,0,16,0.6); }
+
+  /* title "inks in": a blood drop falls from the FALL and leaves a trail behind it */
+  #intro h1 .b { position: relative; }
+  #intro h1 .drip { position: absolute; left: 95%; top: 66%; width: 5px; height: 0;
+    background: linear-gradient(to bottom, rgba(225,0,16,0) 0%, rgba(225,0,16,0.55) 45%, #e10010 80%, #b00010 100%);
+    border-radius: 0 0 50% 50% / 0 0 80% 80%; transform: translateX(-50%);
+    box-shadow: 0 0 18px rgba(225,0,16,0.8); animation: ink 2.6s ease-in 0.4s forwards; }
+  @keyframes ink { 0%{height:0;opacity:0} 15%{opacity:1} 100%{height:52px;opacity:0.9} }
+
+  /* corner controls (revealed once inside the city) */
+  .hud { position: fixed; z-index: 20; right: max(14px, env(safe-area-inset-right)); width: 40px; height: 40px;
+    display: none; align-items: center; justify-content: center; cursor: pointer; color: #d8d4c8;
+    background: rgba(8,8,10,0.55); border: 1px solid rgba(216,212,200,0.35); border-radius: 2px;
+    font-size: 18px; line-height: 1; transition: all 0.2s ease; backdrop-filter: blur(2px); }
+  .hud:hover { color: #fff; border-color: #e10010; box-shadow: 0 0 16px rgba(225,0,16,0.5); }
+  #mute  { top: max(14px, env(safe-area-inset-top)); }
+  #shoot { top: calc(max(14px, env(safe-area-inset-top)) + 50px); color: #e10010; }
+
+  /* scene navigator — only appears once you've walked the whole night and looped back */
+  #scenenav { position: fixed; z-index: 20; left: 50%; transform: translateX(-50%);
+    bottom: calc(max(26px, env(safe-area-inset-bottom)) + 86px); display: none; gap: 8px; }
+  #scenenav.show { display: flex; }
+  #scenenav button { font-family: inherit; font-size: 10px; letter-spacing: 0.2em; font-weight: 700; cursor: pointer;
+    color: #c9c4b6; background: rgba(8,8,10,0.6); border: 1px solid rgba(216,212,200,0.3); border-radius: 2px;
+    padding: 7px 11px; transition: all 0.2s ease; backdrop-filter: blur(2px); }
+  #scenenav button:hover { color: #fff; border-color: #e10010; }
+  #scenenav button.cur { color: #fff; border-color: #e10010; box-shadow: 0 0 12px rgba(225,0,16,0.45); }
+
+  /* poster preview */
+  #poster { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center;
+    flex-direction: column; background: rgba(0,0,0,0.9); padding: 18px; }
+  #poster.show { display: flex; }
+  #poster img { max-width: 88vw; max-height: 70vh; border: 1px solid rgba(216,212,200,0.4); box-shadow: 0 0 40px rgba(0,0,0,0.8); }
+  #poster .row { margin-top: 18px; display: flex; gap: 12px; }
+  #poster a, #poster button { padding: 12px 26px; cursor: pointer; background: transparent; color: #fff; border: 1px solid #fff;
+    font-family: inherit; font-size: 12px; letter-spacing: 0.25em; font-weight: 700; text-decoration: none; transition: all 0.2s ease; }
+  #poster a:hover { background: #e10010; border-color: #e10010; }
+  #poster button:hover { background: #fff; color: #000; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="scenetag"></div>
+<div id="caption" style="display:none"></div>
+<div id="tapnote" style="display:none">TAP — NEXT&nbsp; ·&nbsp; DRAG — LOOK&nbsp; ·&nbsp; HOLD — LIGHTNING</div>
+
+<div id="mute" class="hud" title="sound">♪</div>
+<div id="shoot" class="hud" title="pull a frame">❖</div>
+
+<div id="scenenav">
+  <button data-s="0">STREET</button><button data-s="1">ALLEY</button><button data-s="2">ROOFTOP</button>
+</div>
+
+<div id="poster">
+  <img id="posterimg" alt="Inkfall poster" />
+  <div class="row">
+    <a id="posterdl" download="inkfall.png">SAVE</a>
+    <button id="posterclose">BACK TO THE RAIN</button>
+  </div>
+</div>
+
+<div id="intro">
+  <h1>INK<span class="b">FALL<span class="drip"></span></span></h1>
+  <p>A HALLUCINATION OF SIN CITY</p>
+  <div class="sub">It always rains in Basin City. The whole town is black and white — except the things that bleed. Tap your way through the long, wet night.</div>
+  <button id="enter">ENTER THE CITY</button>
+</div>
+
+<script>
+"use strict";
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d', { alpha: false });
+let W = 0, H = 0, DPR = 1;
+
+function mulberry32(a){return function(){a|=0;a=(a+0x6D2B79F5)|0;let t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};}
+
+// easing / staging helpers (the "beat" choreography keys off these)
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, p) => a + (b - a) * p;
+const smooth01 = p => { p = clamp(p, 0, 1); return p * p * (3 - 2 * p); }; // smoothstep 0..1
+// a one-shot pulse: rises 0->1 over `rise`, holds, then can be read as a decaying flash
+const pulse = (beat, rise = 0.18, fall = 0.6) => beat < rise ? smooth01(beat / rise) : Math.max(0, 1 - (beat - rise) / fall);
+
+// ===========================================================================
+// Noir audio stage
+//   Every sound is a real recording from Mixkit (Mixkit Free License): the music
+//   bed, rain and thunder loop/trigger as before, and the reactive hits (gunshot,
+//   Zippo, brass casing, heels, neon-tube crackle, electric lightning crack, and
+//   the scene-change whoosh) are real one-shot samples played from small pools.
+// ===========================================================================
+const Audio2 = (() => {
+  const A = 'assets/audio/';
+  let on = true, ready = false;
+  let rainEl = null, themeEl = null, thunderPool = [], poolIdx = 0;
+  let rainBase = 0.16, themeBase = 0.52; // rain sits well under the music + hits
+  const oneShots = {}; // name -> { pool:[Audio], i, vol }
+  // base volumes for each real one-shot
+  const SFX = { gunshot: 1.0, lighter: 0.85, shell: 0.5, footstep: 0.45, neon: 0.5, crack: 0.7, whoosh: 0.55 };
+  let lastStep = 0;
+  function mkLoop(src, vol) { const a = new Audio(src); a.loop = true; a.volume = vol; a.preload = 'auto'; return a; }
+  function mkPool(name, n) {
+    const pool = []; for (let i = 0; i < n; i++) { const a = new Audio(A + name + '.mp3'); a.preload = 'auto'; pool.push(a); }
+    oneShots[name] = { pool, i: 0, vol: SFX[name] };
+  }
+  function play(name, volScale = 1, rate = 1) {
+    const s = oneShots[name]; if (!ready || !on || !s) return;
+    const a = s.pool[s.i++ % s.pool.length];
+    try { a.pause(); a.currentTime = 0; a.volume = Math.min(1, s.vol * volScale); a.playbackRate = rate; a.play().catch(() => {}); } catch (e) {}
+  }
+  function init() {
+    if (ready) { rainEl && rainEl.play().catch(() => {}); themeEl && themeEl.play().catch(() => {}); applyMute(); return; }
+    rainEl = mkLoop(A + 'rain.mp3', rainBase);
+    themeEl = mkLoop(A + 'theme.mp3', themeBase);
+    for (let i = 0; i < 3; i++) { const tp = new Audio(A + 'thunder.mp3'); tp.preload = 'auto'; thunderPool.push(tp); }
+    mkPool('gunshot', 3); mkPool('lighter', 2); mkPool('shell', 4); mkPool('footstep', 2); mkPool('neon', 2); mkPool('crack', 2); mkPool('whoosh', 2);
+    rainEl.play().catch(() => {}); themeEl.play().catch(() => {});
+    ready = true; applyMute();
+  }
+  function applyMute() {
+    if (rainEl) rainEl.volume = on ? Math.min(1, rainBase) : 0;
+    if (themeEl) themeEl.volume = on ? Math.min(1, themeBase) : 0;
+  }
+  function setStorm(v) { rainBase = 0.09 + v * 0.22; if (rainEl && on) rainEl.volume = Math.min(1, rainBase); }
+  function setHum() {} // neon is now an occasional crackle, not a constant hum
+  function thunder(mag = 0.7) {
+    if (!ready || !on || !thunderPool.length) return;
+    const tp = thunderPool[poolIdx++ % thunderPool.length];
+    try { tp.pause(); tp.currentTime = 0; tp.volume = Math.min(1, 0.26 + 0.32 * mag); tp.play().catch(() => {}); setTimeout(() => { try { tp.pause(); } catch (e) {} }, 6000); } catch (e) {}
+  }
+  function lightningCrack() { play('crack'); }
+  function gun() { play('gunshot', 1, 0.96 + Math.random() * 0.08); }
+  function lighter() { play('lighter'); }
+  function neonZap() { play('neon'); }
+  function shellClink() { play('shell', 0.7 + Math.random() * 0.3, 0.95 + Math.random() * 0.12); }
+  function intro() { play('whoosh'); }
+  // her heels: the recorded clip is a short walk cycle, so retrigger it sparingly, not every step
+  function step() { const now = performance.now(); if (now - lastStep < 1600) return; lastStep = now; play('footstep'); }
+  function toggle() { on = !on; applyMute(); if (!on) { try { rainEl.pause(); themeEl.pause(); } catch (e) {} } else { try { rainEl.play(); themeEl.play(); } catch (e) {} } return on; }
+  return { init, setStorm, setHum, thunder, lightningCrack, gun, lighter, neonZap, intro, step, shellClink, toggle, isOn: () => on };
+})();
+
+// ===========================================================================
+// Skyline builder (reusable per scene)
+// ===========================================================================
+function makeSkyline(seed, cfgList, groundY) {
+  const rng = mulberry32(seed);
+  const layers = [];
+  for (const cfg of cfgList) {
+    const blds = [];
+    let x = -140;
+    while (x < W + 220) {
+      const w = cfg.minW + rng() * (cfg.maxW - cfg.minW);
+      const h = (cfg.minH + rng() * (cfg.maxH - cfg.minH)) * (groundY - cfg.top);
+      const top = groundY - h;
+      const wins = [];
+      const cols = Math.max(2, Math.floor(w / 16));
+      const rows = Math.max(3, Math.floor(h / 20));
+      for (let r = 0; r < rows; r++) for (let cI = 0; cI < cols; cI++) {
+        if (rng() > cfg.win) continue;
+        wins.push({ x: x + 7 + cI * (w - 14) / cols, y: top + 10 + r * (h - 16) / rows, warm: rng() > 0.8 });
+      }
+      // occasional rooftop water-tank / antenna
+      const cap = rng() < 0.25 ? { type: rng() < 0.5 ? 'tank' : 'ant', x: x + w * (0.3 + rng() * 0.4) } : null;
+      blds.push({ x, w, top, h, wins, cap });
+      x += w + 2 + rng() * 16;
+    }
+    layers.push({ ...cfg, blds });
+  }
+  return layers;
+}
+function drawSkyline(layers, par) {
+  for (const L of layers) {
+    const ox = par * L.depth;
+    ctx.fillStyle = L.shade;
+    for (const b of L.blds) {
+      ctx.fillRect(b.x + ox, b.top, b.w, b.h + 6);
+      if (b.cap) {
+        if (b.cap.type === 'tank') { ctx.fillRect(b.cap.x + ox - 7, b.top - 14, 14, 14); ctx.fillRect(b.cap.x + ox - 9, b.top - 2, 18, 3); }
+        else { ctx.fillRect(b.cap.x + ox - 1, b.top - 22, 2, 22); }
+      }
+    }
+    for (const b of L.blds) {
+      for (const wn of b.wins) {
+        ctx.fillStyle = wn.warm ? 'rgba(255,236,196,0.9)' : 'rgba(202,220,255,0.72)';
+        ctx.fillRect(wn.x + ox, wn.y, 4, 5);
+      }
+    }
+  }
+}
+
+// ===========================================================================
+// Shared figure / prop drawing
+// ===========================================================================
+function trenchMan(cx, groundY, scale, t, lit) {
+  const s = scale, sway = Math.sin(t * 1.1) * 1.4;
+  ctx.save(); ctx.translate(cx + sway, groundY);
+  ctx.globalAlpha = 0.35; ctx.fillStyle = '#000';
+  ctx.beginPath(); ctx.ellipse(0, 6 * s, 34 * s, 7 * s, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1; ctx.fillStyle = '#000';
+  ctx.beginPath(); ctx.moveTo(-20 * s, 0); ctx.lineTo(-16 * s, -78 * s); ctx.lineTo(16 * s, -78 * s); ctx.lineTo(20 * s, 0); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-26 * s, -78 * s); ctx.quadraticCurveTo(0, -94 * s, 26 * s, -78 * s); ctx.lineTo(20 * s, -70 * s); ctx.quadraticCurveTo(0, -82 * s, -20 * s, -70 * s); ctx.closePath(); ctx.fill();
+  ctx.fillRect(-7 * s, -100 * s, 14 * s, 16 * s);
+  ctx.beginPath(); ctx.arc(0, -106 * s, 11 * s, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-13 * s, -114 * s); ctx.lineTo(13 * s, -114 * s); ctx.lineTo(9 * s, -126 * s); ctx.lineTo(-9 * s, -126 * s); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(0, -114 * s, 22 * s, 5 * s, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(235,238,245,0.85)'; ctx.lineWidth = 2.2 * s;
+  ctx.beginPath(); ctx.moveTo(-20 * s, -2 * s); ctx.lineTo(-16 * s, -78 * s); ctx.moveTo(-25 * s, -78 * s); ctx.quadraticCurveTo(-14 * s, -90 * s, -7 * s, -96 * s); ctx.stroke();
+  // the cigarette: a pale unlit tip until he strikes a light, then ember + rising smoke
+  if (lit) {
+    const ember = 0.6 + 0.4 * Math.sin(t * 6);
+    ctx.strokeStyle = 'rgba(210,214,224,0.16)'; ctx.lineWidth = 2.4 * s; ctx.beginPath();
+    for (let i = 0; i <= 12; i++) { const yy = -100 * s - i * 7 * s; const xx = 12 * s + Math.sin(t * 1.5 + i * 0.6) * (2 + i * 0.7) * s; i === 0 ? ctx.moveTo(xx, yy) : ctx.lineTo(xx, yy); }
+    ctx.stroke();
+    ctx.fillStyle = `rgba(255,40,20,${0.7 + 0.3 * ember})`; ctx.shadowColor = '#ff2010'; ctx.shadowBlur = 10 * ember;
+    ctx.beginPath(); ctx.arc(12 * s, -100 * s, 1.9 * s, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+  } else {
+    ctx.fillStyle = 'rgba(220,216,205,0.85)';
+    ctx.beginPath(); ctx.arc(12 * s, -100 * s, 1.7 * s, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+// An elegant silhouette. `stride` (0..1) only lends a slightly deeper sway and a
+// faint forward lean as she glides; she stays a mysterious shape, never a cartoon walk.
+function womanInRed(cx, groundY, scale, t, stride = 0, dir = -1, reflA = 1) {
+  const s = scale;
+  const sway = Math.sin(t * 2.2) * (2 + stride * 1.2) * s;   // gentle drift of the hem
+  const lean = stride * 4 * s * dir;                          // leans into her direction of travel
+  ctx.save(); ctx.translate(cx, groundY);
+  // wet red reflection on the street (faded out while she passes behind the man, so it isn't cast under him)
+  if (reflA > 0.01) {
+    ctx.globalAlpha = 0.4 * reflA; const grd = ctx.createLinearGradient(0, 0, 0, 40 * s);
+    grd.addColorStop(0, 'rgba(200,0,20,0.5)'); grd.addColorStop(1, 'rgba(200,0,20,0)');
+    ctx.fillStyle = grd; ctx.fillRect(-12 * s, 0, 24 * s, 44 * s); ctx.globalAlpha = 1;
+  }
+  // floor-length gown (the hem drifts; the figure stays whole and graceful)
+  ctx.fillStyle = '#c8000f'; ctx.shadowColor = 'rgba(200,0,20,0.55)'; ctx.shadowBlur = 16 * s;
+  ctx.beginPath(); ctx.moveTo(-5 * s + lean, -54 * s); ctx.lineTo(5 * s + lean, -54 * s); ctx.lineTo(12 * s + sway, 0); ctx.quadraticCurveTo(0, 6 * s, -12 * s + sway, 0); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(-5 * s + lean, -54 * s); ctx.quadraticCurveTo(-7 * s + lean, -64 * s, -4 * s + lean, -70 * s); ctx.lineTo(4 * s + lean, -70 * s); ctx.quadraticCurveTo(7 * s + lean, -64 * s, 5 * s + lean, -54 * s); ctx.closePath(); ctx.fill();
+  ctx.shadowBlur = 0;
+  // her head, seen from the side — just a wavy mass of blonde hair, no face
+  const hx = lean, hy = -78 * s, u = s;
+  const hw = Math.sin(t * 2.2) * 1.3 * u;                          // the hair waves in the wind, like the gown
+  ctx.fillStyle = '#ffd400'; ctx.shadowColor = 'rgba(255,212,0,0.3)'; ctx.shadowBlur = 6 * u; // blonde = neon yellow
+  ctx.beginPath();
+  ctx.moveTo(hx - 4 * u, hy - 8 * u);                              // crown
+  ctx.quadraticCurveTo(hx + 7 * u, hy - 8 * u, hx + 7 * u, hy + 2 * u);          // round back of the head
+  ctx.quadraticCurveTo(hx + 10 * u + hw, hy + 20 * u, hx + 7 * u + hw, hy + 36 * u); // long hair, fuller and thicker toward the bottom
+  ctx.quadraticCurveTo(hx + 2 * u, hy + 30 * u, hx + 1 * u, hy + 10 * u);          // inner edge
+  ctx.quadraticCurveTo(hx - 5 * u, hy + 7 * u, hx - 5.5 * u, hy - 1 * u);          // the front
+  ctx.quadraticCurveTo(hx - 6 * u, hy - 7 * u, hx - 4 * u, hy - 8 * u);
+  ctx.closePath(); ctx.fill(); ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+// aim: 0 = arm lowered at his side, 1 = arm raised, pistol levelled
+function gunman(cx, groundY, scale, t, flash, aim = 1) {
+  const s = scale;
+  ctx.save(); ctx.translate(cx, groundY); ctx.fillStyle = '#000';
+  ctx.globalAlpha = 0.35; ctx.beginPath(); ctx.ellipse(0, 5 * s, 30 * s, 6 * s, 0, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+  // legs
+  ctx.fillRect(-12 * s, -54 * s, 9 * s, 54 * s); ctx.fillRect(4 * s, -54 * s, 9 * s, 54 * s);
+  // torso (coat)
+  ctx.beginPath(); ctx.moveTo(-15 * s, -54 * s); ctx.lineTo(-13 * s, -98 * s); ctx.lineTo(13 * s, -98 * s); ctx.lineTo(15 * s, -54 * s); ctx.closePath(); ctx.fill();
+  // shoulders + head
+  ctx.beginPath(); ctx.moveTo(-20 * s, -98 * s); ctx.quadraticCurveTo(0, -110 * s, 20 * s, -98 * s); ctx.lineTo(15 * s, -92 * s); ctx.quadraticCurveTo(0, -100 * s, -15 * s, -92 * s); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.arc(0, -114 * s, 9 * s, 0, Math.PI * 2); ctx.fill();
+  // arm: shoulder pivot to a hand that lifts from his side (aim 0) to levelled (aim 1)
+  const sxp = 8 * s, syp = -94 * s;
+  const hxp = lerp(15 * s, 38 * s, aim), hyp = lerp(-50 * s, -88 * s, aim);
+  const ang = Math.atan2(hyp - syp, hxp - sxp);
+  ctx.lineWidth = 8 * s; ctx.strokeStyle = '#000'; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(sxp, syp); ctx.lineTo(hxp, hyp); ctx.stroke();
+  // pistol in the hand, oriented along the arm
+  ctx.save(); ctx.translate(hxp, hyp); ctx.rotate(ang);
+  ctx.fillRect(0, -3.5 * s, 14 * s, 7 * s); ctx.fillRect(2 * s, 3 * s, 5 * s, 9 * s);
+  ctx.restore();
+  // muzzle flash at the barrel tip, only when levelled and firing
+  if (flash > 0 && aim > 0.82) {
+    const mx = hxp + Math.cos(ang) * 17 * s, my = hyp + Math.sin(ang) * 17 * s;
+    ctx.save(); ctx.translate(mx, my);
+    ctx.globalAlpha = flash; ctx.fillStyle = '#ffd400'; ctx.shadowColor = '#ff3000'; ctx.shadowBlur = 30;
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2; const r = (i % 2 ? 6 : 16) * s * (0.6 + flash); ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(0, 0, 5 * s * flash, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function redCar(cx, groundY, scale, t) {
+  const s = scale;
+  ctx.save(); ctx.translate(cx, groundY);
+  ctx.globalAlpha = 0.4; const g = ctx.createLinearGradient(0, 0, 0, 26 * s);
+  g.addColorStop(0, 'rgba(180,0,18,0.5)'); g.addColorStop(1, 'rgba(180,0,18,0)');
+  ctx.fillStyle = g; ctx.fillRect(-70 * s, 0, 140 * s, 30 * s); ctx.globalAlpha = 1;
+  ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(-44 * s, 0, 15 * s, 0, Math.PI * 2); ctx.arc(46 * s, 0, 15 * s, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#b8000e'; ctx.shadowColor = 'rgba(180,0,18,0.5)'; ctx.shadowBlur = 12 * s;
+  ctx.beginPath();
+  ctx.moveTo(-72 * s, -8 * s); ctx.quadraticCurveTo(-74 * s, -22 * s, -52 * s, -24 * s);
+  ctx.quadraticCurveTo(-40 * s, -46 * s, -8 * s, -48 * s); ctx.quadraticCurveTo(26 * s, -48 * s, 36 * s, -26 * s);
+  ctx.quadraticCurveTo(64 * s, -24 * s, 72 * s, -10 * s); ctx.lineTo(72 * s, -6 * s);
+  ctx.quadraticCurveTo(72 * s, 2 * s, 62 * s, 2 * s); ctx.lineTo(-62 * s, 2 * s);
+  ctx.quadraticCurveTo(-72 * s, 2 * s, -72 * s, -8 * s); ctx.closePath(); ctx.fill();
+  ctx.shadowBlur = 0;
+  // windows (dark)
+  ctx.fillStyle = '#06080c'; ctx.beginPath(); ctx.moveTo(-44 * s, -26 * s); ctx.quadraticCurveTo(-36 * s, -42 * s, -10 * s, -43 * s); ctx.quadraticCurveTo(20 * s, -43 * s, 30 * s, -27 * s); ctx.closePath(); ctx.fill();
+  // taillight ember
+  ctx.fillStyle = 'rgba(255,40,30,0.95)'; ctx.shadowColor = '#ff2010'; ctx.shadowBlur = 12; ctx.beginPath(); ctx.arc(70 * s, -10 * s, 3 * s, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+  // hubcaps
+  ctx.fillStyle = '#222'; ctx.beginPath(); ctx.arc(-44 * s, 0, 5 * s, 0, Math.PI * 2); ctx.arc(46 * s, 0, 5 * s, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+function streetlamp(x, groundY, scale, flick) {
+  const s = scale, topY = groundY - 150 * s;
+  ctx.fillStyle = '#000'; ctx.fillRect(x - 2 * s, topY, 4 * s, 150 * s);
+  ctx.beginPath(); ctx.moveTo(x, topY); ctx.lineTo(x + 26 * s, topY - 4 * s); ctx.lineTo(x + 26 * s, topY + 3 * s); ctx.closePath(); ctx.fill();
+  const lx = x + 26 * s, ly = topY - 2 * s;
+  const g = ctx.createRadialGradient(lx, ly, 0, lx, ly + 110 * s, 150 * s);
+  g.addColorStop(0, `rgba(255,250,225,${0.30 * flick})`); g.addColorStop(0.4, `rgba(230,235,255,${0.10 * flick})`); g.addColorStop(1, 'rgba(230,235,255,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(lx, ly); ctx.lineTo(lx - 70 * s, groundY); ctx.lineTo(lx + 70 * s, groundY); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = `rgba(255,250,230,${flick})`; ctx.shadowColor = '#fff'; ctx.shadowBlur = 24 * flick;
+  ctx.beginPath(); ctx.arc(lx, ly + 4 * s, 4 * s, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+  ctx.fillStyle = '#000'; ctx.beginPath(); ctx.moveTo(lx - 7 * s, ly - 6 * s); ctx.lineTo(lx + 7 * s, ly - 6 * s); ctx.lineTo(lx + 4 * s, ly + 2 * s); ctx.lineTo(lx - 4 * s, ly + 2 * s); ctx.closePath(); ctx.fill();
+}
+
+function neon(x, y, w, h, color, label, t, seed) {
+  const flick = ((Math.sin(t * 9 + seed) > -0.7) ? (0.7 + 0.3 * Math.sin(t * 25 + seed)) : 0.16) * neonFlick;
+  ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.shadowColor = color; ctx.shadowBlur = 18 * flick;
+  ctx.globalAlpha = 0.35 + 0.65 * flick; ctx.strokeRect(x, y, w, h);
+  ctx.fillStyle = color; ctx.font = `bold ${Math.floor(h * 0.5)}px "Courier New", monospace`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, x + w / 2, y + h / 2 + 1);
+  ctx.restore(); ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+  return flick;
+}
+// a flickering neon diner sign: a right-pointing arrow body with "EAT" glowing inside it
+function neonArrow(x, y, w, h, color, t, seed) {
+  const flick = ((Math.sin(t * 11 + seed) > -0.6) ? (0.7 + 0.3 * Math.sin(t * 30 + seed)) : 0.18) * neonFlick;
+  const pw = h * 0.9; // length of the arrow point
+  ctx.save(); ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.shadowColor = color; ctx.shadowBlur = 16 * flick; ctx.globalAlpha = 0.35 + 0.65 * flick;
+  ctx.beginPath();
+  ctx.moveTo(x, y); ctx.lineTo(x + w, y); ctx.lineTo(x + w + pw, y + h / 2); ctx.lineTo(x + w, y + h); ctx.lineTo(x, y + h);
+  ctx.closePath(); ctx.stroke();
+  ctx.fillStyle = color; ctx.font = `bold ${Math.floor(h * 0.56)}px "Courier New", monospace`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('EAT', x + w / 2, y + h / 2 + 1);
+  ctx.restore(); ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+}
+
+function fireEscape(x, topY, h, w, t) {
+  ctx.save(); ctx.strokeStyle = 'rgba(120,130,144,0.75)'; ctx.fillStyle = 'rgba(96,104,116,0.7)'; ctx.lineWidth = 2; // dark silver, catches a little light
+  const floors = Math.floor(h / 34);
+  for (let i = 0; i < floors; i++) {
+    const y = topY + i * 34;
+    ctx.fillRect(x, y, w, 4);                    // platform
+    ctx.strokeRect(x, y - 14, w, 14);            // railing box
+    ctx.beginPath();                              // ladder zigzag
+    if (i % 2 === 0) { ctx.moveTo(x + 2, y + 4); ctx.lineTo(x + w - 6, y + 30); }
+    else { ctx.moveTo(x + w - 2, y + 4); ctx.lineTo(x + 6, y + 30); }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function waterTower(x, baseY, s) {
+  ctx.fillStyle = '#000';
+  ctx.beginPath(); ctx.moveTo(x - 22 * s, baseY); ctx.lineTo(x - 16 * s, baseY - 60 * s); ctx.lineTo(x - 12 * s, baseY); ctx.closePath();
+  ctx.moveTo(x + 22 * s, baseY); ctx.lineTo(x + 16 * s, baseY - 60 * s); ctx.lineTo(x + 12 * s, baseY); ctx.fill();
+  ctx.fillRect(x - 24 * s, baseY - 88 * s, 48 * s, 30 * s);          // tank body
+  ctx.beginPath(); ctx.moveTo(x - 24 * s, baseY - 88 * s); ctx.lineTo(x, baseY - 108 * s); ctx.lineTo(x + 24 * s, baseY - 88 * s); ctx.closePath(); ctx.fill(); // conical roof
+}
+
+// the original simple crow (mirrored to face right); wing and tail move smoothly, in slow motion
+function crowOnWire(x, y, t, sc = 1, flying = false) {
+  const w = (Math.sin(t * (flying ? 2.4 : 1.0)) * 0.5 + 0.5);   // 0..1, smooth and slow
+  const wingTipY = -2 - (flying ? 13 : 4) * w;                  // the wing rises and falls smoothly
+  const tail = Math.sin(t * 1.6) * 2.2;                         // the tail wags gently, like the gown in the wind
+  ctx.save(); ctx.translate(x, y); ctx.scale(-sc, sc); ctx.fillStyle = '#000'; // negative x → faces right
+  ctx.beginPath(); ctx.ellipse(0, 0, 7, 4, 0, 0, Math.PI * 2); ctx.fill();         // body
+  ctx.beginPath(); ctx.arc(-6, -3, 3, 0, Math.PI * 2); ctx.fill();                 // head
+  ctx.fillRect(-10, -3, 4, 1.4);                                                   // beak
+  ctx.beginPath(); ctx.moveTo(5, -1); ctx.quadraticCurveTo(11, 1 + tail, 14, 2 + tail); ctx.lineTo(5, 2); ctx.closePath(); ctx.fill(); // tail
+  ctx.beginPath(); ctx.moveTo(2, -1); ctx.quadraticCurveTo(8, wingTipY * 0.6, 13, wingTipY); ctx.quadraticCurveTo(8, 1, 3, 1.5); ctx.closePath(); ctx.fill(); // wing
+  if (!flying) ctx.fillRect(1, 4, 1.4, 5);                                          // legs when perched
+  ctx.restore();
+}
+
+function steam(x, groundY, t, seed) {
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 5; i++) {
+    const life = ((t * 0.25 + i * 0.2 + seed) % 1);
+    const y = groundY - life * 150; const r = 8 + life * 46;
+    const a = 0.10 * (1 - life);
+    ctx.fillStyle = `rgba(200,210,225,${a})`;
+    ctx.beginPath(); ctx.arc(x + Math.sin(t + i + seed) * 14, y, r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function bloodSplat(x, y, s, seed) {
+  const rng = mulberry32(seed);
+  ctx.save(); ctx.fillStyle = '#b00010'; ctx.shadowColor = 'rgba(150,0,12,0.5)'; ctx.shadowBlur = 8;
+  ctx.beginPath(); ctx.ellipse(x, y, 14 * s, 5 * s, 0, 0, Math.PI * 2); ctx.fill();
+  for (let i = 0; i < 14; i++) {
+    const a = rng() * Math.PI * 2, d = (10 + rng() * 40) * s, r = (1 + rng() * 4) * s;
+    ctx.beginPath(); ctx.arc(x + Math.cos(a) * d, y + Math.sin(a) * d * 0.5, r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.shadowBlur = 0; ctx.restore();
+}
+
+// a proper tabloid blown into the alley — masthead + a mysterious headline that fits the night
+function newspaper(px, py, rot) {
+  const w = 72, h = 48;
+  ctx.save(); ctx.translate(px, py); ctx.rotate(rot);
+  ctx.fillStyle = 'rgba(228,225,214,0.92)'; ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1; ctx.strokeRect(-w / 2, -h / 2, w, h);
+  ctx.fillStyle = '#0b0b0b'; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+  ctx.font = '700 4.5px "Times New Roman", serif'; ctx.fillText('THE BASIN HERALD', 0, -h / 2 + 8);
+  ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.beginPath(); ctx.moveTo(-w / 2 + 5, -h / 2 + 11); ctx.lineTo(w / 2 - 5, -h / 2 + 11); ctx.stroke();
+  ctx.font = '900 7px "Arial Black", Impact, sans-serif';
+  ctx.fillText('ANOTHER ONE', 0, -h / 2 + 22); ctx.fillText('IN THE RAIN', 0, -h / 2 + 31);
+  ctx.strokeStyle = 'rgba(0,0,0,0.28)'; ctx.lineWidth = 0.6;
+  for (let i = 0; i < 4; i++) { const yy = -h / 2 + 37 + i * 2; ctx.beginPath(); ctx.moveTo(-w / 2 + 6, yy); ctx.lineTo(w / 2 - 6, yy); ctx.stroke(); }
+  ctx.restore();
+}
+
+// a round cast-iron manhole cover set into the wet street
+function manholeCover(cx, cy, s) {
+  const sq = 0.42;
+  ctx.save(); ctx.translate(cx, cy);
+  ctx.fillStyle = '#0a0c10'; ctx.beginPath(); ctx.ellipse(0, 1.5 * s, 32 * s, 32 * s * sq, 0, 0, Math.PI * 2); ctx.fill(); // recess shadow
+  ctx.fillStyle = '#22262e'; ctx.beginPath(); ctx.ellipse(0, 0, 29 * s, 29 * s * sq, 0, 0, Math.PI * 2); ctx.fill();      // rim
+  ctx.fillStyle = '#14171c'; ctx.beginPath(); ctx.ellipse(0, 0, 25 * s, 25 * s * sq, 0, 0, Math.PI * 2); ctx.fill();      // cover
+  ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1.3 * s;
+  for (let r = 7; r <= 22; r += 7) { ctx.beginPath(); ctx.ellipse(0, 0, r * s, r * s * sq, 0, 0, Math.PI * 2); ctx.stroke(); }
+  for (let a = 0; a < 8; a++) { const c = Math.cos(a * Math.PI / 4), sn = Math.sin(a * Math.PI / 4) * sq; ctx.beginPath(); ctx.moveTo(c * 5 * s, sn * 5 * s); ctx.lineTo(c * 23 * s, sn * 23 * s); ctx.stroke(); }
+  ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.beginPath(); ctx.ellipse(-6 * s, -3 * s, 8 * s, 3 * s, 0, 0, Math.PI * 2); ctx.fill(); // faint wet glint
+  ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(0, -10 * s * sq, 3 * s, 1.4 * s, 0, 0, Math.PI * 2); ctx.fill();   // pick hole
+  ctx.restore();
+}
+
+// an actual rivulet of blood that creeps to the drain, thinning and going watery (more transparent) before it goes in
+function bloodFlow(x, y, drainX, drainY, amt, t) {
+  ctx.save();
+  const cx2 = (x + drainX) / 2 + 10, cy2 = (y + drainY) / 2 + 6;
+  // the stream is drawn in short segments along the path, opaque dark-red at the wound,
+  // thinning and turning a translucent, watery pink as it nears the drain
+  const N = 22, reach = Math.min(0.99, amt);
+  for (let i = 1; i <= N; i++) {
+    const u = i / N; if (u > reach) break;
+    const u0 = (i - 1) / N;
+    const ax = (1 - u0) * (1 - u0) * x + 2 * (1 - u0) * u0 * cx2 + u0 * u0 * drainX;
+    const ay = (1 - u0) * (1 - u0) * y + 2 * (1 - u0) * u0 * cy2 + u0 * u0 * drainY;
+    const bx = (1 - u) * (1 - u) * x + 2 * (1 - u) * u * cx2 + u * u * drainX;
+    const by = (1 - u) * (1 - u) * y + 2 * (1 - u) * u * cy2 + u * u * drainY;
+    const wob = Math.sin(t * 2 + i * 0.7) * (0.8 + u * 1.6);            // slight watery wander
+    const opacity = lerp(0.85, 0.18, u), width = lerp(3.6, 1.4, u);     // mixes with the rain → translucent
+    const r = Math.round(lerp(150, 200, u)), gg = Math.round(lerp(0, 40, u)), bb = Math.round(lerp(14, 55, u));
+    ctx.strokeStyle = `rgba(${r},${gg},${bb},${opacity})`; ctx.lineWidth = width; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(ax + wob * 0.5, ay); ctx.lineTo(bx + wob, by); ctx.stroke();
+  }
+  // a thin watered-down pool seeping into the cover
+  if (reach > 0.85) { ctx.fillStyle = 'rgba(150,20,40,0.35)'; ctx.beginPath(); ctx.ellipse(drainX, drainY, 9, 3.6, 0, 0, Math.PI * 2); ctx.fill(); }
+  ctx.restore();
+}
+
+// ejected brass casings that tumble and fall in slow motion
+const shells = [];
+function spawnShell(x, y, s, gy) { shells.push({ x, y, s, gy, vx: 0.2 + Math.random() * 0.7, vy: -2.6 - Math.random() * 1.0, rot: Math.random() * 6, vr: (Math.random() - 0.5) * 0.7, rest: false }); }
+function drawShells(dt) {
+  const sdt = Math.min(dt, 0.05) * 0.32; // slow motion
+  for (let i = 0; i < shells.length; i++) {
+    const sh = shells[i];
+    if (!sh.rest) {
+      sh.vy += 16 * sdt; sh.x += sh.vx * 60 * sdt; sh.y += sh.vy * 60 * sdt; sh.rot += sh.vr * sdt * 18;
+      if (sh.y >= sh.gy) { if (sh.vy > 1.0) Audio2.shellClink(sh.x / W * 2 - 1); sh.y = sh.gy; sh.vy *= -0.34; sh.vx *= 0.5; sh.vr *= 0.5; if (Math.abs(sh.vy) < 0.7) { sh.rest = true; sh.vy = 0; } } // keep its tumbled angle (they don't all lie parallel)
+    }
+    ctx.save(); ctx.translate(sh.x, sh.y); ctx.rotate(sh.rot);   // the casings stay on the ground (cleared on scene change)
+    ctx.fillStyle = '#c9a24a'; ctx.fillRect(-3.4 * sh.s, -1.4 * sh.s, 6.8 * sh.s, 2.8 * sh.s);
+    ctx.fillStyle = '#e6c878'; ctx.fillRect(-3.4 * sh.s, -1.4 * sh.s, 2 * sh.s, 2.8 * sh.s); // rim glint
+    ctx.restore();
+  }
+}
+
+// a short silver-grey bolt (the original look), redrawn from its seed so it can linger and fade.
+// `x0/spread/topY/reach` let a scene confine it (e.g. to the alley's distant sky)
+function lightningBolt(seed, alpha = 1, x0 = null, spread = null, topY = 0, reach = null) {
+  const rng = mulberry32(seed);
+  const sp = spread == null ? W * 0.6 : spread;
+  const r = reach == null ? H * 0.45 : reach;
+  let x = (x0 == null ? W * 0.2 : x0) + rng() * sp, y = topY;
+  ctx.save(); ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+  ctx.strokeStyle = 'rgba(228,233,244,0.95)'; ctx.lineWidth = 2.4; ctx.shadowColor = '#cfe0ff'; ctx.shadowBlur = 16; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.beginPath(); ctx.moveTo(x, y);
+  const segs = 7 + Math.floor(rng() * 4);
+  for (let i = 0; i < segs; i++) {
+    x += (rng() - 0.5) * 54; y += r / segs;
+    ctx.lineTo(x, y);
+    if (rng() < 0.28) { const bx = x + (rng() - 0.5) * 44, by = y + 20 + rng() * 30; ctx.moveTo(x, y); ctx.lineTo(bx, by); ctx.moveTo(x, y); }
+  }
+  ctx.stroke(); ctx.restore(); ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+}
+
+// ===========================================================================
+// Wet-street puddle ripples (catch the neon)
+// ===========================================================================
+const ripples = [];
+function spawnRipple(gY, sName = '') {
+  const x = Math.random() * W, y = gY + Math.random() * (H - gY) * 0.9; let col;
+  if (sName.includes('ROOFTOP')) col = '#c0001a';                                  // bloody rain pooling
+  else { const c = litColor(x, y, 150, 162, 180); col = `rgb(${c[0]},${c[1]},${c[2]})`; } // ring takes the colour of the light above it
+  ripples.push({ x, y, r: 1, max: 10 + Math.random() * 26, life: 1, col });
+}
+function drawRipples(dt) {
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (let i = ripples.length - 1; i >= 0; i--) {
+    const p = ripples[i]; p.r += dt * 34; p.life -= dt * 1.1;
+    if (p.life <= 0 || p.r > p.max) { ripples.splice(i, 1); continue; }
+    ctx.strokeStyle = p.col; ctx.globalAlpha = p.life * 0.5; ctx.lineWidth = 1.1;
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, p.r, p.r * 0.36, 0, 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.restore(); ctx.globalAlpha = 1;
+}
+
+// ===========================================================================
+// Halftone (ben-day) printed-ink overlay
+// ===========================================================================
+let halftoneCanvas;
+function buildHalftone() {
+  const tile = 6; halftoneCanvas = document.createElement('canvas'); halftoneCanvas.width = halftoneCanvas.height = tile * 8;
+  const hx = halftoneCanvas.getContext('2d'); hx.fillStyle = '#000';
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
+    hx.beginPath(); hx.arc(x * tile + tile / 2, y * tile + tile / 2, tile * 0.32, 0, Math.PI * 2); hx.fill();
+  }
+}
+
+// ===========================================================================
+// Comic-panel ink transition (replaces the plain fade)
+// ===========================================================================
+function drawPanelWipe(p) { // p: 0 (open) .. 1 (covered)
+  ctx.save();
+  const bars = [{ y: 0, h: 0.40 }, { y: 0.38, h: 0.30 }, { y: 0.66, h: 0.40 }];
+  bars.forEach((b, i) => {
+    const fromLeft = i % 2 === 0; const bw = W * Math.min(1, p * 1.25);
+    ctx.fillStyle = '#000';
+    const bx = fromLeft ? 0 : W - bw;
+    ctx.fillRect(bx, b.y * H, bw, b.h * H);
+    // inked gutter edge with a torn/splatter feel
+    if (bw > 2 && bw < W) {
+      const edge = fromLeft ? bw : W - bw; const rng = mulberry32(i * 99 + Math.floor(p * 40));
+      ctx.fillStyle = '#000';
+      for (let k = 0; k < 10; k++) { const yy = b.y * H + rng() * b.h * H; const rr = 2 + rng() * 9; ctx.beginPath(); ctx.arc(edge + (fromLeft ? -rr : rr), yy, rr, 0, Math.PI * 2); ctx.fill(); }
+      ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(edge, b.y * H); ctx.lineTo(edge, (b.y + b.h) * H); ctx.stroke();
+    }
+  });
+  ctx.restore();
+}
+
+// ===========================================================================
+// Light sources — one model used by every light (moon, neon, traffic light,
+// lighter, gunshot). Each registers itself so the rain and the puddle ripples
+// take its colour, and draws a soft halo + a smeared reflection on the wet floor.
+// ===========================================================================
+let sceneLights = []; // {x, y, col:'r,g,b', r, I} registered this frame, for rain + ripple tinting
+function pushLight(x, y, col, r, I) { sceneLights.push({ x, y, col, r, I }); }
+// an additive coloured glow that lifts the air and nearby objects
+function lightHalo(x, y, col, r, I) {
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, `rgba(${col},${0.5 * I})`); g.addColorStop(0.45, `rgba(${col},${0.14 * I})`); g.addColorStop(1, `rgba(${col},0)`);
+  ctx.fillStyle = g; ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  ctx.restore();
+}
+// a smooth, smeared reflection of a light streaking down the wet floor (stronger than the car's wake).
+// `sway` shifts the lower end sideways so a sign swaying in the wind drags its reflection with it
+function floorRefl(x, gY, col, I, w, sway = 0) {
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  const grad = ctx.createLinearGradient(0, gY, 0, H);
+  grad.addColorStop(0, `rgba(${col},${0.4 * I})`); grad.addColorStop(0.4, `rgba(${col},${0.14 * I})`); grad.addColorStop(1, `rgba(${col},0)`);
+  ctx.fillStyle = grad; ctx.shadowColor = `rgba(${col},${0.5 * I})`; ctx.shadowBlur = 34;
+  ctx.beginPath();
+  ctx.moveTo(x - w, gY);
+  ctx.quadraticCurveTo(x - w * 0.7 + sway, gY + (H - gY) * 0.5, x - w * 0.55 + sway * 1.7, H);
+  ctx.lineTo(x + w * 0.55 + sway * 1.7, H);
+  ctx.quadraticCurveTo(x + w * 0.7 + sway, gY + (H - gY) * 0.5, x + w, gY);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+// the colour a wet-floor ripple takes: the light most directly above it (by horizontal reach), else grey
+function litColor(x, y, greyR, greyG, greyB) {
+  let best = null, bestw = 0.2;
+  for (const L of sceneLights) {
+    const w = L.I * (1 - Math.abs(x - L.x) / (L.r * 0.6));
+    if (w > bestw) { bestw = w; best = L; }
+  }
+  if (!best) return [greyR, greyG, greyB];
+  const c = best.col.split(',').map(Number);
+  const m = Math.min(1, bestw + 0.35); // blend toward the light colour
+  return [Math.round(lerp(greyR, c[0], m)), Math.round(lerp(greyG, c[1], m)), Math.round(lerp(greyB, c[2], m))];
+}
+
+// ===========================================================================
+// Cinematic + ambient helpers (used by the staged scenes)
+// ===========================================================================
+// dim everything but a soft pool of light around the subject of the line
+function focalSpot(fx, fy, radius, strength) {
+  if (strength <= 0.001) return;
+  const g = ctx.createRadialGradient(fx, fy, radius * 0.35, fx, fy, radius);
+  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(0,0,0,${strength})`);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+}
+// drops the whole frame into shadow except soft pools of light around the given sources
+let shadowCv = null, shadowCx = null;
+function shadowMask(strength, sources) {
+  if (!shadowCv) { shadowCv = document.createElement('canvas'); shadowCx = shadowCv.getContext('2d'); }
+  const iw = Math.max(1, W | 0), ih = Math.max(1, H | 0);
+  if (shadowCv.width !== iw || shadowCv.height !== ih) { shadowCv.width = iw; shadowCv.height = ih; }
+  const sx = shadowCx; sx.clearRect(0, 0, iw, ih);
+  sx.globalCompositeOperation = 'source-over'; sx.fillStyle = `rgba(0,0,0,${strength})`; sx.fillRect(0, 0, iw, ih);
+  sx.globalCompositeOperation = 'destination-out';
+  for (const s of sources) {
+    const gr = sx.createRadialGradient(s.x, s.y, 0, s.x, s.y, s.r);
+    gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(0.55, 'rgba(0,0,0,0.55)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+    sx.fillStyle = gr; sx.fillRect(0, 0, iw, ih);
+  }
+  ctx.drawImage(shadowCv, 0, 0, W, H);
+}
+// a tiny anonymous passer-by deep in the scene, crossing on a slow loop
+function passerby(baseY, scale, t, seed, period) {
+  const s = scale, rng = mulberry32(seed);
+  const p = ((t / period + rng()) % 1), dir = rng() < 0.5 ? 1 : -1;
+  const x = dir > 0 ? lerp(-40, W + 40, p) : lerp(W + 40, -40, p);
+  const swing = Math.sin(p * period * 7) * 4 * s;
+  ctx.save(); ctx.globalAlpha = 0.55; ctx.fillStyle = '#000'; ctx.translate(x, baseY);
+  ctx.fillRect(-5 * s, -42 * s, 10 * s, 42 * s);                       // body/coat
+  ctx.beginPath(); ctx.arc(0, -47 * s, 4.5 * s, 0, Math.PI * 2); ctx.fill(); // head
+  ctx.fillRect(-4 * s, 0, 3 * s, swing > 0 ? 8 * s : 4 * s);          // legs hint
+  ctx.fillRect(2 * s, 0, 3 * s, swing > 0 ? 4 * s : 8 * s);
+  ctx.restore(); ctx.globalAlpha = 1;
+}
+// a hanging traffic signal; `green` 0..1 crossfades the red eye to the go light
+function trafficLight(x, y, s, t, green = 0) {
+  const redOn = (1 - green) * (Math.sin(t * 2.2) > 0 ? 1 : 0.45);
+  ctx.fillStyle = '#000'; ctx.fillRect(x - 6 * s, y, 12 * s, 30 * s); ctx.fillRect(x - 1.5 * s, y - 18 * s, 3 * s, 18 * s);
+  // red
+  ctx.fillStyle = `rgba(255,20,28,${0.12 + 0.88 * redOn})`; ctx.shadowColor = '#ff1422'; ctx.shadowBlur = 14 * redOn;
+  ctx.beginPath(); ctx.arc(x, y + 7 * s, 3.4 * s, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+  // amber (always dim)
+  ctx.fillStyle = 'rgba(120,120,120,0.25)'; ctx.beginPath(); ctx.arc(x, y + 16 * s, 3.4 * s, 0, Math.PI * 2); ctx.fill();
+  // green go-light
+  ctx.fillStyle = `rgba(50,205,110,${0.12 + 0.88 * green})`; ctx.shadowColor = '#32cd6e'; ctx.shadowBlur = 14 * green;
+  ctx.beginPath(); ctx.arc(x, y + 25 * s, 3.4 * s, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+}
+// a lone aircraft light drifting across the night, blinking red
+function planeLight(t, period) {
+  const p = (t / period) % 1, x = lerp(-20, W + 20, p), y = H * (0.10 + 0.04 * Math.sin(p * 3));
+  const bl = Math.sin(t * 5) > 0.4 ? 1 : 0.15;
+  ctx.fillStyle = `rgba(255,30,30,${0.8 * bl})`; ctx.shadowColor = '#ff2020'; ctx.shadowBlur = 8 * bl;
+  ctx.beginPath(); ctx.arc(x, y, 1.6, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(220,228,245,0.5)'; ctx.fillRect(x - 8, y, 2, 1);
+}
+// the warm bloom of a struck match
+function matchFlare(x, y, s, amt) {
+  if (amt <= 0.001) return;
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(x, y, 0, x, y, 60 * s * amt);
+  g.addColorStop(0, `rgba(255,210,140,${0.9 * amt})`); g.addColorStop(0.4, `rgba(255,120,40,${0.4 * amt})`); g.addColorStop(1, 'rgba(255,90,30,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, 60 * s * amt, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = `rgba(255,240,210,${amt})`; ctx.beginPath(); ctx.arc(x, y, 2.4 * s, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+
+// ===========================================================================
+// Scenes
+// ===========================================================================
+let scenes = [];
+function buildAll() {
+  const groundY = H * 0.80;
+  scenes = [
+    { // ---------- THE STREET ----------
+      name: 'THE&nbsp;STREET',
+      lines: [
+        "The night is wet and the city drinks it down.",
+        "She walks past in a dress the colour of <b>fresh blood</b>.",
+        "Neon hums a lullaby for the damned.",
+        "I light a smoke and let the dark make the first move.",
+      ],
+      sky: makeSkyline(20051993, [
+        { depth: 0.25, top: H * 0.18, shade: '#0c0e13', minW: 60, maxW: 130, minH: 0.34, maxH: 0.62, win: 0.10 },
+        { depth: 0.55, top: H * 0.28, shade: '#070809', minW: 80, maxW: 170, minH: 0.40, maxH: 0.74, win: 0.16 },
+        { depth: 1.00, top: H * 0.40, shade: '#020203', minW: 110, maxW: 240, minH: 0.46, maxH: 0.92, win: 0.22 },
+      ], groundY),
+      groundY,
+      draw(t) {
+        const par = parallax, g = groundY;
+        const li = lineIdx, beat = Math.max(0, t - lineStart);
+        const sc = Math.min(W, H) / 380, figScale = Math.min(W, H) / 360;
+        const manX = W * 0.34 + par * 0.5;
+
+        // --- choreography keyed to the line being read ---
+        //  L0 he takes out an unlit cigarette · L1 she walks in · L2 the car pulls away
+        //  L3 he lights up and she glides slowly past him
+        const REST1 = W * 0.62 + par * 0.4;   // where she settles after walking in
+        const PASSX = W * -0.32 + par * 0.4;   // off the left edge entirely on exit
+        const ENTER_DUR = 7.5, PASS_DUR = 9.5; // dream-slow, almost slow motion
+        let womanX = REST1, stride = 0;
+        if (li < 1) { womanX = W * 1.6; }
+        else if (li === 1) { const p = smooth01(beat / ENTER_DUR); womanX = lerp(W * 1.18, REST1, p); stride = clamp((ENTER_DUR - beat) / 1.4, 0, 1); }
+        else if (li === 2) { womanX = REST1; }
+        else { const p = smooth01(beat / PASS_DUR); womanX = lerp(REST1, PASSX, p); stride = clamp((PASS_DUR - beat) / 1.4, 0, 1); }
+        // slow, sparse heel-clicks while she moves
+        if (stride > 0.3) { const k = Math.floor((t * 2.4) / Math.PI); if (k !== stepK) { stepK = k; Audio2.step(womanX / W * 2 - 1); } }
+
+        // the car waits at the kerb, then pulls away (steady, unhurried) when the light turns green on "neon hums"
+        let goAway, lightGreen;
+        if (li < 2) { goAway = 0; lightGreen = 0; }
+        else if (li === 2) { goAway = smooth01((beat - 1.0) / 4.6); lightGreen = smooth01((beat - 0.3) / 0.6); }
+        else { goAway = 1; lightGreen = 1; }              // already gone, light stayed green
+        const lit = li >= 3;                               // he lights the smoke only on the last line
+
+        // focal spotlight per line (no per-scene zoom); a single establishing push-in only at the very start
+        let focusX = manX, focusY = g - 70 * figScale, spot = 0;
+        if (li === 0) { focusX = manX; spot = 0.16 * smooth01(beat / 1.2); }
+        else if (li === 1) { focusX = REST1; spot = 0.18 * smooth01((beat - (ENTER_DUR - 0.5)) / 1.0); }
+        else if (li === 2) { focusX = W * 0.5; }
+        else { focusX = manX; spot = 0.2 * smooth01(beat / 0.9); }
+        let zoom = 1;
+        if (!openingDone) { // open wide, then push in once to the normal frame (no pull-back after)
+          const ob = t - storyStart; zoom = lerp(0.86, 1, smooth01(ob / 3.4)); focusX = W * 0.5;
+          if (ob > 3.6) openingDone = true;
+        }
+        const flare = lit ? pulse(beat, 0.12, 0.55) : 0;                                                  // the struck match
+        const nsway = Math.sin(t * 0.7) * 3.2; // only the XXX sign sways in the wind
+
+        ctx.save();
+        ctx.translate(focusX, focusY); ctx.scale(zoom, zoom); ctx.translate(-focusX, -focusY);
+
+        drawSkyline(this.sky, par);
+        planeLight(t, 26);
+        // only the XXX sign sways in the wind; BAR and GIRLS hang still
+        const barX = W * 0.12 + par + 46, girlsX = W * 0.40 + par * 0.8 + 60, xxxX = W * 0.66 + par + nsway + 20;
+        const tlX = W * 0.88 + par * 0.6, tlCol = lightGreen ? '50,205,110' : '255,30,40';
+        neon(W * 0.12 + par, g - 250, 92, 34, '#ff0018', 'BAR', t, 1.3);
+        neon(W * 0.66 + par + nsway, g - 320, 40, 120, '#ffd400', 'XXX', t, 4.1);
+        neon(W * 0.40 + par * 0.8, g - 300, 120, 30, '#ff0018', 'GIRLS', t, 2.7);
+        trafficLight(tlX, g - 300, sc * 0.9, t, lightGreen);
+        // every sign and the traffic light is a real light source: a halo on the air + a smeared reflection on the wet floor
+        lightHalo(barX, g - 233, '255,0,24', 150, 0.7); pushLight(barX, g - 233, '255,0,24', 170, 0.7);
+        lightHalo(xxxX, g - 260, '255,212,0', 150, 0.7); pushLight(xxxX, g - 260, '255,212,0', 170, 0.7);
+        lightHalo(girlsX, g - 285, '255,0,24', 160, 0.7); pushLight(girlsX, g - 285, '255,0,24', 180, 0.7);
+        lightHalo(tlX, g - 275, tlCol, 110, 0.6); pushLight(tlX, g - 275, tlCol, 120, 0.6);
+
+        groundStrip(g, t);
+        floorRefl(W * 0.78 + par * 0.1, g, '150,170,205', 0.4, 30); // the moon on the wet street
+        floorRefl(barX, g, '255,0,24', 0.9, 26); floorRefl(girlsX, g, '255,0,24', 0.95, 30);
+        floorRefl(xxxX, g, '255,212,0', 0.9, 22, nsway * 1.4); // the swaying sign drags its reflection
+        floorRefl(tlX, g, tlCol, 0.7, 18);
+        passerby(g - 2, sc * 0.5, t, 11, 30); passerby(g - 2, sc * 0.5, t, 47, 24); // life on the far pavement
+
+        const fl = (Math.sin(t * 30) > -0.9 ? 1 : 0.4) * (0.85 + 0.15 * Math.sin(t * 7));
+        steam(W * 0.52, g, t, 0.3); steam(W * 0.84, g, t, 1.7);
+        // the car waits at the kerb, then pulls away to the right when the light turns green
+        const carX = W * 0.84 + par * 0.5 + goAway * W * 1.1;
+        if (carX < W + 120) {
+          const wk = ctx.createLinearGradient(carX - 90, g, carX + 90, g);
+          wk.addColorStop(0, 'rgba(255,40,30,0)'); wk.addColorStop(0.5, `rgba(255,40,30,${0.16 + goAway * 0.12})`); wk.addColorStop(1, 'rgba(255,40,30,0)');
+          ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = wk; ctx.fillRect(carX - 90, g + 4, 180, (H - g) * 0.7); ctx.restore();
+          redCar(carX, g - 6, sc * 0.7, t);
+        }
+        streetlamp(W * 0.30, g, sc, fl);
+        // she walks BEHIND the man (drawn first, so he passes in front of her); then him + his match.
+        // fade her wet reflection out as she crosses him, so it never pools on the ground under him
+        const wReflA = smooth01((Math.abs(womanX - manX) - 22 * figScale) / (40 * figScale));
+        womanInRed(womanX, g, figScale * 0.8, t, stride, -1, wReflA);
+        trenchMan(manX, g + 4, figScale, t, lit);
+        matchFlare(manX + 12 * figScale, g - 100 * figScale, figScale, flare);
+        // the struck Zippo is a small warm light: it glows on him and casts a brief warm reflection on the wet ground
+        if (flare > 0.02) {
+          const lx = manX + 12 * figScale, ly = g - 100 * figScale;
+          lightHalo(lx, ly, '255,150,60', 90, flare); pushLight(lx, ly, '255,150,60', 100, flare);
+          floorRefl(lx, g, '255,150,60', flare * 0.8, 12);
+        }
+
+        ctx.restore();
+        focalSpot(focusX, focusY, Math.min(W, H) * 0.52, spot);
+      }
+    },
+    { // ---------- THE ALLEY ----------
+      name: 'THE&nbsp;ALLEY',
+      lines: [
+        "The alley stinks of rain and old sins.",
+        "A shape in the doorway. A <b>gun</b> that means it.",
+        "Two shots. The bricks wear a fresh coat of <b>red</b>.",
+        "Nobody heard a thing. Nobody ever does here.",
+      ],
+      back: makeSkyline(77123, [
+        { depth: 0.4, top: H * 0.30, shade: '#0a0c11', minW: 50, maxW: 110, minH: 0.30, maxH: 0.55, win: 0.18 },
+      ], H * 0.62),
+      groundY,
+      draw(t) {
+        const g = groundY, vx = W * 0.5 + parallax * 0.3, vy = H * 0.40;
+        // distant lit street slice at vanishing point
+        const slice = ctx.createLinearGradient(vx, vy, vx, g);
+        slice.addColorStop(0, '#23262e'); slice.addColorStop(1, '#0a0b0f');
+        ctx.fillStyle = slice; ctx.fillRect(vx - W * 0.12, vy, W * 0.24, g - vy);
+        // the moon, framed between the buildings at the top of the alley
+        const amx = vx, amy = H * 0.13, amg = ctx.createRadialGradient(amx, amy, 0, amx, amy, 72);
+        amg.addColorStop(0, 'rgba(220,228,245,0.85)'); amg.addColorStop(0.3, 'rgba(180,190,210,0.45)'); amg.addColorStop(1, 'rgba(180,190,210,0)');
+        ctx.fillStyle = amg; ctx.beginPath(); ctx.arc(amx, amy, 72, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#e8edf6'; ctx.beginPath(); ctx.arc(amx, amy, 24, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#0a0c12'; ctx.beginPath(); ctx.arc(amx + 10, amy - 5, 21, 0, Math.PI * 2); ctx.fill();
+        // lightning, confined to the distant slice and tucked behind the far buildings
+        if (boltLife > 0) { ctx.save(); ctx.beginPath(); ctx.rect(vx - W * 0.12, 0, W * 0.24, H * 0.34); ctx.clip(); lightningBolt(boltSeed, Math.min(1, boltLife / 0.3), vx - W * 0.09, W * 0.18, 0, H * 0.26); ctx.restore(); }
+        drawSkyline(this.back, parallax * 0.4);
+        // walls (converging)
+        ctx.fillStyle = '#050506';
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(W * 0.40, 0); ctx.lineTo(vx - W * 0.10, vy); ctx.lineTo(vx - W * 0.10, g); ctx.lineTo(0, g); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(W, 0); ctx.lineTo(W * 0.60, 0); ctx.lineTo(vx + W * 0.10, vy); ctx.lineTo(vx + W * 0.10, g); ctx.lineTo(W, g); ctx.closePath(); ctx.fill();
+        // a few faint lit windows on the left wall
+        ctx.fillStyle = 'rgba(202,220,255,0.45)';
+        for (let i = 0; i < 6; i++) { ctx.fillRect(W * 0.06, H * 0.12 + i * 46, 16, 22); }
+        fireEscape(W * 0.14, H * 0.16, H * 0.5, 64, t); // left ladder only (the right wall carries the neon now)
+        // wet floor
+        const fg = ctx.createLinearGradient(0, g, 0, H); fg.addColorStop(0, '#0a0b0f'); fg.addColorStop(1, '#000');
+        ctx.fillStyle = fg; ctx.fillRect(0, g, W, H - g);
+        const sc = Math.min(W, H) / 360, beat = Math.max(0, t - lineStart);
+        // the EAT neon arrow on the right wall — a right-pointing diner sign, flickering
+        const arrX = W * 0.78, arrY = H * 0.255, arrW = 64, arrH = 34;
+        neonArrow(arrX, arrY, arrW, arrH, '#ff0018', t, 5.2);
+        // tall dumpster (≈2.5x)
+        const dx0 = W * 0.08, dh = 115;
+        ctx.fillStyle = '#1c2027'; ctx.fillRect(dx0, g - dh, 94, dh);
+        ctx.fillStyle = '#272c35'; ctx.fillRect(dx0 - 4, g - dh - 9, 102, 11);
+        ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 1.5; ctx.strokeRect(dx0, g - dh, 94, dh);
+        ctx.beginPath(); for (let i = 1; i < 4; i++) { ctx.moveTo(dx0 + i * 23.5, g - dh); ctx.lineTo(dx0 + i * 23.5, g); } ctx.stroke();
+        // a round manhole cover set in the middle of the street, breathing a little steam
+        const drainX = W * 0.5 + parallax * 0.2, drainY = g + (H - g) * 0.42;
+        steam(drainX, drainY, t, 0.9);
+        manholeCover(drainX, drainY, sc);
+        // a tabloid blows in from the left and settles flat on the wet floor by the dumpster
+        const sceneT = Math.max(0, t - sceneStart), npP = smooth01(sceneT / 4.5), npTumb = npP < 0.97;
+        newspaper(lerp(-50, dx0 + 116, npP), npTumb ? (g - 6 - Math.abs(Math.sin(sceneT * 3)) * 50 * (1 - npP)) : (g + 16), npTumb ? Math.sin(sceneT * 5) : 0.1);
+        // the splat appears with the shots; the blood only crawls into the drain on the last line
+        if (storyFlag >= 2) bloodSplat(W * 0.5, g + 12, Math.min(W, H) / 520, 999);
+        if (lineIdx === 3) bloodFlow(W * 0.5, g + 14, drainX, drainY, smooth01(beat / 5), t);
+        // his arm: lowered (L0), slowly raised to aim (L1), levelled for the shots (L2+)
+        const aim = lineIdx <= 0 ? 0 : (lineIdx === 1 ? smooth01(beat / 2.6) : 1);
+        const gmX = W * 0.30 + parallax * 0.5;
+        gunman(gmX, g, sc, t, muzzle, aim);
+        drawShells(lastDt); // brass casings, in front of him, falling in slow motion
+        // the whole alley sits in shadow, lit only by the moon (centre) and the EAT neon (right);
+        // the muzzle flash briefly throws its own light when he fires
+        const nx = arrX + arrW * 0.5, ny = arrY + arrH * 0.5, mzX = gmX + 48 * sc, mzY = g - 88 * sc;
+        const lights = [{ x: amx, y: amy, r: H * 0.34 }, { x: nx, y: ny, r: H * 0.3 }];
+        if (muzzle > 0) lights.push({ x: mzX, y: mzY, r: H * 0.26 * (0.6 + muzzle) });
+        shadowMask(0.46, lights);
+        // now the real light: the moon and the neon pour colour onto the air, the right wall and the wet floor
+        lightHalo(amx, amy, '180,200,230', H * 0.36, 0.5); pushLight(amx, amy, '180,200,230', H * 0.4, 0.45);
+        floorRefl(amx, g, '150,170,205', 0.5, 26);
+        lightHalo(nx, ny, '255,0,24', H * 0.34, 0.85); pushLight(nx, ny, '255,0,24', H * 0.32, 0.85);
+        floorRefl(nx, g, '255,0,24', 0.85, 24);
+        if (muzzle > 0) { lightHalo(mzX, mzY, '255,170,60', H * 0.24 * (0.6 + muzzle), muzzle); pushLight(mzX, mzY, '255,150,60', H * 0.22, muzzle); floorRefl(mzX, g, '255,150,60', muzzle * 0.7, 16); }
+      }
+    },
+    { // ---------- THE ROOFTOP ----------
+      name: 'THE&nbsp;ROOFTOP',
+      lines: [
+        "Up here the city's just a field of dirty stars.",
+        "Crows watch. They've seen worse. So have I.",
+        "She stands on the ledge, between two kinds of falling.",
+        "The rain'll wash it clean by morning. It always lies.",
+      ],
+      below: makeSkyline(55512, [
+        { depth: 0.3, top: H * 0.40, shade: '#0a0c12', minW: 40, maxW: 100, minH: 0.20, maxH: 0.45, win: 0.22 },
+        { depth: 0.6, top: H * 0.46, shade: '#06070b', minW: 60, maxW: 140, minH: 0.16, maxH: 0.38, win: 0.18 },
+      ], H * 0.72),
+      groundY: H * 0.72,
+      draw(t) {
+        const g = this.groundY, par = parallax;
+        // city glow on horizon
+        const glow = ctx.createLinearGradient(0, H * 0.5, 0, H * 0.74); glow.addColorStop(0, 'rgba(40,46,60,0)'); glow.addColorStop(1, 'rgba(70,80,105,0.35)');
+        ctx.fillStyle = glow; ctx.fillRect(0, H * 0.5, W, H * 0.24);
+        drawSkyline(this.below, par * 0.5);
+        // power lines + crow
+        ctx.strokeStyle = '#000'; ctx.lineWidth = 2;
+        ctx.fillRect(W * 0.05, H * 0.18, 4, H * 0.2); ctx.fillRect(W * 0.92, H * 0.12, 4, H * 0.26);
+        ctx.beginPath(); ctx.moveTo(W * 0.05, H * 0.22); ctx.quadraticCurveTo(W * 0.5, H * 0.30, W * 0.93, H * 0.16); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(W * 0.05, H * 0.27); ctx.quadraticCurveTo(W * 0.5, H * 0.36, W * 0.93, H * 0.22); ctx.stroke();
+        // searchlight sweep
+        const ang = Math.sin(t * 0.4) * 0.5;
+        ctx.save(); ctx.translate(W * 0.5, H); ctx.rotate(ang); ctx.globalCompositeOperation = 'lighter';
+        const lg = ctx.createLinearGradient(0, 0, 0, -H); lg.addColorStop(0, 'rgba(190,200,220,0.10)'); lg.addColorStop(1, 'rgba(190,200,220,0)');
+        ctx.fillStyle = lg; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-70, -H); ctx.lineTo(70, -H); ctx.closePath(); ctx.fill(); ctx.restore();
+        // rooftop slab
+        ctx.fillStyle = '#020203'; ctx.fillRect(0, g, W, H - g);
+        ctx.fillStyle = '#08090c'; ctx.fillRect(0, g - 10, W, 12); // ledge lip
+        floorRefl(W * 0.78 + par * 0.1, g, '150,170,205', 0.4, 30); // the moon on the wet rooftop
+        const s = Math.min(W, H) / 380;
+        const towerX = W * 0.18 + par * 0.4;
+        waterTower(towerX, g, s);
+        ctx.fillStyle = '#000'; ctx.fillRect(W * 0.72 + par * 0.4, g - 26, 60 * s, 26); // vent box
+        steam(W * 0.74 + par * 0.4, g - 26, t, 0.5);
+        // crows: two on the wire, one on the water tower; on the last line they lift off, one by one, in deep slow motion
+        const beatR = Math.max(0, t - lineStart), flyBase = lineIdx === 3 ? smooth01(beatR / 11) : 0;
+        const crows = [
+          { x: towerX + 6 * s, y: g - 110 * s, sc: 1.5 * s, d: 0.00 },
+          { x: W * 0.36, y: H * 0.249, sc: 1.1 * s, d: 0.14 },
+          { x: W * 0.67, y: H * 0.224, sc: 1.0 * s, d: 0.26 },
+        ];
+        crows.forEach((c, i) => {
+          const fly = Math.max(0, Math.min(1, (flyBase - c.d) / (1 - c.d)));
+          if (fly >= 0.99) return;
+          ctx.save(); ctx.translate(fly * W * 0.5 * (1 + i * 0.12), -fly * H * 0.6); ctx.globalAlpha = Math.max(0, 1 - fly);
+          crowOnWire(c.x, c.y, t + i, c.sc, fly > 0.02);
+          ctx.restore(); ctx.globalAlpha = 1;
+        });
+        // lone woman on the ledge
+        womanInRed(W * 0.6 + par * 0.4, g, s * 0.85, t);
+      }
+    },
+  ];
+}
+
+function groundStrip(g, t) {
+  const st = ctx.createLinearGradient(0, g, 0, H); st.addColorStop(0, '#0a0b0f'); st.addColorStop(1, '#020203');
+  ctx.fillStyle = st; ctx.fillRect(0, g, W, H - g);
+  // (the neon/light reflections on the wet floor are drawn by the scene via floorRefl, per light source)
+  ctx.globalAlpha = 0.08; ctx.fillStyle = '#aab4c8';
+  for (let i = 0; i < 30; i++) { const rx = ((i * 137.5 + t * 6) % W); ctx.fillRect(rx, g + (i % 6) * (H - g) / 6, 2 + (i % 4), 2); }
+  ctx.globalAlpha = 1;
+}
+
+// ===========================================================================
+// Rain + grain
+// ===========================================================================
+const drops = [];
+function initRain() {
+  drops.length = 0;
+  const n = Math.floor((W * H) / 5200);
+  for (let i = 0; i < n; i++) drops.push({ x: Math.random() * (W + 200) - 100, y: Math.random() * H, len: 8 + Math.random() * 16, sp: 9 + Math.random() * 9 });
+}
+let grainCanvas;
+function buildGrain() {
+  grainCanvas = document.createElement('canvas'); grainCanvas.width = grainCanvas.height = 220;
+  const gx = grainCanvas.getContext('2d'); const img = gx.createImageData(220, 220);
+  for (let i = 0; i < img.data.length; i += 4) { const v = Math.random() * 255; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 255; }
+  gx.putImageData(img, 0, 0);
+}
+
+// ===========================================================================
+// State + input
+// ===========================================================================
+let started = false, sceneIdx = 0, lineIdx = -1, storyFlag = 0, muzzle = 0;
+let parallax = 0, parTarget = 0, lightning = 0;
+let transState = null, transAlpha = 0, pendingScene = 0;
+let nextBolt = 3 + Math.random() * 5, last = performance.now();
+let holdTimer = null, downTime = 0, dragLast = 0, dragMoved = 0;
+let storm = 0.35, stormTarget = 0.35, lastStormSent = -1, crowFlee = 0;
+let lineStart = 0, stepK = -1; // beat timer (seconds) + footstep dedupe
+let storyStart = 0, openingDone = false; // a single establishing push-in at the very start
+let sceneStart = 0, bloodStart = 0, lastDt = 0; // scene-level timers + last frame delta
+let neonFlick = 1, flickTimer = 3 + Math.random() * 5, flickPhase = -1; // occasional neon stutter (+ crackle)
+let boltLife = 0, boltSeed = 0; // a lingering, fading lightning bolt
+let seenScenes = [], navShown = false; // scene navigator unlocks after a full loop
+
+const capEl = document.getElementById('caption');
+const tagEl = document.getElementById('scenetag');
+
+// how hard the storm leans, per scene + line
+function stormFor(si, li) {
+  const n = scenes[si].name;
+  if (n.includes('STREET'))  return 0.34 + li * 0.03;
+  if (n.includes('ALLEY'))   return [0.5, 0.7, 1.0, 0.62][li] ?? 0.6;
+  if (n.includes('ROOFTOP')) return [0.34, 0.30, 0.28, 0.18][li] ?? 0.28;
+  return 0.4;
+}
+function showLine() {
+  const s = scenes[sceneIdx];
+  capEl.style.opacity = '0';
+  setTimeout(() => { capEl.innerHTML = s.lines[lineIdx]; capEl.style.opacity = '1'; }, 170);
+  lineStart = performance.now() / 1000; stepK = -1; // reset the beat for choreography
+  stormTarget = stormFor(sceneIdx, lineIdx);
+  // scene-specific story beats
+  if (s.name.includes('ALLEY')) {
+    if (lineIdx === 1) { muzzle = 0; }
+    if (lineIdx === 2) { // the two shots
+      muzzle = 1.0; storyFlag = 2; lightning = Math.max(lightning, 0.7); bloodStart = performance.now() / 1000;
+      const sc = Math.min(W, H) / 360, gy = H * 0.80, gunMx = W * 0.30 + parallax * 0.5 + 42 * sc, gunMy = gy - 86 * sc;
+      Audio2.gun(); spawnShell(gunMx, gunMy, sc, gy + 6);
+      setTimeout(() => { Audio2.gun(); spawnShell(gunMx, gunMy, sc, gy + 6); }, 150);
+    }
+  }
+  if (s.name.includes('STREET') && lineIdx === 3) { setTimeout(() => Audio2.lighter(), 250); } // he lights the smoke
+}
+function showTag() {
+  tagEl.innerHTML = scenes[sceneIdx].name; tagEl.style.opacity = '0.92';
+  clearTimeout(showTag._t); showTag._t = setTimeout(() => tagEl.style.opacity = '0', 2600);
+}
+// record scenes seen; once the night has looped back to the start, reveal the scene navigator
+function enterScene(idx) {
+  if (!seenScenes.includes(idx)) seenScenes.push(idx);
+  if (!navShown && idx === 0 && seenScenes.includes(1) && seenScenes.includes(2)) {
+    navShown = true; document.getElementById('scenenav').classList.add('show');
+  }
+  if (navShown) [...document.querySelectorAll('#scenenav button')].forEach(b => b.classList.toggle('cur', +b.dataset.s === idx));
+}
+// faithful to the original: walk the lines, then ink-wipe to the next scene, looping forever
+function advance() {
+  const s = scenes[sceneIdx];
+  if (lineIdx < s.lines.length - 1) { lineIdx++; showLine(); return; }
+  if (!transState) { pendingScene = (sceneIdx + 1) % scenes.length; transState = 'in'; }
+}
+
+function pDown(x) { if (!started) return; dragLast = x; dragMoved = 0; downTime = performance.now(); holdTimer = setTimeout(() => { lightning = 1.0; }, 360); }
+function pMove(x) { if (!started || !downTime) return; const dx = x - dragLast; dragLast = x; dragMoved += Math.abs(dx); parTarget = Math.max(-100, Math.min(100, parTarget + dx * 0.5)); if (dragMoved > 12 && holdTimer) { clearTimeout(holdTimer); holdTimer = null; } }
+function pUp() {
+  if (!started) return;
+  if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+  const dur = performance.now() - downTime; if (dragMoved < 12 && dur < 360) advance();
+  downTime = 0;
+}
+cv.addEventListener('touchstart', e => pDown(e.touches[0].clientX), { passive: true });
+cv.addEventListener('touchmove', e => pMove(e.touches[0].clientX), { passive: true });
+cv.addEventListener('touchend', pUp, { passive: true });
+cv.addEventListener('touchcancel', pUp, { passive: true });
+cv.addEventListener('mousedown', e => pDown(e.clientX));
+addEventListener('mousemove', e => pMove(e.clientX));
+addEventListener('mouseup', pUp);
+
+// ===========================================================================
+// Resize
+// ===========================================================================
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  cv.width = Math.floor(W * DPR); cv.height = Math.floor(H * DPR);
+  cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  buildAll(); initRain();
+}
+addEventListener('resize', resize);
+
+// ===========================================================================
+// Loop
+// ===========================================================================
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min((now - last) / 1000, 0.05); last = now; lastDt = dt;
+  const t = now / 1000;
+  parallax += (parTarget - parallax) * 0.08;
+  if (muzzle > 0) muzzle = Math.max(0, muzzle - dt * 2.2);
+  // the storm breathes toward its target; rain is driven by it
+  storm += (stormTarget - storm) * Math.min(1, dt * 1.5);
+  const wind = parallax / 100; // looking into the wind tilts the rain
+  if (Math.abs(storm - lastStormSent) > 0.01) { Audio2.setStorm(storm); lastStormSent = storm; }
+  if (crowFlee > 0) crowFlee = Math.min(1, crowFlee + dt * 0.8);
+  // once in a while a neon tube stutters off and back on, with a crackle to match
+  flickTimer -= dt;
+  if (flickTimer <= 0 && flickPhase < 0) { flickPhase = 0; if (started) Audio2.neonZap(); flickTimer = 7 + Math.random() * 9; }
+  if (flickPhase >= 0) { flickPhase += dt; neonFlick = flickPhase < 0.7 ? (Math.sin(flickPhase * 42) > -0.2 ? 1 : 0.12) : 1; if (flickPhase > 0.72) { neonFlick = 1; flickPhase = -1; } }
+
+  // sky
+  const sky = ctx.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, '#04050a'); sky.addColorStop(0.55, '#0a0c12'); sky.addColorStop(1, '#16181f');
+  ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+  // stars
+  ctx.fillStyle = 'rgba(200,210,230,0.5)';
+  for (let i = 0; i < 40; i++) { const sx = (i * 197.3) % W, sy = (i * 91.7) % (H * 0.4); if ((i * 13) % 5 === 0) ctx.fillRect(sx, sy, 1.4, 1.4); }
+  // moon
+  const mx = W * 0.78 + parallax * 0.1, my = H * 0.18;
+  const mg = ctx.createRadialGradient(mx, my, 0, mx, my, 95);
+  mg.addColorStop(0, 'rgba(220,228,245,0.9)'); mg.addColorStop(0.3, 'rgba(180,190,210,0.5)'); mg.addColorStop(1, 'rgba(180,190,210,0)');
+  ctx.fillStyle = mg; ctx.beginPath(); ctx.arc(mx, my, 95, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#e8edf6'; ctx.beginPath(); ctx.arc(mx, my, 34, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#0a0c12'; ctx.beginPath(); ctx.arc(mx + 14, my - 6, 30, 0, Math.PI * 2); ctx.fill();
+
+  const scn = scenes[sceneIdx];
+  const sName = scn ? scn.name : '';
+  const isRoof = sName.includes('ROOFTOP'), isAlley = sName.includes('ALLEY');
+  // fresh light registry each frame; the moon is a cool light source in the open scenes
+  sceneLights = [];
+  if (!isAlley) pushLight(mx, my, '170,190,225', H * 0.6, 0.4);
+  // lightning bolt sits BEHIND the scene; in the alley it's drawn inside the distant slice instead
+  if (boltLife > 0) {
+    if (!isAlley) lightningBolt(boltSeed, Math.min(1, boltLife / 0.3), null, null, 0, H * 0.34);
+    boltLife -= dt;
+  }
+
+  // active scene
+  if (scn) scn.draw(t);
+
+  // puddle ripples, coloured to match the scene's light (bloody on the rooftop, neon under the signs)
+  const gY = scn ? scn.groundY : H * 0.8;
+  if (started && scn && !sName.includes('BAR')) {
+    if (Math.random() < storm * 0.9) spawnRipple(gY, sName);
+    drawRipples(dt);
+  }
+
+  // rain: count, speed and slant all driven by the storm + wind. each drop takes the colour of
+  // the nearest light it falls through (the moon, the neon, the traffic light, the muzzle flash)
+  const shown = Math.floor(drops.length * (0.30 + 0.70 * storm));
+  const vmul = 0.7 + storm * 0.9, slant = 0.35 + wind * 0.6, rlen = 0.7 + storm * 0.6;
+  const litRain = !isRoof && sceneLights.length > 0; // the rooftop rain stays bloody
+  const drift = []; // light index per shown drop (-1 = unlit)
+  ctx.lineWidth = 1.1;
+  ctx.strokeStyle = isRoof ? `rgba(200,30,40,${0.34 + 0.24 * storm})` : `rgba(180,190,210,${0.22 + 0.22 * storm})`;
+  ctx.beginPath();
+  for (let i = 0; i < drops.length; i++) {
+    const d = drops[i];
+    const vy = d.sp * dt * 60 * vmul; d.y += vy; d.x -= vy * slant;
+    if (d.y > H) { d.y = -10; d.x = Math.random() * (W + 240) - 80; }
+    if (i >= shown) continue;
+    let bi = -1;
+    if (litRain) { let bw = 0.3; for (let k = 0; k < sceneLights.length; k++) { const L = sceneLights[k]; const w = L.I * (1 - Math.hypot(d.x - L.x, (d.y - L.y) * 0.6) / L.r); if (w > bw) { bw = w; bi = k; } } }
+    drift[i] = bi;
+    if (bi < 0) { const len = d.len * rlen; ctx.moveTo(d.x, d.y); ctx.lineTo(d.x - len * slant, d.y + len); }
+  }
+  ctx.stroke();
+  if (litRain) for (let k = 0; k < sceneLights.length; k++) {
+    ctx.strokeStyle = `rgba(${sceneLights[k].col},${0.34 + 0.24 * storm})`; ctx.beginPath();
+    for (let i = 0; i < shown; i++) if (drift[i] === k) { const d = drops[i], len = d.len * rlen; ctx.moveTo(d.x, d.y); ctx.lineTo(d.x - len * slant, d.y + len); }
+    ctx.stroke();
+  }
+
+  // lightning + thunder — only in the alley (the street and rooftop stay storm-lit but boltless)
+  nextBolt -= dt;
+  if (nextBolt <= 0) {
+    if (isAlley) {
+      lightning = Math.max(lightning, 0.9);
+      boltSeed = (now | 0); boltLife = 0.7;
+      const mag = 0.5 + Math.random() * 0.5;
+      Audio2.lightningCrack();
+      setTimeout(() => Audio2.thunder(mag), 180 + Math.random() * 500);
+    }
+    nextBolt = 5 + Math.random() * 8;
+  }
+  if (lightning > 0) { ctx.fillStyle = `rgba(240,245,255,${lightning * 0.45})`; ctx.fillRect(0, 0, W, H); lightning -= dt * 3.0; if (lightning < 0) lightning = 0; }
+
+  // grain
+  if (grainCanvas) { ctx.globalAlpha = 0.06; const gx = -Math.random() * 80, gy = -Math.random() * 80; for (let yy = gy; yy < H; yy += 220) for (let xx = gx; xx < W; xx += 220) ctx.drawImage(grainCanvas, xx, yy); ctx.globalAlpha = 1; }
+
+  // halftone (ben-day) printed-ink texture
+  if (halftoneCanvas) { ctx.globalAlpha = 0.05; const tw = halftoneCanvas.width; for (let yy = 0; yy < H; yy += tw) for (let xx = 0; xx < W; xx += tw) ctx.drawImage(halftoneCanvas, xx, yy); ctx.globalAlpha = 1; }
+
+  // vignette
+  const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.75);
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.7)');
+  ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+
+  // scene transition (comic-panel ink wipe)
+  if (transState === 'in') { transAlpha += dt * 1.9; if (transAlpha >= 1) { transAlpha = 1; sceneIdx = pendingScene; lineIdx = 0; storyFlag = 0; muzzle = 0; crowFlee = 0; sceneStart = now / 1000; shells.length = 0; enterScene(sceneIdx); Audio2.intro(sceneIdx); showLine(); showTag(); transState = 'out'; } }
+  else if (transState === 'out') { transAlpha -= dt * 1.5; if (transAlpha <= 0) { transAlpha = 0; transState = null; } }
+  if (transAlpha > 0) drawPanelWipe(transAlpha);
+}
+
+// ===========================================================================
+// "Pull a frame": turn the live canvas into a Sin City poster
+// ===========================================================================
+function makePoster() {
+  const pw = 900, ph = 1240, pc = document.createElement('canvas'); pc.width = pw; pc.height = ph;
+  const p = pc.getContext('2d');
+  p.fillStyle = '#000'; p.fillRect(0, 0, pw, ph);
+  // the captured frame, framed by an inked black border
+  const m = 56, fw = pw - m * 2, fh = Math.round(fw * (H / W)), fy = 150;
+  p.drawImage(cv, 0, 0, cv.width, cv.height, m, fy, fw, fh);
+  p.strokeStyle = '#fff'; p.lineWidth = 5; p.strokeRect(m, fy, fw, fh);
+  // ink-splatter corners
+  p.fillStyle = '#e10010'; const corners = [[m, fy], [m + fw, fy], [m, fy + fh], [m + fw, fy + fh]];
+  corners.forEach(([cxp, cyp], ci) => { const rng = mulberry32(ci * 71 + 5); for (let k = 0; k < 9; k++) { const a = rng() * 6.28, d = rng() * 34, r = 1 + rng() * 6; p.beginPath(); p.arc(cxp + Math.cos(a) * d, cyp + Math.sin(a) * d, r, 0, Math.PI * 2); p.fill(); } });
+  // title treatment
+  p.save(); p.translate(pw / 2, 92); p.transform(1, 0, -0.13, 1, 0, 0);
+  p.textAlign = 'center'; p.textBaseline = 'middle'; p.font = '900 88px "Arial Black", Impact, sans-serif';
+  const iw = p.measureText('INK').width, fwid = p.measureText('FALL').width;
+  p.shadowColor = 'rgba(255,255,255,0.25)'; p.shadowBlur = 24; p.fillStyle = '#fff'; p.fillText('INK', -fwid / 2, 0);
+  p.shadowColor = 'rgba(225,0,16,0.7)'; p.fillStyle = '#e10010'; p.fillText('FALL', iw / 2, 0);
+  p.restore(); p.shadowBlur = 0;
+  // the current caption as a tagline
+  const tag = (capEl.textContent || 'A hallucination of Sin City').toUpperCase();
+  p.fillStyle = '#d8d4c8'; p.font = 'italic 24px Georgia, "Times New Roman", serif'; p.textAlign = 'center';
+  const words = tag.split(' '); let line = '', ty = fy + fh + 56;
+  for (const w of words) { if (p.measureText(line + w).width > fw - 40) { p.fillText(line.trim(), pw / 2, ty); ty += 34; line = ''; } line += w + ' '; }
+  p.fillText(line.trim(), pw / 2, ty);
+  p.fillStyle = '#6a6a6a'; p.font = '700 13px "Courier New", monospace';
+  p.fillText('B A S I N   C I T Y   ·   I N K F A L L', pw / 2, ph - 40);
+  // grain + halftone for that printed look
+  if (halftoneCanvas) { p.globalAlpha = 0.06; for (let yy = 0; yy < ph; yy += halftoneCanvas.width) for (let xx = 0; xx < pw; xx += halftoneCanvas.width) p.drawImage(halftoneCanvas, xx, yy); p.globalAlpha = 1; }
+  const url = pc.toDataURL('image/png');
+  document.getElementById('posterimg').src = url; document.getElementById('posterdl').href = url;
+  document.getElementById('poster').classList.add('show');
+}
+
+// ===========================================================================
+// Boot
+// ===========================================================================
+resize(); buildGrain(); buildHalftone(); requestAnimationFrame(frame);
+const muteEl = document.getElementById('mute'), shootEl = document.getElementById('shoot');
+
+function beginNight() {
+  started = true; sceneIdx = 0; lineIdx = 0; transState = null; transAlpha = 0;
+  storyStart = performance.now() / 1000; openingDone = false; // one establishing push-in
+  sceneStart = storyStart; shells.length = 0; seenScenes = [0];
+  storm = stormFor(0, 0); stormTarget = storm;
+  capEl.style.display = 'block'; document.getElementById('tapnote').style.display = 'block';
+  muteEl.style.display = 'flex'; shootEl.style.display = 'flex';
+  showLine(); showTag();
+}
+// the scene navigator: jump straight to a scene once it's unlocked
+document.querySelectorAll('#scenenav button').forEach(b => b.addEventListener('click', () => {
+  const idx = +b.dataset.s; if (idx === sceneIdx || transState) return; pendingScene = idx; transState = 'in';
+}));
+
+document.getElementById('enter').addEventListener('click', () => {
+  const intro = document.getElementById('intro');
+  intro.style.opacity = '0'; setTimeout(() => intro.style.display = 'none', 800);
+  Audio2.init(); Audio2.setHum(0.6); Audio2.intro(0);
+  beginNight();
+});
+
+muteEl.addEventListener('click', () => { const on = Audio2.toggle(); muteEl.textContent = on ? '♪' : '✕'; muteEl.style.color = on ? '#d8d4c8' : '#777'; });
+shootEl.addEventListener('click', makePoster);
+document.getElementById('posterclose').addEventListener('click', () => document.getElementById('poster').classList.remove('show'));
+</script>
+</body>
+</html>

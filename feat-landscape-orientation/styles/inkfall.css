@@ -1,0 +1,126 @@
+:root { color-scheme: dark; }
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+html, body { height: 100%; overflow: hidden; background: #000; font-family: "Courier New", monospace; }
+#c { position: fixed; left: 0; top: 0; display: block; touch-action: none; }
+/* the canvas is sized + centered by the engine to a landscape band, so the body's black shows
+   through as letterbox bars (top/bottom on a tall screen, left/right on a wide one) */
+#scenetag { position: fixed; top: max(14px, env(safe-area-inset-top)); left: 16px; z-index: 10;
+  font-family: "Special Elite", "Courier New", monospace;
+  color: #d8d4c8; font-size: clamp(15px, 3.8vw, 19px); letter-spacing: 0.3em; font-weight: 400; text-shadow: 2px 2px 0 #000;
+  opacity: 0; transition: opacity 0.5s ease; }
+#scenetag b { color: #c20012; }
+#caption { position: fixed; left: 50%; bottom: calc(max(24px, env(safe-area-inset-bottom)) + 18px); transform: translateX(-50%);
+  z-index: 10; width: min(94vw, 800px); background: rgba(245,242,232,0.95); color: #111;
+  border: 2px solid #000; box-shadow: 7px 7px 0 rgba(0,0,0,0.6);
+  padding: clamp(22px, 5.4vw, 34px) clamp(22px, 5vw, 36px);
+  font-family: "Special Elite", "Courier New", monospace;
+  font-size: clamp(21px, 6vw, 31px); line-height: 1.55; letter-spacing: 0.005em; transition: opacity 0.35s ease; }
+#caption b { color: #c20012; font-weight: 700; }
+#tapnote { position: fixed; left: 50%; bottom: 7px; transform: translateX(-50%); z-index: 10; white-space: nowrap;
+  color: #7c7c7c; font-size: clamp(9px, 2.6vw, 12px); letter-spacing: 0.06em; }
+#build { position: fixed; left: 8px; bottom: 4px; z-index: 50; color: #3a3a3a; font-size: 9px;
+  letter-spacing: 0.1em; font-family: "Courier New", monospace; }
+#editbtn, #mute, #shoot { font-variant-emoji: text; }   /* keep the HUD glyphs monochrome (noir), never colour emoji */
+#topbar { position: fixed; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); z-index: 25;
+  display: flex; align-items: stretch; gap: 8px; }
+#topbar button { font-family: inherit; cursor: pointer; background: rgba(0,0,0,0.55); color: #d8d4c8;
+  border: 1px solid rgba(255,255,255,0.28); display: inline-flex; align-items: center; justify-content: center; }
+#topbar button:hover, #topbar button:active { border-color: #e10010; color: #fff; }
+#editbtn { font-size: clamp(14px, 3.9vw, 18px); letter-spacing: 0.16em; padding: 0 clamp(18px, 5vw, 26px);
+  height: clamp(50px, 13.5vw, 60px); }
+#mute, #shoot { display: none; font-size: clamp(22px, 6vw, 28px); line-height: 1;
+  width: clamp(50px, 13.5vw, 60px); height: clamp(50px, 13.5vw, 60px); }
+#mute.show, #shoot.show { display: inline-flex; }
+#poster { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center;
+  flex-direction: column; background: rgba(0,0,0,0.92); }
+#poster.show { display: flex; }
+#poster img { max-width: 88vw; max-height: 70vh; border: 1px solid rgba(216,212,200,0.4); box-shadow: 0 0 40px rgba(0,0,0,0.8); }
+#poster .poster-row { margin-top: 18px; display: flex; gap: 12px; }
+#poster a, #poster button { padding: 15px 32px; cursor: pointer; background: transparent; color: #fff;
+  border: 1px solid #fff; font-family: inherit; font-size: clamp(14px, 3.4vw, 16px); letter-spacing: 0.16em; text-decoration: none; }
+#poster a:hover { background: #e10010; border-color: #e10010; }
+#poster button:hover { background: #fff; color: #000; }
+#scenenav { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(max(20px, env(safe-area-inset-bottom)) + 20px);
+  z-index: 25; display: none; gap: 10px; flex-wrap: wrap; justify-content: center; width: min(96vw, 860px); }
+#scenenav.show { display: flex; }
+#scenenav button { font-family: inherit; font-size: clamp(13px, 3.5vw, 17px); letter-spacing: 0.12em; font-weight: 700; cursor: pointer;
+  color: #c9c4b6; background: rgba(8,8,10,0.62); border: 1px solid rgba(216,212,200,0.3); padding: 14px 17px; line-height: 1.25; }
+#scenenav button:hover { color: #fff; border-color: rgba(255,255,255,0.6); }
+#scenenav button.cur { color: #fff; border-color: #e10010; box-shadow: 0 0 12px rgba(225,0,16,0.45); }
+#editor { position: fixed; inset: 0; z-index: 40; display: none; flex-direction: column; gap: 10px;
+  background: rgba(6,7,10,0.97); padding: max(16px, env(safe-area-inset-top)) 16px 16px; }
+#editor .ed-head { color: #e10010; letter-spacing: 0.3em; font-weight: 700; font-size: clamp(14px, 3.6vw, 16px); }
+#editor .ed-help { color: #8a8a8a; font-size: clamp(11px, 2.7vw, 13px); line-height: 1.8; }
+#ed-text { flex: 1; width: 100%; resize: none; background: #0e1014; color: #d6e0c8; border: 1px solid #2a2e36;
+  font-family: "Courier New", monospace; font-size: clamp(13px, 3vw, 15px); line-height: 1.5; padding: 12px; }
+#ed-err { color: #ff6a6a; font-size: clamp(12px, 2.8vw, 14px); min-height: 16px; }
+.ed-btns { display: flex; gap: 12px; flex-wrap: wrap; }
+.ed-btns button { flex: 1; min-width: 100px; padding: 16px; cursor: pointer; font-family: inherit; font-weight: 700;
+  letter-spacing: 0.18em; font-size: clamp(14px, 3.4vw, 16px); background: transparent; color: #fff; border: 1px solid #fff; }
+#ed-play { background: #e10010; border-color: #e10010; }
+.ed-btns button:active { opacity: 0.7; }
+#intro { position: fixed; inset: 0; z-index: 30; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; text-align: center; padding: 28px 22px; overflow-y: auto;
+  background: #050505; transition: opacity 0.8s ease; }
+#intro h1 { font-family: "Oswald", sans-serif; color: #fff; font-size: clamp(72px, 23vw, 200px); letter-spacing: 0.04em; font-weight: 700;
+  line-height: 1.0; transform: skewX(-7deg); }
+#intro h1 .b { color: #e10010; }
+#intro p { font-family: "Oswald", sans-serif; color: #ece6d6; margin-top: 22px; font-size: clamp(22px, 6vw, 30px); letter-spacing: 0.28em; font-weight: 600; }
+#intro .sub { font-family: "Oswald", sans-serif; color: rgba(236,230,214,0.72); margin-top: 18px; font-size: clamp(20px, 5vw, 25px); letter-spacing: 0.02em;
+  font-weight: 400; max-width: 640px; line-height: 1.65; }
+#intro .pick-label { font-family: "Oswald", sans-serif; color: rgba(236,230,214,0.55); margin-top: 44px; font-size: clamp(16px, 4vw, 19px); letter-spacing: 0.38em; font-weight: 600; }
+#storypick { margin-top: 18px; display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; }
+.storybtn { font-family: "Oswald", sans-serif; cursor: pointer; background: transparent; color: #f2eee2; border: 1px solid rgba(236,230,214,0.45);
+  font-size: clamp(22px, 5.6vw, 27px); letter-spacing: 0.16em; font-weight: 600; padding: 22px 32px; transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease; }
+.storybtn:hover { border-color: #fff; background: rgba(236,230,214,0.06); }
+.storybtn.cur { color: #fff; border-color: #e10010; }
+.storybtn small { display: block; color: rgba(236,230,214,0.6); font-size: clamp(14px, 3.6vw, 17px); letter-spacing: 0.1em; margin-top: 10px; font-weight: 400; }
+.storybtn:hover small { color: rgba(236,230,214,0.88); }
+.storybtn.cur small { color: #ea5a5a; }
+#enter { font-family: "Oswald", sans-serif; margin-top: 40px; padding: 24px 64px; cursor: pointer; background: transparent; color: #fff;
+  border: 1px solid #fff; font-size: clamp(23px, 5.8vw, 28px); letter-spacing: 0.28em; font-weight: 600; transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease; }
+#enter:hover, #enter:active { background: #e10010; border-color: #e10010; }
+/* short screens (landscape / small desktop windows): shrink the intro so it still fits */
+@media (max-height: 720px) {
+  #intro h1 { font-size: clamp(48px, 12vh, 110px); }
+  #intro p { font-size: clamp(16px, 3.4vh, 22px); margin-top: 12px; }
+  #intro .sub { font-size: clamp(14px, 2.8vh, 18px); margin-top: 10px; }
+  #intro .pick-label { margin-top: 20px; }
+  #enter { margin-top: 22px; }
+}
+
+/* short viewports (landscape phones, small desktop windows): keep the bigger caption
+   from eating the frame — scale it to the available height and tuck it down */
+@media (max-height: 560px) {
+  #caption { font-size: clamp(17px, 4.4vh, 25px); line-height: 1.4;
+    padding: clamp(10px, 2vh, 16px) clamp(14px, 3vw, 22px);
+    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 8px); }
+  #scenenav { bottom: calc(max(10px, env(safe-area-inset-bottom)) + 100px); }
+}
+/* wide desktops: comfortably readable from a distance */
+@media (min-width: 1100px) {
+  #caption { font-size: 30px; width: min(72vw, 860px); }
+}
+
+/* rotate prompt: shown on a phone/tablet held in portrait, while the screen is asked to turn */
+#rotate { position: fixed; inset: 0; z-index: 70; display: none; flex-direction: column;
+  align-items: center; justify-content: center; gap: 32px; text-align: center; padding: 28px;
+  background: #050505; }
+#rotate.show { display: flex; }
+#rotate .rotate-text { font-family: "Oswald", sans-serif; color: #ece6d6; max-width: 420px;
+  font-size: clamp(18px, 6vw, 24px); letter-spacing: 0.16em; font-weight: 600; line-height: 1.6; }
+#rotate .rotate-skip { display: none; font-family: "Oswald", sans-serif; cursor: pointer;
+  background: transparent; color: rgba(236,230,214,0.85); border: 1px solid rgba(236,230,214,0.45);
+  font-size: clamp(13px, 3.6vw, 15px); letter-spacing: 0.22em; font-weight: 600; padding: 14px 28px; }
+#rotate .rotate-skip.show { display: inline-block; }
+#rotate .rotate-skip:hover, #rotate .rotate-skip:active { color: #fff; border-color: #fff; }
+/* a little phone that tips from portrait to landscape on a loop */
+.rotate-phone { width: 58px; height: 102px; border: 4px solid #d8d4c8; border-radius: 12px;
+  position: relative; transform-origin: 50% 50%; animation: rotatehint 2.6s ease-in-out infinite; }
+.rotate-phone .rotate-cam { position: absolute; left: 50%; bottom: 7px; transform: translateX(-50%);
+  width: 14px; height: 14px; border: 2px solid #d8d4c8; border-radius: 50%; }
+@keyframes rotatehint {
+  0%, 22% { transform: rotate(0deg); }
+  55%, 88% { transform: rotate(-90deg); }
+  100% { transform: rotate(0deg); }
+}
