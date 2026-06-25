@@ -95,7 +95,7 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
   display: none; color: #7c7c7c; font-size: var(--fs-note); letter-spacing: 0.06em; }
 #build { position: fixed; left: 8px; bottom: 4px; z-index: var(--z-build); color: #3a3a3a; font-size: 9px;
   letter-spacing: 0.1em; font-family: var(--f-mono); }
-#editbtn, #mute, #shoot { font-variant-emoji: text; }   /* keep the HUD glyphs monochrome (noir), never colour emoji */
+#menubtn, #shoot { font-variant-emoji: text; }   /* keep the HUD glyphs monochrome (noir), never colour emoji */
 #topbar { position: fixed; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); z-index: var(--z-hud);
   display: flex; flex-direction: column; align-items: flex-end; gap: var(--hud-gap); }
 .hud-row { display: flex; gap: var(--hud-gap); }
@@ -105,8 +105,8 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
 #actbtn::after { content: "\25BE"; font-size: 0.82em; transition: transform 0.3s ease; }   /* caret flips when open */
 #actbtn.open::after { transform: rotate(180deg); }
 /* stage-driven HUD presence: the in-story controls + narration appear only while playing */
-#mute, #shoot, #actsel { display: none; }
-body[data-stage="playing"] #mute, body[data-stage="playing"] #shoot { display: inline-flex; }
+#shoot, #actsel { display: none; }
+body[data-stage="playing"] #shoot { display: inline-flex; }
 body[data-stage="playing"] #actsel.unlocked { display: flex; }   /* only after THE END has been reached once */
 body[data-stage="playing"] #caption, body[data-stage="playing"] #tapnote { display: block; }
 #poster img { max-width: 88vw; max-height: 70vh; border: 1px solid rgba(216,212,200,0.4); box-shadow: 0 0 40px rgba(0,0,0,0.8); }
@@ -227,8 +227,7 @@ body[data-stage="menu"] #intro { opacity: 1; pointer-events: auto; }
 <div id="topbar">
   <div class="hud-row">
     <button id="shoot" class="hud-btn hud-sm" title="save a poster of this frame">❏</button>
-    <button id="mute" class="hud-btn hud-sm" title="sound">♪</button>
-    <button id="editbtn" class="hud-btn hud-md">✎ STORY</button>
+    <button id="menubtn" class="hud-btn hud-sm" title="menu">☰</button>
   </div>
   <div id="actsel">
     <button id="actbtn" class="hud-btn">REVIEW ACT</button>
@@ -251,10 +250,11 @@ body[data-stage="menu"] #intro { opacity: 1; pointer-events: auto; }
 </div>
 <div id="storymenu" class="overlay">
   <div class="sm-panel">
-    <div class="sm-head">STORY</div>
+    <div class="sm-head">MENU</div>
+    <button id="sm-sound">SOUND: ON</button>
     <button id="sm-back">BACK TO START MENU</button>
     <button id="sm-edit">EDIT STORY</button>
-    <button id="sm-cancel">CANCEL</button>
+    <button id="sm-cancel">CLOSE</button>
   </div>
 </div>
 <div id="editor">
@@ -353,9 +353,6 @@ function beginPlay() {
 }
 el('enter').addEventListener('click', beginPlay);
 
-const muteEl = el('mute');
-muteEl.addEventListener('click', () => { const on = Audio2.toggle(); muteEl.textContent = on ? '♪' : '✕'; muteEl.style.color = on ? '#d8d4c8' : '#777'; });
-
 // ---- "pull a frame": turn the live canvas into a downloadable noir poster ----
 let halftone = null;
 function buildHalftone() {
@@ -413,7 +410,10 @@ function goToStartMenu() {
   viewport.reset(); manager.reset();                        // drop back to act one, not started, so ENTER replays cleanly
   setStage('menu');                                          // CSS fades the intro back in and hides the HUD
 }
-el('editbtn').addEventListener('click', () => storymenu.classList.add('show'));
+const soundBtn = el('sm-sound');
+const syncSound = () => { soundBtn.textContent = Audio2.isOn() ? 'SOUND: ON' : 'SOUND: OFF'; };
+soundBtn.addEventListener('click', () => { Audio2.toggle(); syncSound(); });
+el('menubtn').addEventListener('click', () => { syncSound(); storymenu.classList.add('show'); });
 el('sm-cancel').addEventListener('click', () => storymenu.classList.remove('show'));
 storymenu.addEventListener('click', e => { if (e.target === storymenu) storymenu.classList.remove('show'); });
 el('sm-back').addEventListener('click', goToStartMenu);
@@ -806,15 +806,18 @@ __exports.groundShadow = groundShadow;
 __exports.drawLightLayer = drawLightLayer;
 };
 __mod["src/engine/viewport.js"] = function(__exports, __req){
-// VIEWPORT — keeps the story in a wide, landscape frame. Two parts work together:
-//   1. Letterbox: the engine sizes the canvas to a target aspect band [ASPECT_MIN, ASPECT_MAX], so
-//      a vertical monitor gets bars top and bottom and an ultrawide gets bars left and right
-//      (the sizing itself lives in engine.resize, these constants are the contract).
-//   2. Orientation gate: on a device that can turn (phone, tablet) a portrait screen is asked to
-//      rotate. Starting a story first goes fullscreen and tries to lock to landscape, so the prompt
-//      only shows when the browser ignores that signal. If the screen reverts to portrait mid story
-//      the prompt returns and the play clock pauses until landscape comes back. As a fallback the
-//      prompt offers "watch anyway", which plays letterboxed.
+// VIEWPORT — keeps the story in a wide, landscape frame. It is built to degrade gracefully so the
+// experience works on every phone and browser, even where the immersive APIs do not exist:
+//   1. Letterbox (always works): the engine sizes the canvas to a target aspect band [ASPECT_MIN,
+//      ASPECT_MAX], so a too-tall screen gets bars top and bottom and a too-wide one gets bars left
+//      and right. This is pure canvas sizing plus CSS, no browser feature needed.
+//   2. Rotate prompt (always works): on any touch device held in portrait the prompt shows, driven
+//      by resize/orientationchange + a window aspect check, no API required. A "watch anyway"
+//      fallback plays letterboxed.
+//   3. Fullscreen + orientation lock (progressive enhancement): on start we try to go fullscreen and
+//      lock to landscape so the prompt is skipped. Where that is unsupported or refused (notably iOS
+//      Safari), it is caught and the prompt from step 2 takes over. So the worst case is still a
+//      correctly framed, landscape experience.
 const ASPECT_MIN = 16 / 10;       // below this the screen is too tall: bars top and bottom
 const ASPECT_MAX = 2.6;           // above this the screen is too wide: bars left and right. Loose
                                          // on purpose, normal desktops (a 1080p minus the dock and
@@ -823,10 +826,11 @@ const ASPECT_MAX = 2.6;           // above this the screen is too wide: bars lef
                                          // genuinely extreme ultrawides (32:9, about 3.55) pillarbox
 const SKIP_DELAY = 4000;                 // wait before the prompt offers the "watch anyway" fallback
 
-// a device counts as rotatable if it is touch first and exposes the Screen Orientation API
+// a device counts as rotatable if it is touch first (a phone or tablet that can physically turn).
+// The Screen Orientation API is NOT required here, the rotate prompt is the fallback for when the
+// fullscreen + lock signal cannot be honoured (for example iOS Safari).
 function isRotatable() {
-  const coarse = matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0;
-  return coarse && !!(window.screen && screen.orientation);
+  return matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
 }
 
 class Viewport {
@@ -844,6 +848,7 @@ class Viewport {
     const reeval = () => this.scheduleEvaluate();
     addEventListener('resize', reeval);
     addEventListener('orientationchange', reeval);
+    if (window.screen && screen.orientation && screen.orientation.addEventListener) screen.orientation.addEventListener('change', reeval);
   }
 
   attach({ overlay, skip }) {
@@ -864,12 +869,15 @@ class Viewport {
     this.evaluate();
   }
 
-  // phones and tablets only: fullscreen first (orientation lock needs it), then ask for landscape
+  // phones and tablets only: fullscreen first (orientation lock needs it), then ask for landscape.
+  // Both are best effort and fully guarded, so an unsupported or refused call just leaves the rotate
+  // prompt to handle it. requestFullscreen accepts webkit/ms prefixes for older engines.
   async requestImmersive() {
     if (!this.rotatable) return;
     const root = document.documentElement;
-    try { if (root.requestFullscreen) await root.requestFullscreen(); } catch (e) {}
-    try { if (screen.orientation.lock) await screen.orientation.lock('landscape'); } catch (e) {}
+    const fs = root.requestFullscreen || root.webkitRequestFullscreen || root.msRequestFullscreen;
+    try { if (fs) await fs.call(root); } catch (e) {}
+    try { if (window.screen && screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape'); } catch (e) {}
   }
 
   portrait() { return innerWidth / innerHeight < 1; }

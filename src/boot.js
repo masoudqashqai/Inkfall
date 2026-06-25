@@ -80,9 +80,6 @@ function beginPlay() {
 }
 el('enter').addEventListener('click', beginPlay);
 
-const muteEl = el('mute');
-muteEl.addEventListener('click', () => { const on = Audio2.toggle(); muteEl.textContent = on ? '♪' : '✕'; muteEl.style.color = on ? '#d8d4c8' : '#777'; });
-
 // ---- "pull a frame": turn the live canvas into a downloadable noir poster ----
 let halftone = null;
 function buildHalftone() {
@@ -140,7 +137,10 @@ function goToStartMenu() {
   viewport.reset(); manager.reset();                        // drop back to act one, not started, so ENTER replays cleanly
   setStage('menu');                                          // CSS fades the intro back in and hides the HUD
 }
-el('editbtn').addEventListener('click', () => storymenu.classList.add('show'));
+const soundBtn = el('sm-sound');
+const syncSound = () => { soundBtn.textContent = Audio2.isOn() ? 'SOUND: ON' : 'SOUND: OFF'; };
+soundBtn.addEventListener('click', () => { Audio2.toggle(); syncSound(); });
+el('menubtn').addEventListener('click', () => { syncSound(); storymenu.classList.add('show'); });
 el('sm-cancel').addEventListener('click', () => storymenu.classList.remove('show'));
 storymenu.addEventListener('click', e => { if (e.target === storymenu) storymenu.classList.remove('show'); });
 el('sm-back').addEventListener('click', goToStartMenu);
