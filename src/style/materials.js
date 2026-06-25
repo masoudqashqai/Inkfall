@@ -1,66 +1,90 @@
 // MATERIALS — shared surface shading so every object looks cut from the same cloth.
 // Change a material here and the whole cast restyles. `e` is the frame (for light queries).
+//
+// THE MODEL (one light field, two consumers). Every lit surface is shaded as
+//     colour = albedo x ( ambientFill + directLight(direction) )
+// where:
+//   - ambientFill is a soft, cool, scene-set floor (AMB x the scene ambient hue), so a shadow is a
+//     deep blue-grey and NEVER pure black: the shadow side still reads, the noir way.
+//   - directLight wraps around the form with a half-Lambert term from the light's CONTINUOUS
+//     direction, so it rolls off to a soft terminator (no hard "suddenly black" edge), is tinted by
+//     the light's own colour, and scales with how much light reaches the figure.
+// rimSign() measures the whole light field once per figure (direction, amount, hue, ambient), all
+// time-smoothed so flickering sources settle. bodyGrad() samples it across the body as a gradient
+// (the cloth); shade() applies the flat version to small surfaces (a shirt, bare skin). Front lights
+// (a held cigarette) are local glows, not form light, so they are excluded from the field.
+import { AMBIENT } from './shadows.js';
 
-// the form light is computed from EVERY scene light, weighted by power and nearness, considering
-// BOTH axes: the horizontal side that catches the light (with a dead zone + hysteresis so a
-// flickering neon can't snap the lit edge side to side, the old "flickering man" artifact) and the
-// vertical lean (a light overhead lights the top, a barrel fire at the feet lights from below). It
-// also measures how STRONGLY the form is lit (0..1), so bodyGrad can lift the cloth in proportion
-// to the light. `front` lights (a held cigarette) are local glows, not form light, so they are
-// excluded here and stay a small local highlight instead of relighting the whole figure.
 const BASE = [58, 64, 73];   // default cloth albedo (the old steel) for objects that name no colour
-let _vb = 0, _lit = 0;       // vertical light bias + light amount, set by rimSign for the paired bodyGrad
+const AMB = 0.22;            // ambient floor: the shadow-side brightness fraction; the rest is direct light
+
+// the per-figure light field, set by rimSign for the paired bodyGrad/shade calls
+let _lit = 0;                // 0..1 how strongly the figure is lit (smoothed)
+let _lhx = 0;                // -1..+1 continuous horizontal light direction (smoothed)
+let _vb = 0;                 // -1..+1 vertical lean of the light (top vs bottom)
+let _amb = [0.67, 0.77, 1];  // scene ambient hue, normalised (cool shadows)
+let _lcol = [1, 1, 1];       // dominant light hue on the lit side, normalised (smoothed)
 
 export function rimSign(e, node) {
   const X = e.X(node);
-  let wx = 0, wy = 0, wsum = 0;
-  for (const L of e.lights) { if (L.front) continue; const w = L.I * (1 - Math.abs(X - L.x) / (L.r * 1.1)); if (w > 0) { wx += L.x * w; wy += L.y * w; wsum += w; } }
+  let wx = 0, wy = 0, wr = 0, wg = 0, wb = 0, wsum = 0;
+  for (const L of e.lights) {
+    if (L.front) continue;
+    const w = L.I * (1 - Math.abs(X - L.x) / (L.r * 1.1));
+    if (w > 0) { const cc = L.col.split(','); wx += L.x * w; wy += L.y * w; wr += +cc[0] * w; wg += +cc[1] * w; wb += +cc[2] * w; wsum += w; }
+  }
   let lx = wsum > 0.05 ? wx / wsum : e.keyLight.x * e.W;
   let ly = wsum > 0.05 ? wy / wsum : e.keyLight.y * e.H;
-  // smooth the light CENTRE on the node, so two flickering lights on opposite sides (a bulb and a
-  // barrel fire) can't swap dominance frame to frame and make the lit edge jump from side to side.
-  node._lx = node._lx == null ? lx : node._lx + (lx - node._lx) * 0.03;
-  node._ly = node._ly == null ? ly : node._ly + (ly - node._ly) * 0.03;
-  lx = node._lx; ly = node._ly;
+  // smooth the light CENTRE + COLOUR + amount on the node, so flickering or competing sources settle
+  // instead of strobing the figure or making the lit edge jump from side to side.
+  const sm = (prev, v) => prev == null ? v : prev + (v - prev) * 0.03;
+  lx = node._lx = sm(node._lx, lx); ly = node._ly = sm(node._ly, ly);
+  const a = Math.min(1, wsum * 0.9); _lit = node._lit = sm(node._lit, a);
+  const cr = node._cr = sm(node._cr, wsum > 0.05 ? wr / wsum : 235);
+  const cg = node._cg = sm(node._cg, wsum > 0.05 ? wg / wsum : 238);
+  const cb = node._cb = sm(node._cb, wsum > 0.05 ? wb / wsum : 245);
+  const cm = Math.max(cr, cg, cb, 1); _lcol = [cr / cm, cg / cm, cb / cm];
+  // continuous direction: how far to the side the light sits (full side near +/-1, frontal near 0),
+  // and the vertical lean (light above the torso vs below it).
+  _lhx = Math.max(-1, Math.min(1, (lx - X) / (e.W * 0.22)));
+  const yc = e.gy + (node.dy || 0) * e.unit - 50 * e.unit;
+  _vb = Math.max(-1, Math.min(1, (yc - ly) / (90 * e.unit)));
+  // the ambient hue (cool, scene-set), normalised so it tints the shadow side without re-darkening it
+  const ac = ((e.scene.data.ambient && e.scene.data.ambient.col) || AMBIENT.col).split(',').map(Number);
+  const am = Math.max(ac[0], ac[1], ac[2], 1); _amb = [ac[0] / am, ac[1] / am, ac[2] / am];
+  // a stable left/right sign (hysteresis) for parts that just need a side, e.g. the fedora highlight
   const margin = 0.06 * e.W;
   let sign = node._rim || (lx < X ? -1 : 1);
   if (lx < X - margin) sign = -1; else if (lx > X + margin) sign = 1;
-  const yc = e.gy + (node.dy || 0) * e.unit - 50 * e.unit;       // roughly the torso height
-  _vb = Math.max(-1, Math.min(1, (yc - ly) / (90 * e.unit)));    // + when the light sits above the torso
-  // light amount, heavily smoothed on the node so flickering sources (a barrel fire, a failing bulb)
-  // settle the cloth to a steady tone instead of strobing it.
-  const a = Math.min(1, wsum * 0.9);
-  node._lit = node._lit == null ? a : node._lit + (a - node._lit) * 0.03;
-  _lit = node._lit;
   return node._rim = sign;
 }
 
-// "form" light, ALBEDO aware: the cloth is shaded from its own base colour, lifted on the lit edge
-// in proportion to the light reaching it (and faintly toward the light's colour) and dropped to
-// near black on the shadowed edge. So a bright light barely lifts a dark material and lifts a pale
-// one fully, the cloth keeps its identity. The gradient axis tilts with the light's vertical lean.
-export function bodyGrad(c, h, s, rim, tint, albedo) {
-  rim = rim || 1;
+// the cloth: ambient fill + a half-Lambert wrap of direct light, sampled across the body as a smooth
+// multi-stop gradient (no hard knee), the axis tilted by the light's vertical lean.
+export function bodyGrad(c, h, s, rim, albedo) {
   const A = albedo || BASE, cl = v => v < 0 ? 0 : v > 255 ? 255 : Math.round(v);
-  const gx = rim * 34 * s, gvy = -_vb * 20 * s;                  // tilt the lit edge toward the light's height
+  const dir = _lhx >= 0 ? 1 : -1, obl = Math.min(1, Math.abs(_lhx) + 0.15);   // how side-on the light is
+  const gx = dir * 36 * s, gvy = -_vb * 18 * s;                  // axis: lit edge -> far edge
   const g = c.createLinearGradient(gx, gvy, -gx, -gvy);
-  const lm = 0.82 + _lit * 0.42;                                 // lit-side lift, capped so a bright light never washes the cloth to white
-  // the lit edge takes the light's OWN colour, applied in proportion to how strongly the light hits
-  // (_lit): a strong close source (a barrel fire) casts a deep warm, a dim distant one a faint hint,
-  // and the hue is always the source's (a neon casts its colour, the moon casts cool).
-  let tr = 1, tg = 1, tb = 1;
-  if (tint) { const mx = Math.max(tint[0], tint[1], tint[2], 1), k = 0.7 * _lit; tr = 1 - k + k * tint[0] / mx; tg = 1 - k + k * tint[1] / mx; tb = 1 - k + k * tint[2] / mx; }
-  const lit = `rgb(${cl(A[0] * lm * tr)},${cl(A[1] * lm * tg)},${cl(A[2] * lm * tb)})`;
-  const mid = `rgb(${cl(A[0] * 0.45)},${cl(A[1] * 0.45)},${cl(A[2] * 0.45)})`;
-  const dark = `rgb(${cl(A[0] * 0.16)},${cl(A[1] * 0.16)},${cl(A[2] * 0.18)})`;
-  g.addColorStop(0, lit); g.addColorStop(0.42, mid); g.addColorStop(1, dark);
+  for (let i = 0; i <= 6; i++) {
+    const t = i / 6, u = 1 - 2 * t;                             // +1 lit edge .. -1 far edge
+    const hl = (1 - obl) + obl * Math.max(0, 0.5 + 0.5 * u);     // half-Lambert wrap (smooth)
+    const d = _lit * hl * hl;                                    // direct light at this band, soft terminator
+    const r = A[0] * (AMB * _amb[0] + (1 - AMB) * d * _lcol[0]);
+    const gg = A[1] * (AMB * _amb[1] + (1 - AMB) * d * _lcol[1]);
+    const b = A[2] * (AMB * _amb[2] + (1 - AMB) * d * _lcol[2]);
+    g.addColorStop(t, `rgb(${cl(r)},${cl(gg)},${cl(b)})`);
+  }
   return g;
 }
 
-// dim a FLAT surface colour (a white shirt, bare skin, a tie) by how much light reaches this figure,
-// the same smoothed amount the coat uses, with a floor so an unlit figure darkens but never vanishes.
-// Call after rimSign for the node, so the light amount is current. Returns an rgb() string.
-export function shade(rgb, floor = 0.42) {
-  const k = floor + (1 - floor) * _lit;
-  return `rgb(${Math.round(rgb[0] * k)},${Math.round(rgb[1] * k)},${Math.round(rgb[2] * k)})`;
+// a FLAT surface (a white shirt, bare skin, a tie): the same ambient fill + direct light without a
+// gradient, since these are small. Keeps a shirt or a face consistent with the cloth around it, so
+// an unlit figure goes uniformly dark and lifts (and takes the light's hue) as light reaches it.
+export function shade(rgb) {
+  const cl = v => v < 0 ? 0 : v > 255 ? 255 : Math.round(v), d = _lit;
+  const r = rgb[0] * (AMB * _amb[0] + (1 - AMB) * d * _lcol[0]);
+  const g = rgb[1] * (AMB * _amb[1] + (1 - AMB) * d * _lcol[1]);
+  const b = rgb[2] * (AMB * _amb[2] + (1 - AMB) * d * _lcol[2]);
+  return `rgb(${cl(r)},${cl(g)},${cl(b)})`;
 }
