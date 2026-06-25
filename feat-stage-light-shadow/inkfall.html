@@ -168,7 +168,7 @@ __req("src/library/index.js");
 const { STORIES } = __req("stories/manifest.js");
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 45 · truer light occlusion + form shading'
+const BUILD = 'v2 build 46 · shadows fall on the cast too'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 
@@ -379,12 +379,12 @@ __exports.Engine = Engine;
 __mod["src/engine/frame.js"] = function(__exports, __req){
 // FRAME — the per-frame facade handed to passes and to every object's draw/update/emitLight.
 // It bundles the live timing + sizes, the drawing contexts (main, the additive light buffer, the
-// shadow buffer), and the coordinate, lighting + shadow helpers. Objects read `e.ctx` as their
-// target and call helpers like `e.X(node)`, `e.addLight(...)`, `e.addCaster(...)`.
+// shadow buffer), and the coordinate + lighting helpers. Objects read `e.ctx` as their target and
+// call helpers like `e.X(node)`, `e.addLight(...)`. Shadows are not registered by objects: the
+// compositor turns every castsShadow object into a caster and paints it (see render/shadows.js).
 const { PALETTE } = __req("src/style/palette.js");
 const { lerp, smooth01 } = __req("src/engine/math.js");
 const L = __req("src/render/lighting.js");
-const S = __req("src/render/shadows.js");
 
 class Frame {
   constructor() {
@@ -393,7 +393,6 @@ class Frame {
     this.ctx = null;                              // active draw target (set per pass)
     this.scene = null;                            // active Scene
     this.lights = [];                             // light records, rebuilt each frame
-    this.casters = [];                            // shadow caster records, rebuilt each frame
   }
 
   // live, scene-derived values
@@ -434,10 +433,6 @@ class Frame {
   dominantLight(x) { return L.dominantLight(this, x); }
   litTint(x) { return L.litTint(this, x); }
   litColor(x, gr, gg, gb) { return L.litColor(this, x, gr, gg, gb); }
-
-  // shadow facade (delegates to the shadow service so the same describe-once split applies).
-  // Objects register a caster once with addCaster({...}); the shadow pass projects + paints it.
-  addCaster(rec) { S.addCaster(this, rec); }
 }
 
 Frame.prototype.palette = PALETTE;
@@ -797,130 +792,6 @@ __exports.SHADE = SHADE;
 __exports.AMBIENT = AMBIENT;
 __exports.WASH = WASH;
 };
-__mod["src/render/shadows.js"] = function(__exports, __req){
-// SHADOW SERVICE — the stage-aware companion to the lighting service. It follows the same
-// "describe once, the pass paints" split: an object registers a CASTER with addCaster({...}) (the
-// scene does this for every visible object whose castsShadow is true), then drawShadowLayer paints
-// every caster's shadow onto the offscreen shadow buffer, projected through the strongest lights
-// onto the stage floor and, where the set has one, climbing the back wall. The compositor blits
-// the buffer under the cast. A caster may hand a shadowSil(e, c) that strokes only its solid body
-// shape; without one it falls back to a tapered billboard from its width and height.
-const { SHADE } = __req("src/style/shadows.js");
-const { stageOf, shadowThrow } = __req("src/render/stage.js");
-
-// register a caster this frame. Fields:
-//   bx, baseY   the ground contact point (feet) in world space
-//   w, h        silhouette half-width and height in world px (the billboard fallback + softness)
-//   sil         optional sil(e, c): draw the solid shape in LOCAL coords (origin at the feet,
-//               up = negative y, widths already scaled), plain fills only
-//   node        the placed instance (passed as `this` to sil)
-//   density     0..1 shadow opacity multiplier (lighter for glass/translucent props; default 1)
-function addCaster(e, rec) {
-  if (rec.w == null) rec.w = 24;
-  if (rec.h == null) rec.h = 80;
-  if (rec.density == null) rec.density = 1;
-  e.casters.push(rec);
-}
-
-// a soft round black sprite for the contact dab (soft edge with no blur filter, as the rest of
-// the engine does).
-let _blob = null;
-function softBlob() {
-  if (_blob) return _blob;
-  const cv = document.createElement('canvas'); cv.width = cv.height = 128;
-  const c = cv.getContext('2d'), g = c.createRadialGradient(64, 64, 0, 64, 64, 64);
-  g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(0.55, 'rgba(0,0,0,0.4)'); g.addColorStop(1, 'rgba(0,0,0,0)');
-  c.fillStyle = g; c.fillRect(0, 0, 128, 128);
-  return _blob = cv;
-}
-
-// the strongest lights reaching a caster, sorted, capped — the ones that throw a shadow.
-function shadowLights(e, bx) {
-  return e.lights
-    .map(L => ({ L, w: L.I * (1 - Math.abs(bx - L.x) / (L.r * 1.2)) }))
-    .filter(o => o.w > SHADE.minWeight)
-    .sort((a, b) => b.w - a.w)
-    .slice(0, SHADE.maxLights);
-}
-
-// draw a caster's silhouette under a prepared transform: the authored shape if it has one, else a
-// tapered billboard (wide at the feet, narrower at the head) so a bare caster still reads as a body.
-function stampShape(e, c, cr) {
-  if (cr.sil) { cr.sil.call(cr.node, e, c); return; }
-  const w = cr.w, h = cr.h;
-  c.beginPath();
-  c.moveTo(-w, 0); c.lineTo(-w * 0.5, -h * 0.92);
-  c.quadraticCurveTo(0, -h * 1.04, w * 0.5, -h * 0.92); c.lineTo(w, 0);
-  c.closePath(); c.fill();
-}
-
-// one projected stamp (floor or wall), feathered with a few layered taps to fake a soft edge.
-// `mat(f)` returns the ctx.transform args at expansion factor f (1 = core, >1 = penumbra halo).
-function projStamp(e, c, cr, alpha, soft, mat) {
-  const taps = SHADE.softTaps, step = 0.05 + Math.min(0.14, soft);
-  for (let i = taps - 1; i >= 0; i--) {
-    const f = 1 + i * step;
-    c.save();
-    c.globalAlpha = alpha / taps;
-    c.fillStyle = '#000';
-    const m = mat(f); c.transform(m[0], m[1], m[2], m[3], 0, 0);
-    stampShape(e, c, cr);
-    c.restore();
-  }
-}
-
-function castOne(e, c, st, cr) {
-  const bx = cr.bx, baseY = cr.baseY, h = cr.h, headY = baseY - h, dens = cr.density;
-  const lit = shadowLights(e, bx);
-
-  // contact dab: grounds every caster even with no dominant light.
-  c.save(); c.globalAlpha = SHADE.contactAlpha * dens;
-  const cr0 = cr.w * 1.2; c.drawImage(softBlob(), bx - cr0, baseY - cr0 * 0.28, cr0 * 2, cr0 * 0.56);
-  c.restore();
-
-  for (const { L, w } of lit) {
-    const t = shadowThrow(st, L.x, L.y, bx, headY);
-    const emitSoft = Math.min(0.5, (L.ew + L.eh) / (2 * t.lh));   // a broad emitter throws a softer edge
-    c.save(); c.translate(bx, baseY);
-
-    // FLOOR: lay the silhouette away from the light, foreshortened toward the camera. Recedes as
-    // the light drops (the wall takes over), so the two stamps never both run at full strength.
-    const throwScale = Math.min(SHADE.maxLen, Math.max(0.3, Math.abs(bx - L.x) / t.lh) * SHADE.lengthGain);
-    const fAlpha = SHADE.floorAlpha * w * dens * (1 - 0.5 * t.low);
-    const fSoft = emitSoft + throwScale * 0.04 + SHADE.penumbra * 0.05;
-    c.save(); c.beginPath(); c.rect(-st.gy * 4, 0, st.gy * 8, st.H); c.clip();   // floor only (below feet)
-    projStamp(e, c, cr, fAlpha, fSoft, f => [1, 0, -t.dir * throwScale * f, -throwScale * SHADE.floorTilt * f, 0, 0]);
-    c.restore();
-
-    // WALL: only where the set has a near wall and the light sits low enough to throw up it.
-    if (st.wall && t.low > 0.2) {
-      const rise = 1.1 + t.low * 2.0, lean = (Math.abs(bx - L.x) / t.lh) * 0.5 + 0.1;
-      const wAlpha = SHADE.wallAlpha * w * dens * t.low;
-      const wSoft = emitSoft + SHADE.penumbra * 0.06;
-      const wallTop = st.wall.top - baseY;   // local y where the wall ends (negative, above feet)
-      c.save(); c.beginPath(); c.rect(-st.gy * 4, wallTop, st.gy * 8, baseY - st.wall.top); c.clip();   // wall band only
-      projStamp(e, c, cr, wAlpha, wSoft, f => [1, 0, -t.dir * lean * f, rise * f, 0, 0]);
-      c.restore();
-    }
-    c.restore();
-  }
-}
-
-// the shadow pass body: paint every caster to the buffer in black, then tint the whole buffer to
-// the shadow ink in one pass (source-in keeps the soft alpha, swaps the colour).
-function drawShadowLayer(e) {
-  if (!e.casters.length) return;
-  const c = e.shadow, st = stageOf(e);
-  for (const cr of e.casters) castOne(e, c, st, cr);
-  c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
-  c.globalCompositeOperation = 'source-in';
-  c.fillStyle = `rgba(${SHADE.color},1)`; c.fillRect(0, 0, c.canvas.width, c.canvas.height);
-  c.restore();
-}
-
-__exports.addCaster = addCaster;
-__exports.drawShadowLayer = drawShadowLayer;
-};
 __mod["src/scene/manager.js"] = function(__exports, __req){
 // MANAGER — the flow controller. Owns the camera, the compositor, the list of scenes, the
 // transition state machine, the establishing shot, narration (captions + fx), and the scene
@@ -1118,7 +989,7 @@ __mod["src/engine/compositor.js"] = function(__exports, __req){
 // additive light layer to the offscreen buffer, composites them, then weather over the top and
 // the screen-space post + transition. Two buffers keep the light layer separable for the look.
 const { sky } = __req("src/render/passes/sky.js");
-const { shadows } = __req("src/render/passes/shadows.js");
+const { casterRecord, paintCaster, tintBuffer } = __req("src/render/shadows.js");
 const { lightingBack, lightingFront } = __req("src/render/passes/lighting.js");
 const { weather } = __req("src/render/passes/weather.js");
 const { post } = __req("src/render/passes/post.js");
@@ -1127,9 +998,21 @@ const { transition } = __req("src/render/passes/transition.js");
 class Compositor {
   constructor(engine) { this.engine = engine; }
 
+  // paint one caster's shadow to the shadow buffer and composite it onto the main canvas. Called in
+  // depth order during the cast, so each shadow lands on the floor, the wall and the cast behind it.
+  castShadow(e, cr) {
+    const eng = this.engine, main = e.main, shadow = e.shadow, cam = e.scene.camera;
+    eng.setWorldTransform(shadow); shadow.clearRect(0, 0, e.W, e.H);
+    shadow.save(); cam.apply(shadow); e.ctx = shadow;
+    paintCaster(e, cr);
+    shadow.restore();
+    tintBuffer(e);
+    eng.setDeviceTransform(main); main.globalCompositeOperation = 'source-over'; main.drawImage(eng.shadowCv, 0, 0);
+  }
+
   render(e) {
-    const eng = this.engine, main = e.main, light = e.light, shadow = e.shadow, cam = e.scene.camera;
-    e.lights = []; e.casters = [];
+    const eng = this.engine, main = e.main, light = e.light, cam = e.scene.camera;
+    e.lights = [];
 
     // THE END: a black screen with grain + vignette + the title (no scene drawn)
     if (e.flow && e.flow.ended) {
@@ -1145,20 +1028,10 @@ class Compositor {
     main.save(); cam.apply(main); e.ctx = main;
     sky(e);                       // sky + moon (moon registers its light)
     e.scene.collectLights(e);     // declared lights + emissive props → e.lights (before anything reads them)
-    e.scene.collectCasters(e);    // visible casters → e.casters (before the shadow pass projects them)
     e.scene.drawBack(e);          // distant elements (e.g. a searchlight beam) behind the backdrop
     e.scene.drawBackdrop(e);
     e.scene.drawFixtures(e);      // the visible lamp/neon/bulb fixtures
     main.restore();
-
-    // SHADOW BUFFER → camera-applied, then composited onto the set UNDER the cast (a figure stands
-    // on its own shadow, and shadows fall on the floor + the back wall, not on the actors above).
-    eng.setWorldTransform(shadow);
-    shadow.clearRect(0, 0, e.W, e.H);
-    shadow.save(); cam.apply(shadow); e.ctx = shadow;
-    shadows(e);
-    shadow.restore();
-    eng.setDeviceTransform(main); main.globalCompositeOperation = 'source-over'; main.drawImage(eng.shadowCv, 0, 0);
 
     // BACK LIGHT BUFFER → camera-applied: environmental light (window bloom, beams, washes,
     // reflections, ripples, scene halos), composited BEFORE the cast so a foreground figure
@@ -1171,9 +1044,17 @@ class Compositor {
     eng.setDeviceTransform(main); main.globalCompositeOperation = 'lighter'; main.drawImage(eng.lightCv, 0, 0);
     main.globalCompositeOperation = 'source-over';
 
-    // WORLD (cast) → main, on top of the shadows + the back light
+    // CAST → main, back to front. Each caster's shadow is painted right BEFORE its object, so it
+    // falls on the floor, the back wall AND the cast already drawn behind it (a figure in front
+    // shadows one behind). The object then draws over its own shadow.
+    for (const o of e.scene.midObjects(e)) {
+      if (o.castsShadow) this.castShadow(e, casterRecord(e, o));
+      eng.setWorldTransform(main); main.save(); cam.apply(main); e.ctx = main;
+      o.draw(e);
+      main.restore();
+    }
     eng.setWorldTransform(main); main.save(); cam.apply(main); e.ctx = main;
-    e.scene.drawObjects(e);       // props/actors/movers/effects (depth order) + brass
+    e.scene.drawShells(e);        // ejected brass, over the cast
     main.restore();
 
     // FRONT LIGHT BUFFER → camera-applied: only lights in front of the cast (a cigarette ember),
@@ -1260,15 +1141,135 @@ function sky(e) {
 
 __exports.sky = sky;
 };
-__mod["src/render/passes/shadows.js"] = function(__exports, __req){
-// SHADOW PASS — paints the offscreen shadow buffer: every registered caster's silhouette,
-// projected through the strongest lights onto the stage floor and the back wall. The compositor
-// blits this buffer onto the world under the cast, so a figure stands on its own shadow.
-const { drawShadowLayer } = __req("src/render/shadows.js");
+__mod["src/render/shadows.js"] = function(__exports, __req){
+// SHADOW SERVICE — the stage-aware companion to the lighting service. Each object whose castsShadow
+// is true is turned into a CASTER record and its shadow is painted to the offscreen shadow buffer,
+// projected through the strongest lights onto the stage floor and, where the set has one, climbing
+// the back wall. The compositor paints each caster's shadow in depth order, right before the object
+// is drawn, so a shadow lands not only on the floor and wall but on the cast already behind it (a
+// figure in front shadows a figure behind). A caster may hand a shadowSil(e, c) that strokes only
+// its solid body shape; without one it falls back to a tapered billboard from its width and height.
+const { SHADE } = __req("src/style/shadows.js");
+const { stageOf, shadowThrow } = __req("src/render/stage.js");
 
-function shadows(e) { drawShadowLayer(e); }
+// build a caster record from a placed object (its feet point, silhouette size, shape and density).
+//   bx, baseY   the ground contact point (feet) in world space
+//   w, h        silhouette half-width and height in world px (the billboard fallback + softness)
+//   sil         optional shadowSil(e, c): draw the solid shape in LOCAL coords (origin at the feet,
+//               up = negative y, widths already scaled), plain fills only
+//   density     0..1 shadow opacity multiplier (lighter for glass/translucent props; default 1)
+function casterRecord(e, o) {
+  const s = e.scaleOf(o);
+  return {
+    node: o, bx: e.walkX(o), baseY: e.gy + (o.dy || 0) * e.unit,
+    w: (o.shadowW != null ? o.shadowW : 26) * s,
+    h: (o.shadowH != null ? o.shadowH : 80) * s,
+    density: o.shadowDensity != null ? o.shadowDensity : 1,
+    sil: o.shadowSil || null,
+  };
+}
 
-__exports.shadows = shadows;
+// a soft round black sprite for the contact dab (soft edge with no blur filter, as the rest of
+// the engine does).
+let _blob = null;
+function softBlob() {
+  if (_blob) return _blob;
+  const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+  const c = cv.getContext('2d'), g = c.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(0.55, 'rgba(0,0,0,0.4)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = g; c.fillRect(0, 0, 128, 128);
+  return _blob = cv;
+}
+
+// the strongest lights reaching a caster, sorted, capped — the ones that throw a shadow.
+function shadowLights(e, bx) {
+  return e.lights
+    .map(L => ({ L, w: L.I * (1 - Math.abs(bx - L.x) / (L.r * 1.2)) }))
+    .filter(o => o.w > SHADE.minWeight)
+    .sort((a, b) => b.w - a.w)
+    .slice(0, SHADE.maxLights);
+}
+
+// draw a caster's silhouette under a prepared transform: the authored shape if it has one, else a
+// tapered billboard (wide at the feet, narrower at the head) so a bare caster still reads as a body.
+function stampShape(e, c, cr) {
+  if (cr.sil) { cr.sil.call(cr.node, e, c); return; }
+  const w = cr.w, h = cr.h;
+  c.beginPath();
+  c.moveTo(-w, 0); c.lineTo(-w * 0.5, -h * 0.92);
+  c.quadraticCurveTo(0, -h * 1.04, w * 0.5, -h * 0.92); c.lineTo(w, 0);
+  c.closePath(); c.fill();
+}
+
+// one projected stamp (floor or wall), feathered with a few layered taps to fake a soft edge.
+// `mat(f)` returns the ctx.transform args at expansion factor f (1 = core, >1 = penumbra halo).
+function projStamp(e, c, cr, alpha, soft, mat) {
+  const taps = SHADE.softTaps, step = 0.05 + Math.min(0.14, soft);
+  for (let i = taps - 1; i >= 0; i--) {
+    const f = 1 + i * step;
+    c.save();
+    c.globalAlpha = alpha / taps;
+    c.fillStyle = '#000';
+    const m = mat(f); c.transform(m[0], m[1], m[2], m[3], 0, 0);
+    stampShape(e, c, cr);
+    c.restore();
+  }
+}
+
+function castOne(e, c, st, cr) {
+  const bx = cr.bx, baseY = cr.baseY, h = cr.h, headY = baseY - h, dens = cr.density;
+  const lit = shadowLights(e, bx);
+
+  // contact dab: grounds every caster even with no dominant light.
+  c.save(); c.globalAlpha = SHADE.contactAlpha * dens;
+  const cr0 = cr.w * 1.2; c.drawImage(softBlob(), bx - cr0, baseY - cr0 * 0.28, cr0 * 2, cr0 * 0.56);
+  c.restore();
+
+  for (const { L, w } of lit) {
+    const t = shadowThrow(st, L.x, L.y, bx, headY);
+    const emitSoft = Math.min(0.5, (L.ew + L.eh) / (2 * t.lh));   // a broad emitter throws a softer edge
+    c.save(); c.translate(bx, baseY);
+
+    // FLOOR: lay the silhouette away from the light, foreshortened toward the camera. Recedes as
+    // the light drops (the wall takes over), so the two stamps never both run at full strength.
+    const throwScale = Math.min(SHADE.maxLen, Math.max(0.3, Math.abs(bx - L.x) / t.lh) * SHADE.lengthGain);
+    const fAlpha = SHADE.floorAlpha * w * dens * (1 - 0.5 * t.low);
+    const fSoft = emitSoft + throwScale * 0.04 + SHADE.penumbra * 0.05;
+    c.save(); c.beginPath(); c.rect(-st.gy * 4, 0, st.gy * 8, st.H); c.clip();   // floor only (below feet)
+    projStamp(e, c, cr, fAlpha, fSoft, f => [1, 0, -t.dir * throwScale * f, -throwScale * SHADE.floorTilt * f, 0, 0]);
+    c.restore();
+
+    // WALL: only where the set has a near wall and the light sits low enough to throw up it.
+    if (st.wall && t.low > 0.2) {
+      const rise = 1.1 + t.low * 2.0, lean = (Math.abs(bx - L.x) / t.lh) * 0.5 + 0.1;
+      const wAlpha = SHADE.wallAlpha * w * dens * t.low;
+      const wSoft = emitSoft + SHADE.penumbra * 0.06;
+      const wallTop = st.wall.top - baseY;   // local y where the wall ends (negative, above feet)
+      c.save(); c.beginPath(); c.rect(-st.gy * 4, wallTop, st.gy * 8, baseY - st.wall.top); c.clip();   // wall band only
+      projStamp(e, c, cr, wAlpha, wSoft, f => [1, 0, -t.dir * lean * f, rise * f, 0, 0]);
+      c.restore();
+    }
+    c.restore();
+  }
+}
+
+// paint one caster's shadow (black) onto the shadow buffer. The buffer is cleared and camera-applied
+// by the compositor, which then tints and composites it before drawing the object, so each caster's
+// shadow falls on the floor, the wall and the cast already behind it.
+function paintCaster(e, cr) { castOne(e, e.shadow, stageOf(e), cr); }
+
+// recolour the buffer to the shadow ink in one pass (source-in keeps the soft alpha, swaps colour).
+function tintBuffer(e) {
+  const c = e.shadow;
+  c.save(); c.setTransform(1, 0, 0, 1, 0, 0);
+  c.globalCompositeOperation = 'source-in';
+  c.fillStyle = `rgba(${SHADE.color},1)`; c.fillRect(0, 0, c.canvas.width, c.canvas.height);
+  c.restore();
+}
+
+__exports.casterRecord = casterRecord;
+__exports.paintCaster = paintCaster;
+__exports.tintBuffer = tintBuffer;
 };
 __mod["src/render/passes/lighting.js"] = function(__exports, __req){
 // LIGHTING PASS — paints the additive light buffer in two phases so depth reads correctly:
@@ -1472,31 +1473,15 @@ class Scene {
     for (const L of this.lightNodes) if (L.emitLight) L.emitLight(e);
     for (const o of this.objects) if (this.visible(o) && o.emitLight) o.emitLight(e);
   }
-  // every visible caster registers a shadow once (mirrors collectLights, so all casters and lights
-  // are known before either pass paints). The base point uses walkX, so a walking actor's shadow
-  // tracks the walk; the silhouette pose is recomputed inside the object's shadowSil.
-  collectCasters(e) {
-    for (const o of this.objects) {
-      if (!o.castsShadow || !this.visible(o)) continue;
-      const s = e.scaleOf(o);
-      e.addCaster({
-        node: o, bx: e.walkX(o), baseY: e.gy + (o.dy || 0) * e.unit,
-        w: (o.shadowW != null ? o.shadowW : 26) * s,
-        h: (o.shadowH != null ? o.shadowH : 80) * s,
-        density: o.shadowDensity != null ? o.shadowDensity : 1,
-        sil: o.shadowSil || null,
-      });
-    }
-  }
   drawBackdrop(e) { if (this.backdrop && this.backdrop.draw) this.backdrop.draw(e); }
   drawFixtures(e) { for (const L of this.lightNodes) if (L.draw) L.draw(e); }
   // visible objects of a layer, back-to-front by depth
   _layer(layer) { return this.objects.filter(o => this.visible(o) && (o.layer || 'mid') === layer).sort((a, b) => (a.depth || 0) - (b.depth || 0)); }
   drawBack(e) { for (const o of this._layer('back')) o.draw(e); }   // distant elements, behind the backdrop
-  drawObjects(e) {
-    for (const o of this._layer('mid')) o.draw(e);
-    this.shells.draw(e);
-  }
+  // the cast, back to front. The compositor walks this so it can paint each caster's shadow right
+  // before its object (so the shadow lands on the cast already behind it), then draw the object.
+  midObjects(e) { return this._layer('mid'); }
+  drawShells(e) { this.shells.draw(e); }
   drawLightExtras(e) { this.ripples.draw(e); }   // additive ripples onto the light buffer
 
   update(dt, e) {
