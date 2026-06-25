@@ -13,19 +13,24 @@
 :root { color-scheme: dark;
   /* HUD grid: one square cell is the button height (and a small icon-only button's width).
      Wider buttons span whole cells plus the gaps between them, so everything lines up. */
-  --hud-cell: clamp(36px, 6.4vmin, 42px);
+  --hud-cell: clamp(34px, 6vmin, 40px);
   --hud-gap: 6px;
   --hud-w1: var(--hud-cell);                                          /* small:  1 cell, icon only */
   --hud-w2: calc(var(--hud-cell) * 2 + var(--hud-gap));              /* medium: 2 cells, icon + text */
   --hud-w3: calc(var(--hud-cell) * 3 + var(--hud-gap) * 2);         /* large:  3 cells, text (or icon + text) */
 }
-/* shared HUD button: every control is one cell tall, the size class sets the width */
-.hud-btn { height: var(--hud-cell); font-family: inherit; cursor: pointer; line-height: 1;
-  background: rgba(0,0,0,0.55); color: #d8d4c8; border: 1px solid rgba(255,255,255,0.28);
-  display: inline-flex; align-items: center; justify-content: center; gap: 0.5em;
-  letter-spacing: 0.14em; font-size: clamp(11px, 2.1vmin, 14px); }
-.hud-btn:hover, .hud-btn:active { border-color: #e10010; color: #fff; }
-.hud-sm { width: var(--hud-w1); padding: 0; font-size: clamp(15px, 3.1vmin, 19px); }
+/* one noir button skin, shared by the HUD, the act list, the poster row and the story menu */
+.hud-btn, #scenenav button, #poster a, #poster button, #storymenu button {
+  cursor: pointer; font-family: inherit; color: #c9c4b6;
+  background: rgba(8,8,10,0.62); border: 1px solid rgba(216,212,200,0.3);
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease; }
+.hud-btn:hover, .hud-btn:active, #scenenav button:hover,
+#poster a:hover, #poster button:hover, #storymenu button:hover, #storymenu button:active {
+  color: #fff; border-color: rgba(255,255,255,0.6); }
+/* HUD button sizing: every control is one cell tall, the size class sets the width */
+.hud-btn { height: var(--hud-cell); line-height: 1; display: inline-flex; align-items: center;
+  justify-content: center; gap: 0.5em; letter-spacing: 0.14em; font-size: clamp(10px, 2vmin, 13px); }
+.hud-sm { width: var(--hud-w1); padding: 0; font-size: clamp(14px, 3vmin, 18px); }
 .hud-md { width: var(--hud-w2); }
 .hud-lg { width: var(--hud-w3); }
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
@@ -35,15 +40,15 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
    through as letterbox bars (top/bottom on a tall screen, left/right on a wide one) */
 #scenetag { position: fixed; top: max(12px, env(safe-area-inset-top)); left: 14px; z-index: 10;
   font-family: "Special Elite", "Courier New", monospace;
-  color: #d8d4c8; font-size: clamp(12px, 2.2vmin, 15px); letter-spacing: 0.25em; font-weight: 400; text-shadow: 2px 2px 0 #000;
+  color: #d8d4c8; font-size: clamp(11px, 2vmin, 14px); letter-spacing: 0.25em; font-weight: 400; text-shadow: 2px 2px 0 #000;
   opacity: 0; transition: opacity 0.5s ease; }
 #scenetag b { color: #c20012; }
-#caption { position: fixed; left: 50%; bottom: calc(max(16px, env(safe-area-inset-bottom)) + 12px); transform: translateX(-50%);
-  z-index: 10; width: min(92vw, 680px); background: rgba(245,242,232,0.95); color: #111;
-  border: 2px solid #000; box-shadow: 5px 5px 0 rgba(0,0,0,0.55);
-  padding: clamp(12px, 2.2vmin, 18px) clamp(14px, 2.6vmin, 22px);
+#caption { position: fixed; left: 50%; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 10px); transform: translateX(-50%);
+  z-index: 10; width: min(90vw, 600px); background: rgba(245,242,232,0.95); color: #111;
+  border: 2px solid #000; box-shadow: 4px 4px 0 rgba(0,0,0,0.5);
+  padding: clamp(9px, 1.7vmin, 13px) clamp(12px, 2.2vmin, 18px);
   font-family: "Special Elite", "Courier New", monospace;
-  font-size: clamp(15px, 3vmin, 21px); line-height: 1.45; letter-spacing: 0.005em; transition: opacity 0.35s ease; }
+  font-size: clamp(13px, 2.4vmin, 18px); line-height: 1.4; letter-spacing: 0.005em; transition: opacity 0.35s ease; }
 #caption b { color: #c20012; font-weight: 700; }
 #tapnote { position: fixed; left: 50%; bottom: 6px; transform: translateX(-50%); z-index: 10; white-space: nowrap;
   color: #7c7c7c; font-size: clamp(8px, 1.6vmin, 11px); letter-spacing: 0.06em; }
@@ -51,49 +56,51 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
   letter-spacing: 0.1em; font-family: "Courier New", monospace; }
 #editbtn, #mute, #shoot { font-variant-emoji: text; }   /* keep the HUD glyphs monochrome (noir), never colour emoji */
 #topbar { position: fixed; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); z-index: 25;
-  display: flex; align-items: stretch; gap: var(--hud-gap); }
+  display: flex; flex-direction: column; align-items: flex-end; gap: var(--hud-gap); }
+.hud-row { display: flex; gap: var(--hud-gap); }
 #mute, #shoot { display: none; }                        /* the poster + sound icons appear once a story starts */
 #mute.show, #shoot.show { display: inline-flex; }
+/* act selector: a REVIEW ACT toggle that drops the act list open right below the HUD buttons */
+#actsel { display: none; flex-direction: column; align-items: stretch; gap: var(--hud-gap); width: max-content; }
+#actsel.show { display: flex; }
+#actbtn { min-width: var(--hud-w3); }
+#actbtn::after { content: "\25BE"; font-size: 0.82em; transition: transform 0.3s ease; }   /* caret flips when open */
+#actbtn.open::after { transform: rotate(180deg); }
 #poster { position: fixed; inset: 0; z-index: 40; display: none; align-items: center; justify-content: center;
   flex-direction: column; background: rgba(0,0,0,0.92); }
 #poster.show { display: flex; }
 #poster img { max-width: 88vw; max-height: 70vh; border: 1px solid rgba(216,212,200,0.4); box-shadow: 0 0 40px rgba(0,0,0,0.8); }
 #poster .poster-row { margin-top: 18px; display: flex; gap: 12px; }
-#poster a, #poster button { padding: 15px 32px; cursor: pointer; background: transparent; color: #fff;
-  border: 1px solid #fff; font-family: inherit; font-size: clamp(14px, 3.4vw, 16px); letter-spacing: 0.16em; text-decoration: none; }
-#poster a:hover { background: #e10010; border-color: #e10010; }
-#poster button:hover { background: #fff; color: #000; }
-/* act selector (shown on THE END): a vertical column on the right, clear of the narration box.
-   Every act button is one standard "large" width so the list reads as a clean stack. */
-#scenenav { position: fixed; right: max(12px, env(safe-area-inset-right)); top: 50%; transform: translateY(-50%);
-  z-index: 25; display: none; flex-direction: column; align-items: stretch; gap: var(--hud-gap);
-  width: max-content; max-height: 86vh; overflow-y: auto; text-align: center; }
-#scenenav.show { display: flex; }
-#scenenav::before { content: "REVIEW ACT"; font-family: "Oswald", sans-serif; color: rgba(236,230,214,0.5);
-  font-size: clamp(10px, 1.9vmin, 13px); letter-spacing: 0.3em; font-weight: 600; margin-bottom: 2px; }
-/* every act button stretches to the column width (the widest title) with the 3 cell width as a
-   floor, so the buttons are all exactly equal and each stays one cell tall on a single line */
-#scenenav button { min-width: var(--hud-w3); height: var(--hud-cell); white-space: nowrap; cursor: pointer;
-  display: flex; align-items: center; justify-content: center; font-family: inherit; padding: 0 12px;
-  font-size: clamp(11px, 2.1vmin, 14px); letter-spacing: 0.12em; font-weight: 700;
-  color: #c9c4b6; background: rgba(8,8,10,0.62); border: 1px solid rgba(216,212,200,0.3); }
-#scenenav button:hover { color: #fff; border-color: rgba(255,255,255,0.6); }
+#poster a, #poster button { padding: 13px 28px; text-align: center; font-size: clamp(13px, 3.2vw, 15px); letter-spacing: 0.16em; text-decoration: none; }
+/* the act list drops open below the toggle: a clipped column that grows downward, each button
+   easing down in turn for a noir, rope ladder feel. Every button shares one width (the widest
+   title, floored at the 3 cell size) and stays one cell tall on a single line. */
+#scenenav { display: flex; flex-direction: column; align-items: stretch; gap: var(--hud-gap);
+  overflow: hidden; max-height: 0; transition: max-height 0.45s cubic-bezier(0.22,0.61,0.36,1); }
+#scenenav.open { max-height: 70vh; overflow-y: auto; }
+#scenenav button { min-width: var(--hud-w3); height: var(--hud-cell); white-space: nowrap;
+  display: flex; align-items: center; justify-content: center; padding: 0 12px;
+  font-size: clamp(10px, 2vmin, 13px); letter-spacing: 0.12em; font-weight: 700;
+  opacity: 0; transform: translateY(-10px);
+  transition: opacity 0.3s ease, transform 0.35s cubic-bezier(0.22,0.61,0.36,1), color 0.2s ease, border-color 0.2s ease; }
+#scenenav.open button { opacity: 1; transform: translateY(0); }
+#scenenav.open button:nth-child(1) { transition-delay: 0.04s; }
+#scenenav.open button:nth-child(2) { transition-delay: 0.09s; }
+#scenenav.open button:nth-child(3) { transition-delay: 0.14s; }
+#scenenav.open button:nth-child(4) { transition-delay: 0.19s; }
+#scenenav.open button:nth-child(5) { transition-delay: 0.24s; }
+#scenenav.open button:nth-child(6) { transition-delay: 0.29s; }
+#scenenav.open button:nth-child(7) { transition-delay: 0.34s; }
+#scenenav.open button:nth-child(8) { transition-delay: 0.39s; }
 #scenenav button.cur { color: #fff; border-color: #e10010; box-shadow: 0 0 12px rgba(225,0,16,0.45); }
-/* story menu: the small popup shown when the STORY button is tapped */
+/* story menu: same treatment as the poster overlay (dark wash + shared button skin) */
 #storymenu { position: fixed; inset: 0; z-index: 45; display: none; align-items: center; justify-content: center;
-  background: rgba(0,0,0,0.88); padding: 24px; }
+  flex-direction: column; background: rgba(0,0,0,0.92); padding: 24px; }
 #storymenu.show { display: flex; }
-#storymenu .sm-panel { display: flex; flex-direction: column; gap: 12px; width: min(92vw, 360px);
-  background: rgba(8,8,10,0.92); border: 1px solid rgba(216,212,200,0.3); padding: clamp(20px, 5vw, 30px); }
+#storymenu .sm-panel { display: flex; flex-direction: column; gap: 12px; width: min(86vw, 340px); }
 #storymenu .sm-head { color: #e10010; letter-spacing: 0.3em; font-weight: 700; text-align: center;
   font-family: "Oswald", sans-serif; font-size: clamp(15px, 4vw, 18px); margin-bottom: 6px; }
-#storymenu button { cursor: pointer; font-family: "Oswald", sans-serif; font-weight: 600; letter-spacing: 0.16em;
-  font-size: clamp(14px, 3.6vw, 16px); padding: 15px 18px; background: transparent; color: #f2eee2;
-  border: 1px solid rgba(236,230,214,0.45); transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease; }
-#storymenu button:hover, #storymenu button:active { border-color: #fff; color: #fff; background: rgba(236,230,214,0.06); }
-#storymenu #sm-edit { background: #e10010; border-color: #e10010; color: #fff; }
-#storymenu #sm-edit:hover { background: #c2000e; }
-#storymenu #sm-cancel { color: rgba(236,230,214,0.6); border-color: transparent; padding: 8px; letter-spacing: 0.22em; font-size: clamp(12px, 3vw, 13px); }
+#storymenu button { padding: 13px 28px; text-align: center; font-size: clamp(13px, 3.2vw, 15px); letter-spacing: 0.16em; }
 #editor { position: fixed; inset: 0; z-index: 40; display: none; flex-direction: column; gap: 10px;
   background: rgba(6,7,10,0.97); padding: max(16px, env(safe-area-inset-top)) 16px 16px; }
 #editor .ed-head { color: #e10010; letter-spacing: 0.3em; font-weight: 700; font-size: clamp(14px, 3.6vw, 16px); }
@@ -138,7 +145,7 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
 }
 /* wide desktops: a touch larger so it reads from a distance, still within the standard scale */
 @media (min-width: 1100px) {
-  #caption { font-size: 22px; width: min(62vw, 680px); }
+  #caption { font-size: 18px; width: min(52vw, 600px); }
 }
 
 /* rotate prompt: shown on a phone/tablet held in portrait, while the screen is asked to turn */
@@ -182,11 +189,16 @@ html, body { height: 100%; overflow: hidden; background: #000; font-family: "Cou
 
 <div id="build"></div>
 <div id="topbar">
-  <button id="shoot" class="hud-btn hud-sm" title="save a poster of this frame">❏</button>
-  <button id="mute" class="hud-btn hud-sm" title="sound">♪</button>
-  <button id="editbtn" class="hud-btn hud-md">✎ STORY</button>
+  <div class="hud-row">
+    <button id="shoot" class="hud-btn hud-sm" title="save a poster of this frame">❏</button>
+    <button id="mute" class="hud-btn hud-sm" title="sound">♪</button>
+    <button id="editbtn" class="hud-btn hud-md">✎ STORY</button>
+  </div>
+  <div id="actsel">
+    <button id="actbtn" class="hud-btn">REVIEW ACT</button>
+    <div id="scenenav"></div>
+  </div>
 </div>
-<div id="scenenav"></div>
 
 <div id="rotate">
   <div class="rotate-phone" aria-hidden="true"><span class="rotate-cam"></span></div>
@@ -241,7 +253,13 @@ el('build').textContent = BUILD;
 
 const engine = new Engine(); engine.init();
 const manager = new Manager(engine);
-manager.attachDom({ cap: el('caption'), tag: el('scenetag'), tap: el('tapnote'), nav: el('scenenav') });
+manager.attachDom({ cap: el('caption'), tag: el('scenetag'), tap: el('tapnote'), nav: el('scenenav'), act: el('actbtn') });
+
+// REVIEW ACT toggle: drop the act list open/closed below the HUD
+el('actbtn').addEventListener('click', () => {
+  const open = el('scenenav').classList.toggle('open');
+  el('actbtn').classList.toggle('open', open);
+});
 
 // keep the story in a landscape frame: go fullscreen + ask for landscape on a phone/tablet, hold
 // the start behind a "rotate your screen" prompt while portrait, and letterbox everywhere else.
@@ -295,6 +313,7 @@ function beginPlay() {
   el('tapnote').style.display = 'block';
   el('mute').classList.add('show');
   el('shoot').classList.add('show');
+  el('actsel').classList.add('show');
   Audio2.start();
   viewport.beginStory();   // goes immersive, then starts the story once the screen is landscape
 }
@@ -356,7 +375,8 @@ const openEditor = () => { edText.value = JSON.stringify(manager.story, noCache,
 function goToStartMenu() {
   storymenu.classList.remove('show'); editor.style.display = 'none'; el('poster').classList.remove('show');
   el('caption').style.display = 'none'; el('tapnote').style.display = 'none';
-  el('mute').classList.remove('show'); el('shoot').classList.remove('show'); el('scenenav').classList.remove('show');
+  el('mute').classList.remove('show'); el('shoot').classList.remove('show');
+  el('actsel').classList.remove('show'); el('scenenav').classList.remove('open'); el('actbtn').classList.remove('open');
   Audio2.setStory(manager.story && manager.story.audio);   // stop the playing audio, reset to the unstarted state
   viewport.reset(); manager.reset();                        // drop back to act one, not started, so ENTER replays cleanly
   const intro = el('intro'); intro.style.display = 'flex'; requestAnimationFrame(() => intro.style.opacity = '1');
@@ -966,11 +986,12 @@ class Manager {
     this.fadeT = null;                                  // no stale beat-crossfade bleeding into a new act
     Audio2.scene(this.current.data); Audio2.whoosh();   // swap ambience + play the swoosh as the act-name card renders
     if (!this.seen.includes(idx)) this.seen.push(idx);
-    if (this.navShown) this.highlightNav();
+    this.highlightNav();   // keep the current act marked in the picker, open or not
   }
 
-  // the scene picker, revealed on THE END so any act can be replayed
-  revealNav() { this.navShown = true; if (this.dom.nav) this.dom.nav.classList.add('show'); this.highlightNav(); }
+  // on THE END, drop the act picker open automatically so any act can be replayed
+  revealNav() { this.navShown = true; this.openNav(true); this.highlightNav(); }
+  openNav(on) { if (this.dom.nav) this.dom.nav.classList.toggle('open', on); if (this.dom.act) this.dom.act.classList.toggle('open', on); }
   highlightNav() { if (this.dom.nav) this.dom.nav.querySelectorAll('button').forEach(b => b.classList.toggle('cur', +b.dataset.s === this.idx)); }
 
   advance() {
@@ -1017,11 +1038,11 @@ class Manager {
 
   buildSceneNav() {
     const nav = this.dom.nav; if (!nav) return;
-    nav.innerHTML = ''; nav.classList.remove('show'); this.navShown = false;
+    nav.innerHTML = ''; this.openNav(false); this.navShown = false;
     (this.scenes || []).forEach((s, i) => {
       const b = document.createElement('button'); b.dataset.s = i;
       b.innerHTML = (s.data.title || ('SCENE ' + i)).replace(/&nbsp;/g, ' ');
-      b.addEventListener('click', () => this.jumpTo(i));
+      b.addEventListener('click', () => { this.jumpTo(i); this.openNav(false); });   // pick an act, then collapse the drawer
       nav.appendChild(b);
     });
   }
