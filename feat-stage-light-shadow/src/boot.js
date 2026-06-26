@@ -8,9 +8,10 @@ import { Audio2 } from './assets/audio.js';
 import { rand32, TWO_PI } from './engine/math.js';
 import './library/index.js';
 import { STORIES } from '../stories/manifest.js';
+import { initLightLab } from './devtools/lightlab.js';
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 58 · 1080p-anchored resolution scaling'
+const BUILD = 'v2 build 78 · lighting: rim, bounce, AO, gobo, depth, air, filmic'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 
@@ -149,7 +150,7 @@ const storymenu = el('storymenu');
 const openEditor = () => { edText.value = JSON.stringify(manager.story, noCache, 2); edErr.textContent = ''; editor.style.display = 'flex'; };
 function goToStartMenu() {
   storymenu.classList.remove('show'); storymenu.dataset.view = 'main'; document.body.classList.remove('clean');
-  editor.style.display = 'none'; el('poster').classList.remove('show');
+  editor.style.display = 'none'; el('poster').classList.remove('show'); lightLab.close();
   el('scenenav').classList.remove('open'); el('actbtn').classList.remove('open');
   Audio2.setStory(manager.story && manager.story.audio);   // stop the playing audio, reset to the unstarted state
   viewport.reset(); manager.reset();                        // drop back to act one, not started, so ENTER replays cleanly
@@ -179,6 +180,10 @@ el('sm-back').addEventListener('click', () => setView('confirm'));     // exitin
 el('sm-confirm-no').addEventListener('click', () => setView('main'));
 el('sm-confirm-yes').addEventListener('click', goToStartMenu);
 el('sm-edit').addEventListener('click', () => { storymenu.classList.remove('show'); openEditor(); refreshPause(); });
+// the live shadow + light lab: a non-modal docked panel, so closing the menu unpauses and the scene
+// plays while you tune. Opened from Story Engine.
+const lightLab = initLightLab({ engine });
+el('sm-light').addEventListener('click', () => { storymenu.classList.remove('show'); setView('main'); refreshPause(); lightLab.open(); });
 el('ed-close').addEventListener('click', () => { editor.style.display = 'none'; refreshPause(); });
 el('ed-reset').addEventListener('click', () => { edText.value = JSON.stringify(defaultStory, noCache, 2); edErr.textContent = 'Default story loaded into the editor, press PLAY to run it.'; });
 el('ed-play').addEventListener('click', () => {

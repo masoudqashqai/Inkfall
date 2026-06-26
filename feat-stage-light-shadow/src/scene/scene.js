@@ -7,6 +7,11 @@ import { Ripples } from '../library/effects/ripples.js';
 import { Audio2 } from '../assets/audio.js';
 import { ANIM } from '../style/palette.js';
 
+// the cast LAYER STACK, drawn through the lit-sprite + shadow pipeline in this order, each y-sorted
+// within. 'mid' is the default cast; 'fore' draws in front of it (a foreground occluder). Behind the
+// backdrop, the 'back' layer is drawn separately (directly, distant elements like a far beam).
+const CAST_LAYERS = ['mid', 'fore'];
+
 export class Scene {
   constructor(data, camera) {
     this.data = data; this.camera = camera;
@@ -28,6 +33,11 @@ export class Scene {
     this.backdrop = bd ? createBackdrop(bd.type, this.data) : null;
     this.lightNodes = (this.data.lights || []).map(l => create(l.type, l)).filter(Boolean);
     this.objects = (this.data.cast || []).map(p => create(p.type, p)).filter(Boolean);
+    // link attached children to their parent (a prop riding an actor): a node with attachTo: <id>
+    // gets _parent set, and its transform then composes onto that parent (see Frame.place).
+    const byId = {};
+    for (const o of this.objects) if (o.id) byId[o.id] = o;
+    for (const o of this.objects) if (o.attachTo && byId[o.attachTo]) o._parent = byId[o.attachTo];
   }
   // backdrop geometry depends on the viewport, so it is (re)built lazily once a frame exists
   ensureGeometry(e) { if (this.backdrop && this.backdrop.build && !this.backdrop.geom) this.backdrop.geom = this.backdrop.build(e); }
@@ -41,18 +51,36 @@ export class Scene {
     return true;
   }
 
+  // raised surfaces (a table top) that props expose, gathered before lights + cast so the stage,
+  // beam landings and object anchoring all resolve against them.
+  collectSurfaces(e) {
+    e.surfaces = [];
+    for (const o of this.objects) if (this.visible(o) && o.surface) { const s = o.surface(e); if (s) e.surfaces.push(s); }
+  }
   collectLights(e) {
     for (const L of this.lightNodes) if (L.emitLight) L.emitLight(e);
     for (const o of this.objects) if (this.visible(o) && o.emitLight) o.emitLight(e);
   }
   drawBackdrop(e) { if (this.backdrop && this.backdrop.draw) this.backdrop.draw(e); }
   drawFixtures(e) { for (const L of this.lightNodes) if (L.draw) L.draw(e); }
-  // visible objects of a layer, back-to-front by depth
-  _layer(layer) { return this.objects.filter(o => this.visible(o) && (o.layer || 'mid') === layer).sort((a, b) => (a.depth || 0) - (b.depth || 0)); }
-  drawBack(e) { for (const o of this._layer('back')) o.draw(e); }   // distant elements, behind the backdrop
-  // the cast, back to front. The compositor walks this so it can paint each caster's shadow right
-  // before its object (so the shadow lands on the cast already behind it), then draw the object.
-  midObjects(e) { return this._layer('mid'); }
+  // visible objects of a layer, sorted BACK TO FRONT by the FLOOR-CONTACT point (where the object
+  // stands on the stage: gy plus its dy), not its drawn Y. On a side-on stage a higher drawn Y means
+  // elevation (a chip resting on a table), not distance, so sorting by the contact point keeps an
+  // elevated prop ordered with whatever it sits on instead of sinking behind it. `depth` is an
+  // explicit bias in the same space to pin order. Equal keys keep authoring order (stable sort).
+  // The transform step enriches this contact point with a real depth axis for moving objects.
+  _sortY(e, o) { return e.place(o).groundY + (o.depth || 0); }
+  _layer(e, layer) {
+    return this.objects
+      .filter(o => this.visible(o) && (o.layer || 'mid') === layer)
+      .sort((a, b) => this._sortY(e, a) - this._sortY(e, b));
+  }
+  drawBack(e) { for (const o of this._layer(e, 'back')) o.draw(e); }   // distant elements, behind the backdrop
+  // the cast across its ordered layers (mid, then fore in front), each y-sorted within. The
+  // compositor walks this so it can paint each caster's shadow right before its object (so the
+  // shadow lands on the cast already behind it), then draw the object, and a 'fore' object lands in
+  // front of the whole 'mid' cast.
+  castObjects(e) { return CAST_LAYERS.flatMap(name => this._layer(e, name)); }
   drawShells(e) { this.shells.draw(e); }
   drawLightExtras(e) { this.ripples.draw(e); }   // additive ripples onto the light buffer
 

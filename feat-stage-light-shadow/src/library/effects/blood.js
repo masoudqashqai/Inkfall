@@ -52,4 +52,4 @@ defineEffect('bloodDrain', function (e) {                     // crawls to the d
   }
   if (reach > 0.8) { c.fillStyle = 'rgba(170,30,50,0.42)'; c.beginPath(); c.ellipse(dx, dy, 11, 4.4, 0, 0, TWO_PI); c.fill(); }
   c.restore();
-});
+}, { unlit: true });   // crawls a long trail from its node x to the drain, so it draws straight to the scene

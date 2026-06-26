@@ -10,14 +10,15 @@ defineLight('lamp', {
     const t = e.t, X = e.X(this), s = e.unit * (this.scale || 1);
     const flick = this.flicker ? (Math.sin(t * 30 + (this.seed || 0)) > -0.9 ? 1 : 0.4) * (0.85 + 0.15 * Math.sin(t * 7)) : 1;
     this._flick = flick; this._X = X; this._s = s;
-    // the lamp throws a volumetric beam from the BULB down to the wet floor. No air glow: the halo
+    // the lamp throws a volumetric shaft from the BULB down to the wet floor. No air glow: the halo
     // sat around the hood above the bulb and read like the lid was glowing. The light sits exactly at
-    // the drawn bulb (x + 26, gy - 150), so the shaft starts at the lamp, not the lid. The floor wash
-    // gives the pool where it lands.
+    // the drawn bulb (x + 26, gy - 150), so the shaft starts at the lamp, not the lid. The shaft lands
+    // straight down where the floor wash already lights, so pool:false (the wash gives the ground pool,
+    // and a second landing disc here just read as an unnatural circle).
     e.addLight({
       x: X + 26 * s, y: e.gy - 150 * s, col: '255,250,225', r: 50 * s, I: 0.5 * flick, ew: 6 * s, eh: 6 * s,
       glow: false,
-      beam: { dir: 0, len: 150 * s, farW: 70 * s, I: flick },
+      beam: { dir: 0, len: 150 * s, farW: 70 * s, I: flick, pool: false },
     });
   },
   draw(e) {
@@ -54,12 +55,12 @@ defineLight('bulb', {
     const flick = this.flicker ? (Math.sin(t * 30 + (this.seed || 0)) > -0.9 ? 1 : 0.4) * (0.85 + 0.15 * Math.sin(t * 7)) : 1;
     this._flick = flick; this._X = X; this._y = y;
     const u3 = e.unit / 3;   // radius scales with the screen (= 1080p values at 1080p), so coverage is consistent
-    // a hanging bulb throws a soft cone DOWN onto whatever is below it (the table), so the surface it
-    // hangs over reads as lit, not just the bulb glowing. intensity now actually drives the light.
-    e.addLight({
-      x: X, y, col: '255,244,210', r: 160 * u3, I: 0.8 * (this.intensity || 1) * flick, ew: 5 * u3, eh: 5 * u3,
-      beam: { dir: 0, len: (e.gy - y) * 0.82, farW: 96 * u3, I: 0.6 * flick },
-    });
+    // a bare hanging bulb is just an omnidirectional source: the glow (air + surface), the floor wash
+    // and the wet reflection all come from the shared lighting service over the stage. It carries no
+    // beam or landing pool, that would bake an assumed surface (a table) into a reusable light and
+    // leave a floating disc anywhere there is no table. A scene that wants a felt spotlight authors
+    // a beam on that placement in its data, the light type stays honest.
+    e.addLight({ x: X, y, col: '255,244,210', r: 160 * u3, I: 0.8 * (this.intensity || 1) * flick, ew: 5 * u3, eh: 5 * u3 });
   },
   draw(e) {
     const c = e.ctx, x = this._X, y = this._y, fl = (this.intensity || 1) * this._flick, u3 = e.unit / 3;

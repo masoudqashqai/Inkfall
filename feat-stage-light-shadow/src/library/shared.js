@@ -1,9 +1,10 @@
 // SHARED LIBRARY PRIMITIVES — reusable sub-drawings the cast & props build on: cigarette
-// ember + smoke, a snap-brim fedora, a pistol, a muzzle flash. Re-exports the material
-// helpers so library files import their shading from one place.
+// ember + smoke, a snap-brim fedora, a pistol, a muzzle flash. Re-exports albedo() so library
+// files get their flat material fills from one place (the compositor lights the whole object).
+// ember, smoke and the muzzle flash are EMISSIVE, so objects paint them from their glow() hook.
 import { TWO_PI } from '../engine/math.js';
 import { PALETTE, ANIM } from '../style/palette.js';
-export { rimSign, bodyGrad, shade, shadeForm } from '../style/materials.js';
+export { albedo } from '../style/materials.js';
 
 export function ember(c, x, y, s, t) { const em = 0.6 + 0.4 * Math.sin(t * ANIM.emberSpeed); c.save(); c.fillStyle = `rgba(255,60,30,${0.7 + 0.3 * em})`; c.shadowColor = PALETTE.ember; c.shadowBlur = 10 * em; c.beginPath(); c.arc(x, y, 1.9 * s, 0, TWO_PI); c.fill(); c.restore(); }
 
@@ -13,7 +14,9 @@ export function cigSmoke(c, x, y, s, t) {
   c.restore();
 }
 
-export function drawFedora(c, cx, cy, r, rim) {
+// the snap-brim fedora, flat albedo (crown + brim + band). No baked light-side highlight, the
+// compositor's whole-object lighting puts the highlight on the side that actually faces the light.
+export function drawFedora(c, cx, cy, r) {
   c.save(); c.translate(cx, cy);
   c.fillStyle = PALETTE.ink;
   c.beginPath(); c.ellipse(0, r * 0.06, r * 1.62, r * 0.32, 0, 0, TWO_PI); c.fill();
@@ -25,8 +28,6 @@ export function drawFedora(c, cx, cy, r, rim) {
   c.quadraticCurveTo(r * 0.86, -r * 0.82, r * 0.8, -r * 0.04);
   c.closePath(); c.fill();
   c.fillStyle = '#10121a'; c.fillRect(-r * 0.8, -r * 0.16, r * 1.6, r * 0.16);
-  c.strokeStyle = 'rgba(200,210,230,0.28)'; c.lineWidth = 1;
-  c.beginPath(); c.moveTo(rim * r * 0.7, -r * 0.86); c.quadraticCurveTo(rim * r * 0.86, -r * 0.5, rim * r * 0.78, -r * 0.08); c.stroke();
   c.restore();
 }
 

@@ -1,38 +1,52 @@
-// MATERIALS — shared surface shading so every object looks cut from the same cloth.
-// Change a material here and the whole cast restyles. `e` is the frame (for light queries).
+// MATERIALS — the albedo + light-field module for the lit-sprite render model.
 //
-// THE MODEL (one light field, two consumers). Every lit surface is shaded as
-//     colour = albedo x ( ambientFill + directLight(direction) )
-// where:
-//   - ambientFill is a soft, cool, scene-set floor (AMB x the scene ambient hue), so a shadow is a
-//     deep blue-grey and NEVER pure black: the shadow side still reads, the noir way.
-//   - directLight wraps around the form with a half-Lambert term from the light's CONTINUOUS
-//     direction, so it rolls off to a soft terminator (no hard "suddenly black" edge), is tinted by
-//     the light's own colour, and scales with how much light reaches the figure.
-// rimSign() measures the whole light field once per figure (direction, amount, hue, ambient), all
-// time-smoothed so flickering sources settle. bodyGrad() samples it across the body as a gradient
-// (the cloth); shade() applies the flat version to small surfaces (a shirt, bare skin). Front lights
-// (a held cigarette) are local glows, not form light, so they are excluded from the field.
+// THE MODEL (one light applied to the whole object, not per shape). An object's draw paints only
+// its flat ALBEDO (its own material colours, noir-desaturated). The compositor renders that to an
+// offscreen layer, then lights the WHOLE figure in one pass: colour = albedo x (ambientFill +
+// directLight(direction)), masked to the figure's own pixels, and multiplies the cast shadow over
+// it too. So every part of a figure (face, neck, arms, coat) shades identically and a shadow falls
+// on the face for free, with no per shape shading calls. Emissive accents (an ember, a neon hot, a
+// headlight) are painted by the object's optional glow() hook AFTER lighting, so they stay bright.
+//
+// This module owns two things the system reads: the per-object light FIELD (sampleLight, what the
+// compositor needs to light a figure) and the albedo() helper (turn a material colour into a flat
+// fill). The look knobs live in MAT.
 import { AMBIENT, ENV } from './shadows.js';
 
-const BASE = [58, 64, 73];   // default cloth albedo (the old steel) for objects that name no colour
-let _fill = 0.22;            // ambient floor (shadow-side brightness): set per scene from the env profile (indoor lifts it)
+// MAT — the live material look knobs (a mutable object so the Shadow & Light lab tunes them at
+// runtime, like SHADE/WASH/ENV). colorRelax: how far a light's hue is pulled toward white before it
+// tints a surface (0 = pure, fully saturated colour, 1 = white), so a red neon reads warm-red, not
+// flat red. wrap: how directional the form light is (a clear lit -> shadow ramp, ambient fills the
+// shadow side). rim: strength of the grazing light band that wraps the lit edge of a figure (added
+// over the form, not an outline) so a side or back light reads as TOUCHING the form. rimWidth: how
+// far that band bleeds inward (0 = a thin edge, 1 = most of the lit side). spec: the global ceiling
+// on a material's specular hotspot, scaled per object by its own spec (0 for matte cloth). bounce:
+// how much the key's hue bleeds into the shadow side (coloured bounce fill, not flat cool ambient).
+// floorBounce: a warm/neon up-bounce off the wet floor onto a figure's lower body. depthHaze: the
+// cool atmospheric veil far objects (a node's z) pick up. depthScale: how much depth shrinks them.
+export const MAT = { colorRelax: 0.6, wrap: 0.5, rim: 0.2, rimWidth: 0.45, spec: 0.2, bounce: 0.5, floorBounce: 0.05, depthHaze: 0.5, depthScale: 0.35 };
 
-// the per-figure light field, set by rimSign for the paired bodyGrad/shade calls
-let _lit = 0;                // 0..1 how strongly the figure is lit (smoothed)
-let _lhx = 0;                // -1..+1 continuous horizontal light direction (smoothed)
-let _vb = 0;                 // -1..+1 vertical lean of the light (top vs bottom)
-let _amb = [0.67, 0.77, 1];  // scene ambient hue, normalised (cool shadows)
-let _lcol = [1, 1, 1];       // dominant light hue on the lit side, normalised (smoothed)
+// DEPTH HAZE colour — the cool grey a far object fades toward (atmospheric perspective). It is mixed
+// into a figure by its z in the lit pass, so distance reads as the air greying it out.
+export const HAZE = [70, 80, 100];
 
-export function rimSign(e, node) {
+const BASE = [58, 64, 73];   // default cloth albedo for an object that names no colour
+const _cl = v => v < 0 ? 0 : v > 255 ? 255 : Math.round(v);
+
+// a flat fill for an albedo, taking either an [r,g,b] material colour or a ready css string. Library
+// draw code sets c.fillStyle = albedo(COLOUR) and never shades by hand, the compositor lights it.
+export function albedo(c) { return Array.isArray(c) ? `rgb(${_cl(c[0])},${_cl(c[1])},${_cl(c[2])})` : (c || `rgb(${BASE[0]},${BASE[1]},${BASE[2]})`); }
+
+// sampleLight — measure the scene's light at one object, returning the field the compositor needs to
+// light the whole figure: how strongly it is lit, the light's screen DIRECTION (unit vector toward
+// the light), the light hue (relaxed off pure), the cool ambient hue, and the env ambient fill. The
+// centre, amount and hue are time-smoothed on the node so flickering or competing sources settle
+// instead of strobing the figure. front lights (a cigarette ember) are local glows, not form light,
+// so they are excluded.
+export function sampleLight(e, node) {
   const X = e.X(node);
+  const env = ENV[e.scene.indoor ? 'indoor' : 'outdoor'], REACH = env.reach, fill = env.fill;
   let wx = 0, wy = 0, wr = 0, wg = 0, wb = 0, wsum = 0;
-  // a light reaches objects within REACH x its radius (decoupled from the tight air glow), and the
-  // shadow side falls to _fill x albedo. Both come from the env profile: indoor light reaches and
-  // fills more (it bounces and splashes), outdoor is contained and falls into the dark.
-  const env = ENV[e.scene.indoor ? 'indoor' : 'outdoor'];
-  const REACH = env.reach; _fill = env.fill;
   for (const L of e.lights) {
     if (L.front) continue;
     const w = L.I * (1 - Math.abs(X - L.x) / (L.r * REACH));
@@ -40,71 +54,33 @@ export function rimSign(e, node) {
   }
   let lx = wsum > 0.05 ? wx / wsum : e.keyLight.x * e.W;
   let ly = wsum > 0.05 ? wy / wsum : e.keyLight.y * e.H;
-  // smooth the light CENTRE + COLOUR + amount on the node, so flickering or competing sources settle
-  // instead of strobing the figure or making the lit edge jump from side to side.
-  const sm = (prev, v) => prev == null ? v : prev + (v - prev) * 0.03;
+  const sm = (prev, v) => prev == null ? v : prev + (v - prev) * 0.04;
   lx = node._lx = sm(node._lx, lx); ly = node._ly = sm(node._ly, ly);
-  const a = Math.min(1, wsum * 0.9); _lit = node._lit = sm(node._lit, a);
+  const lit = node._lit = sm(node._lit, Math.min(1, wsum * 0.9));
   const cr = node._cr = sm(node._cr, wsum > 0.05 ? wr / wsum : 235);
   const cg = node._cg = sm(node._cg, wsum > 0.05 ? wg / wsum : 238);
   const cb = node._cb = sm(node._cb, wsum > 0.05 ? wb / wsum : 245);
-  const cm = Math.max(cr, cg, cb, 1); _lcol = [cr / cm, cg / cm, cb / cm];
-  // continuous direction: how far to the side the light sits (full side near +/-1, frontal near 0),
-  // and the vertical lean (light above the torso vs below it).
-  _lhx = Math.max(-1, Math.min(1, (lx - X) / (e.W * 0.22)));
+  const cm = Math.max(cr, cg, cb, 1), rx = v => v + (1 - v) * MAT.colorRelax;
+  const lcol = [rx(cr / cm), rx(cg / cm), rx(cb / cm)];
+  // screen-space light direction: how far to the side the light sits (full side near +/-1, frontal
+  // near 0) and its vertical lean (above the torso vs below it), normalised to a unit vector.
+  const hx = Math.max(-1, Math.min(1, (lx - X) / (e.W * 0.22)));
   const yc = e.gy + (node.dy || 0) * e.unit - 50 * e.unit;
-  _vb = Math.max(-1, Math.min(1, (yc - ly) / (90 * e.unit)));
-  // the ambient hue (cool, scene-set), normalised so it tints the shadow side without re-darkening it
+  const vb = Math.max(-1, Math.min(1, (yc - ly) / (90 * e.unit)));
+  let dx = hx, dy = -vb; const m = Math.hypot(dx, dy);
+  if (m < 0.001) { dx = 0; dy = -1; } else { dx /= m; dy /= m; }
   const ac = ((e.scene.data.ambient && e.scene.data.ambient.col) || AMBIENT.col).split(',').map(Number);
-  const am = Math.max(ac[0], ac[1], ac[2], 1); _amb = [ac[0] / am, ac[1] / am, ac[2] / am];
-  // a stable left/right sign (hysteresis) for parts that just need a side, e.g. the fedora highlight
-  const margin = 0.06 * e.W;
-  let sign = node._rim || (lx < X ? -1 : 1);
-  if (lx < X - margin) sign = -1; else if (lx > X + margin) sign = 1;
-  return node._rim = sign;
+  const am = Math.max(ac[0], ac[1], ac[2], 1);
+  return { lit, dx, dy, lcol, amb: [ac[0] / am, ac[1] / am, ac[2] / am], fill };
 }
 
-// one band of the surface at direct-light level d (0..1): albedo x (ambient fill + direct light).
-const _cl = v => v < 0 ? 0 : v > 255 ? 255 : Math.round(v);
-const band = (A, d) => `rgb(${_cl(A[0] * (_fill * _amb[0] + (1 - _fill) * d * _lcol[0]))},${_cl(A[1] * (_fill * _amb[1] + (1 - _fill) * d * _lcol[1]))},${_cl(A[2] * (_fill * _amb[2] + (1 - _fill) * d * _lcol[2]))})`;
-
-// the light's direction in screen space (horizontal lean _lhx, vertical lean _vb), normalised. The
-// shading ramp points AT the light, so an overhead source reads top-lit, a side source side-lit, a
-// low fire up-lit. This is what makes light DIRECTION visible on the form (not just its amount).
-function lightAxis() {
-  let dx = _lhx, dy = -_vb; const m = Math.hypot(dx, dy);
-  return m < 0.001 ? [0, -1] : [dx / m, dy / m];
+// the light FACTOR at a half-Lambert wrap value d (0 = full shadow, 1 = full key), per channel, as
+// a css colour. The compositor builds a gradient of these and MULTIPLIES it over the albedo, so the
+// result is albedo x (ambientFill + directLight). Always <= 1, so it only ever darkens albedo (the
+// noir way), never blows it out. The shadow side falls to a COLOURED bounce fill (the cool ambient
+// pulled toward the key's hue by MAT.bounce, the key bouncing into shadow), never to black.
+export function lightFactor(F, d) {
+  const a = F.fill, b = 1 - F.fill, l = F.lit * d, bk = MAT.bounce * F.lit;
+  const fc = i => F.amb[i] + (F.lcol[i] - F.amb[i]) * bk;   // the fill hue, bounced toward the key
+  return `rgb(${_cl(255 * (a * fc(0) + b * l * F.lcol[0]))},${_cl(255 * (a * fc(1) + b * l * F.lcol[1]))},${_cl(255 * (a * fc(2) + b * l * F.lcol[2]))})`;
 }
-
-const WRAP = 0.8;   // how directional the form light is (a clear lit -> shadow ramp; ambient fills the shadow)
-
-// the cloth: ambient fill + a half-Lambert wrap of direct light along the light direction, sampled
-// as a smooth multi-stop gradient (no hard knee). The shadow side falls to the ambient fill, never black.
-export function bodyGrad(c, h, s, albedo) {
-  const A = albedo || BASE, [dx, dy] = lightAxis(), R = 34 * s;
-  const g = c.createLinearGradient(dx * R, dy * R, -dx * R, -dy * R);
-  for (let i = 0; i <= 6; i++) {
-    const t = i / 6, u = 1 - 2 * t, hl = (1 - WRAP) + WRAP * Math.max(0, 0.5 + 0.5 * u);
-    g.addColorStop(t, band(A, _lit * hl * hl));
-  }
-  return g;
-}
-
-// a round FORM (a face, a head): a GENTLE directional wrap across a small disc, so a face catches the
-// light direction (a touch brighter on the side toward the light) but stays readable, not half black.
-// Skin is a highlight feature, so it leans bright: a soft wrap, no squared falloff.
-const FACE_WRAP = 0.4;
-export function shadeForm(c, cx, cy, r, rgb) {
-  const [dx, dy] = lightAxis();
-  const g = c.createLinearGradient(cx + dx * r, cy + dy * r, cx - dx * r, cy - dy * r);
-  for (let i = 0; i <= 3; i++) {
-    const t = i / 3, u = 1 - 2 * t, hl = (1 - FACE_WRAP) + FACE_WRAP * Math.max(0, 0.5 + 0.5 * u);
-    g.addColorStop(t, band(rgb, _lit * hl));
-  }
-  return g;
-}
-
-// a small FLAT surface (a tie, lips, a cigarette): ambient fill + direct light, no gradient. So a
-// motif red still reacts to the light (deepens in shadow, lifts and warms under a source) instead of
-// staying a fixed pure red, but stays small enough not to need a directional ramp.
-export function shade(rgb) { return band(rgb, _lit); }

@@ -6,8 +6,8 @@
 //      emitter size, height above the floor (distance) and power, so it matches the source.
 // rim / tint / shadow all read the same records, which keeps the look uniform.
 import { lerp } from '../engine/math.js';
-import { stageOf } from './stage.js';
-import { WASH } from '../style/shadows.js';
+import { stageOf, surfaceYAt } from './stage.js';
+import { WASH, AIR } from '../style/shadows.js';
 
 // register a light this frame. Fields:
 //   x, y        position (y above the floor = the light's height)
@@ -24,10 +24,19 @@ import { WASH } from '../style/shadows.js';
 //               behind the cast and a foreground figure occludes it, as it should.
 //   shade       the fixture caps the light (a lamp hood): the glow is blocked above the emitter, so
 //               it only spills downward. Default false (a bare bulb, neon, the moon glow all ways).
+//   gobo        a mask the light is cast THROUGH { type:'blinds'|'bars'|'window', count, duty }, so
+//               the wash (and the beam, if any) lands in bright bands (venetian blinds on the wall,
+//               a window's panes). Axis-aligned. Copied onto the beam automatically when both exist.
 //   beam        optional volumetric cone of light in the air (the lamp's downward shaft, the rooftop
 //               searchlight's sweep): { dir (0 = straight down, radians), len, farW or spread,
-//               I (0..1), sweep, sweepSpeed }. The lighting pass paints it on the additive buffer.
+//               I (0..1), sweep, sweepSpeed, shaft, pool }. The lighting pass paints it on the
+//               additive buffer. A beam has two parts that toggle independently: shaft (default
+//               true) is the volumetric cone in the air, pool (default true) is the soft glow where
+//               it lands on a surface. A hooded lamp keeps the shaft but sets pool:false (the floor
+//               wash already lights the floor under it). A bare bulb sets shaft:false and keeps the
+//               pool (it lights the table it hangs over). The searchlight sets pool:false.
 export function addLight(e, rec) {
+  if (rec.gobo && rec.beam && rec.beam.gobo == null) rec.beam.gobo = rec.gobo;   // a gobo light stripes its beam too
   if (rec.col == null) rec.col = '255,250,225';
   if (rec.r == null) rec.r = 150;
   if (rec.I == null) rec.I = 0.5;
@@ -85,6 +94,20 @@ function softColumn(col) {                       // a soft vertical streak: brig
 // a shaded fixture (a lamp hood) caps the glow above the emitter: clip it to spill downward only.
 function clipShade(c, L, e) { if (!L.shade) return; c.beginPath(); c.rect(-e.W * 2, L.y - L.eh, e.W * 5, e.H * 3); c.clip(); }
 
+// a GOBO / COOKIE: a mask the light is cast THROUGH, restricting the wash or beam to its bright
+// bands (venetian blinds = horizontal slats, bars = vertical, window = a paned grid). It clips a
+// region to the lit bands, so whatever is then drawn only lands in them. gobo: { type, count, duty }
+// where count is the number of slats and duty (0..1) is the lit fraction of each. Axis-aligned, so
+// it reads on the wall, the floor pool and the beam shaft (the light buffer is additive, so a clip
+// is the safe way to carve a pattern without touching other lights already on the buffer).
+function clipGobo(c, g, x0, y0, w, h) {
+  const n = Math.max(2, g.count || 6), duty = g.duty != null ? g.duty : 0.55;
+  c.beginPath();
+  if (g.type !== 'bars') { const band = h / n; for (let i = 0; i < n; i++) c.rect(x0, y0 + i * band, w, band * duty); }
+  if (g.type === 'bars' || g.type === 'window') { const band = w / n; for (let i = 0; i < n; i++) c.rect(x0 + i * band, y0, band * duty, h); }
+  c.clip();
+}
+
 // tight near-field glow shaped to the emitter: the light hitting the surface it sits on
 function surfaceGlow(e, L) {
   const rx = Math.max(L.ew * 1.25, 8) + L.r * 0.10, ry = Math.max(L.eh * 1.25, 8) + L.r * 0.10, c = e.light;
@@ -124,22 +147,6 @@ function floorRefl(e, L) {
   streak(e, L.x, L.col, I, w, len);
 }
 
-// the strongest light reaching a point (rim side, form tint, shadow direction). `front` lights (a
-// cigarette ember) are local foreground glows, not scene form-light, so they are skipped here.
-export function dominantLight(e, wx) {
-  let best = null, bw = 0.12;
-  for (const L of e.lights) { if (L.front) continue; const w = L.I * (1 - Math.abs(wx - L.x) / (L.r * 1.1)); if (w > bw) { bw = w; best = L; } }
-  return best;
-}
-// the ambient light colour at a point, as a smooth weighted BLEND of nearby lights (not a single
-// dominant pick) so a figure between two flickering lights gets a gentle tint, not a hard flip.
-// `front` lights are excluded so a held cigarette does not retint the whole figure.
-export function litTint(e, wx) {
-  let r = 0, g = 0, b = 0, wsum = 0;
-  for (const L of e.lights) { if (L.front) continue; const w = L.I * (1 - Math.abs(wx - L.x) / (L.r * 1.1)); if (w > 0) { const cc = L.col.split(','); r += cc[0] * w; g += cc[1] * w; b += cc[2] * w; wsum += w; } }
-  return wsum < 0.12 ? null : [r / wsum, g / wsum, b / wsum];
-}
-
 // blended colour of every light reaching x (red + green → amber), else the fallback grey
 export function litColor(e, x, gr, gg, gb) {
   let r = 0, g = 0, b = 0, wsum = 0;
@@ -160,14 +167,19 @@ function floorWash(e, L, st) {
   const c = e.light, h = Math.max(20, st.gy - L.y);          // the source's distance up off the floor
   const rx = L.r * 0.5 + h * 0.7, ry = (st.H - st.gy) * WASH.floorReach;
   c.save(); c.beginPath(); c.rect(L.x - rx, st.gy, rx * 2, st.H - st.gy); c.clip();
+  if (L.gobo) clipGobo(c, L.gobo, L.x - rx, st.gy, rx * 2, st.H - st.gy);
   c.globalCompositeOperation = 'lighter'; c.globalAlpha = WASH.floorAlpha * st.env.wash * L.glowI * (L.r / (L.r + h * 0.7));
   c.drawImage(softRadial(L.col), L.x - rx, st.gy - ry * 0.35, rx * 2, ry * 1.7); c.restore();
 }
-function wallWash(e, L, st) {
-  const c = e.light, w = st.wall, d = Math.max(20, st.gy - L.y);
+// the wash on ONE wall segment, clipped to that segment's extent, so light only pools on real brick.
+function wallWash(e, L, st, w) {
+  const c = e.light, d = Math.max(20, st.gy - L.y);
   const rx = L.r * 0.55 + d * 0.5, ry = (st.gy - w.top) * WASH.wallReach;
   const cy = Math.min(st.gy, Math.max(w.top, L.y));          // the pool centres where the light meets the wall
-  c.save(); c.beginPath(); c.rect(L.x - rx, w.top, rx * 2, st.gy - w.top); c.clip();
+  const x0 = Math.max(L.x - rx, w.x0), x1 = Math.min(L.x + rx, w.x1);   // intersect the pool with the segment
+  if (x1 <= x0) return;
+  c.save(); c.beginPath(); c.rect(x0, w.top, x1 - x0, st.gy - w.top); c.clip();
+  if (L.gobo) clipGobo(c, L.gobo, x0, w.top, x1 - x0, st.gy - w.top);   // blinds/window pattern cast onto the brick
   c.globalCompositeOperation = 'lighter'; c.globalAlpha = WASH.wallAlpha * st.env.wash * L.glowI * (L.r / (L.r + d * 0.6));
   // light runs DOWN the wall more than up it (it falls toward the floor), so the pool is weighted
   // below the source: drawn taller and shifted down rather than a symmetric disc.
@@ -186,23 +198,72 @@ export function drawBeam(c, t, x, y, ew, col, b) {
   const nearW = Math.max(ew * 0.6, 3), len = b.len != null ? b.len : 200;
   const farW = b.farW != null ? b.farW : (b.spread != null ? len * Math.tan(b.spread) : len * 0.45);
   const I = b.I != null ? b.I : 1, fx = x + ax * len, fy = y + ay * len;
-  const g = c.createLinearGradient(x, y, fx, fy);
-  // carry the light most of the way down the shaft instead of dying at half length, so the beam reads
-  // as throwing light in its direction rather than fading into the air just past the source.
-  g.addColorStop(0, `rgba(${col},${0.34 * I})`); g.addColorStop(0.6, `rgba(${col},${0.18 * I})`); g.addColorStop(1, `rgba(${col},${0.06 * I})`);
-  c.save(); c.globalCompositeOperation = 'lighter'; c.fillStyle = g;
-  c.beginPath();
-  c.moveTo(x - pxv * nearW, y - pyv * nearW); c.lineTo(x + pxv * nearW, y + pyv * nearW);
-  c.lineTo(fx + pxv * farW, fy + pyv * farW); c.lineTo(fx - pxv * farW, fy - pyv * farW);
-  c.closePath(); c.fill();
-  // a soft pool where the beam lands, so the light reads as cast onto the surface at the end of the
-  // throw (the floor under a lamp, the table under a hanging bulb), not just hanging in the air.
-  const lp = c.createRadialGradient(fx, fy, 0, fx, fy, farW * 1.4);
-  lp.addColorStop(0, `rgba(${col},${0.18 * I})`); lp.addColorStop(1, `rgba(${col},0)`);
-  c.fillStyle = lp; c.beginPath(); c.ellipse(fx, fy, farW * 1.4, farW * 0.7, 0, 0, Math.PI * 2); c.fill();
+  c.save(); c.globalCompositeOperation = 'lighter';
+  // the SHAFT: the volumetric cone hanging in the air (a hooded lamp, the searchlight). A bare bulb
+  // does not throw a visible shaft (it just glows + pools below), so it sets shaft:false.
+  if (b.shaft !== false) {
+    c.save();
+    if (b.gobo) {   // cast the shaft THROUGH the gobo (slatted light hanging in the air)
+      const xs = [x - pxv * nearW, x + pxv * nearW, fx + pxv * farW, fx - pxv * farW];
+      const ys = [y - pyv * nearW, y + pyv * nearW, fy + pyv * farW, fy - pyv * farW];
+      const bx0 = Math.min(...xs), by0 = Math.min(...ys);
+      clipGobo(c, b.gobo, bx0, by0, Math.max(...xs) - bx0, Math.max(...ys) - by0);
+    }
+    const g = c.createLinearGradient(x, y, fx, fy);
+    // carry the light most of the way down the shaft instead of dying at half length, so the beam reads
+    // as throwing light in its direction rather than fading into the air just past the source.
+    g.addColorStop(0, `rgba(${col},${0.34 * I})`); g.addColorStop(0.6, `rgba(${col},${0.18 * I})`); g.addColorStop(1, `rgba(${col},${0.06 * I})`);
+    c.fillStyle = g;
+    c.beginPath();
+    c.moveTo(x - pxv * nearW, y - pyv * nearW); c.lineTo(x + pxv * nearW, y + pyv * nearW);
+    c.lineTo(fx + pxv * farW, fy + pyv * farW); c.lineTo(fx - pxv * farW, fy - pyv * farW);
+    c.closePath(); c.fill();
+    c.restore();
+  }
+  // the POOL: a soft glow where the beam lands, so the light reads as cast onto the surface at the end
+  // of the throw (the felt under a hanging bulb). The floor under a straight-down lamp is already lit
+  // by the floor wash, so the lamp sets pool:false to avoid a doubled disc, and a beam ending in open
+  // air (the searchlight) sets pool:false too.
+  if (b.pool !== false) {
+    const lp = c.createRadialGradient(fx, fy, 0, fx, fy, farW * 1.4);
+    lp.addColorStop(0, `rgba(${col},${0.18 * I})`); lp.addColorStop(1, `rgba(${col},0)`);
+    c.fillStyle = lp; c.beginPath(); c.ellipse(fx, fy, farW * 1.4, farW * 0.7, 0, 0, Math.PI * 2); c.fill();
+  }
+  // DUST MOTES: faint specks drifting down the shaft, twinkling, so the beam reads as light catching
+  // particles in the air (volumetric). They travel along the cone and sway across it, fading with depth.
+  if (b.shaft !== false && b.motes !== false && AIR.motes > 0) {
+    c.fillStyle = `rgb(${col})`;
+    for (let i = 0; i < AIR.motes; i++) {
+      const ph = i * 2.39937 + (b.seed || 0);
+      const u = (i / AIR.motes + t * 0.03 * (0.6 + (i % 3) * 0.18)) % 1;     // creep down the shaft, wrap
+      const along = u * len, halfW = nearW + (farW - nearW) * u;
+      const sway = Math.sin(t * 0.7 + ph) * 0.7 * halfW;
+      const mx = x + ax * along + pxv * sway, my = y + ay * along + pyv * sway, rr = 0.8 + (i % 3) * 0.5;
+      c.globalAlpha = AIR.moteAlpha * I * (1 - u) * (0.35 + 0.65 * Math.abs(Math.sin(t * 1.3 + ph)));
+      c.beginPath(); c.arc(mx, my, rr, 0, Math.PI * 2); c.fill();
+    }
+    c.globalAlpha = 1;
+  }
   c.restore();
 }
-function beam(e, L) { drawBeam(e.light, e.t, L.x, L.y, L.ew, L.col, L.beam); }
+
+// GROUND HAZE: a low band of mist hanging along the floor, lit by the ambient, so the air near the
+// ground reads as a soft layer rather than empty black. Painted additively on the light buffer.
+function groundHaze(e, st) {
+  if (AIR.groundHaze <= 0) return;
+  const c = e.light, R = e.coverRect(), top = st.gy - 130, h = 210;
+  const g = c.createLinearGradient(0, top, 0, top + h);
+  g.addColorStop(0, `rgba(${AIR.hazeCol},0)`); g.addColorStop(0.55, `rgba(${AIR.hazeCol},${AIR.groundHaze})`); g.addColorStop(1, `rgba(${AIR.hazeCol},0)`);
+  c.save(); c.globalCompositeOperation = 'lighter'; c.fillStyle = g; c.fillRect(R.x, top, R.w, h); c.restore();
+}
+// a downward beam lands on the real SURFACE under it (the floor, or a raised surface like a table),
+// resolved from the stage, so its pool can never sit in empty space. Sideways/sky beams (the
+// searchlight) keep their authored length.
+function beam(e, L, st) {
+  const b = L.beam;
+  if (st && (b.dir == null || b.dir === 0)) { const sy = surfaceYAt(st, L.x); if (sy > L.y) b.len = sy - L.y; }
+  drawBeam(e.light, e.t, L.x, L.y, L.ew, L.col, b);
+}
 
 // BACK light: everything that belongs behind the cast (so a foreground figure occludes it). A flat
 // ambient lift, then per non-front light its beam, surface + air glow, floor + wall washes, and the
@@ -211,13 +272,14 @@ export function drawBackLight(e) {
   const st = stageOf(e), R = e.coverRect(), c = e.light;
   c.save(); c.globalCompositeOperation = 'lighter'; c.globalAlpha = WASH.ambientAlpha * st.ambient.level / 0.16;
   c.fillStyle = `rgb(${st.ambient.col})`; c.fillRect(R.x, R.y, R.w, R.h); c.restore();
+  groundHaze(e, st);                                        // a low layer of lit mist along the floor
   for (const L of e.lights) {
-    if (L.beam) beam(e, L);
-    if (L.front) continue;
+    if (L.front) continue;                                 // front lights paint after the cast
     if (L.I < 0.02) continue;                              // flickered or declared near-dark: nothing to add
     if (L.x + L.r < R.x || L.x - L.r > R.x + R.w) continue;   // its whole influence is off-screen
+    if (L.beam) beam(e, L, st);                            // gated above, so a dimmed or off-screen light draws no beam
     if (L.glow) { if (L.surface) surfaceGlow(e, L); airGlow(e, L); }
-    if (L.wash) { floorWash(e, L, st); if (st.wall) wallWash(e, L, st); }
+    if (L.wash) { floorWash(e, L, st); for (const w of st.walls) wallWash(e, L, st, w); }
     if (L.refl) floorRefl(e, L);
   }
 }

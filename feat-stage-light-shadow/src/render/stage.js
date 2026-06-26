@@ -1,26 +1,47 @@
-// STAGE — the shared pseudo 3D geometry that BOTH the lighting service and the shadow service
-// read. The scene is treated as a shallow stage box: a FLOOR plane (from the ground line gy down
-// to the bottom of the screen, nearest the camera) and an optional back WALL plane (from a top
-// line down to gy) when the backdrop declares one (the alley brick, the room wall). A light's
-// HEIGHT is gy minus its screen y. Keeping this in one place means improving the geometry improves
-// light and shadow together, and neither service owns the surfaces.
+// STAGE — the one explicit SURFACE model that the whole engine reads. A scene is a shallow stage
+// box made of surfaces, and light, shadow, washes and placement all resolve against THESE, never
+// against an assumption. That is what stops "an effect landed where there is no surface":
+//   floor   — the ground plane at gy, full width, every scene has it.
+//   walls   — vertical back planes as SEGMENTS { x0, x1, top, bottom }. A room has one full-width
+//             segment, the alley has two (a gap of sky between them), open sets have none. Authored
+//             by the backdrop via walls(e), or derived from a legacy wallTop (one full-width segment).
+//   raised  — horizontal surfaces above the floor { id, x0, x1, y } (a table top), contributed by
+//             props via surface(e) and gathered onto e.surfaces each frame.
+// Keeping this in one place means improving the geometry improves every system at once, and no
+// subsystem or asset gets to invent a surface of its own.
 import { AMBIENT, ENV } from '../style/shadows.js';
+
+// the wall segments for the active scene: the backdrop's authored segments, else a single full-width
+// segment from a legacy wallTop, else none (an open set).
+function wallsOf(e, gy, H) {
+  const s = e.scene, bd = s.backdrop, d = s.data;
+  if (bd && bd.walls) return bd.walls(e) || [];
+  let wt = d.wallTop != null ? d.wallTop : (bd && bd.wallTop != null ? bd.wallTop : null);
+  if (wt == null) return [];
+  const top = wt <= 1 ? wt * H : wt;
+  return [{ x0: -1e6, x1: 1e6, top, bottom: gy }];
+}
 
 // build the per-frame stage description from the active scene.
 export function stageOf(e) {
-  const gy = e.gy, H = e.H, s = e.scene, bd = s.backdrop, d = s.data;
-  // a near wall exists only where the set has one: scene data wins, else the backdrop declares it.
-  let wt = d.wallTop != null ? d.wallTop : (bd && bd.wallTop != null ? bd.wallTop : null);
-  const wall = wt != null ? { top: wt <= 1 ? wt * H : wt, bottom: gy } : null;
-  // the environment profile (indoor splashes more, outdoor falls into the dark). Every subsystem
-  // reads st.env; the ambient fill defaults from it unless the scene overrides level/col.
-  const env = ENV[s.indoor ? 'indoor' : 'outdoor'];
-  const a = d.ambient || {};
+  const gy = e.gy, H = e.H, s = e.scene, d = s.data;
+  const env = ENV[s.indoor ? 'indoor' : 'outdoor'], a = d.ambient || {};
   return {
-    gy, H, wall, indoor: s.indoor, env,
-    floor: { top: gy, bottom: H },
+    gy, H, indoor: s.indoor, env,
+    floor: { y: gy },
+    walls: wallsOf(e, gy, H),
+    raised: e.surfaces || [],
     ambient: { level: a.level != null ? a.level : env.ambient, col: a.col || AMBIENT.col },
   };
+}
+
+// the y of the SURFACE directly under world x: the topmost raised surface that spans x, else the
+// floor. This is the single answer to "where does something at x land", used for beam pools and for
+// resolving an object's ground, so a landing or a figure can never sit in empty space.
+export function surfaceYAt(stage, x) {
+  let y = stage.gy;
+  for (const s of stage.raised) if (x >= s.x0 && x <= s.x1 && s.y < y) y = s.y;
+  return y;
 }
 
 // the height of a light above the floor (clamped so a light at/under the floor still projects).

@@ -17,6 +17,8 @@ export class Engine {
     this.cssW = 0; this.cssH = 0; this.ls = 1;   // the real band size (CSS px) and logical->CSS scale
     this.lightCv = null; this.lightCtx = null;
     this.shadowCv = null; this.shadowCtx = null;   // the offscreen shadow buffer (projected onto the stage, blitted under the cast)
+    this.litCv = null; this.litCtx = null;         // a per-object albedo layer: each cast object is drawn here, lit as a whole, then blitted
+    this.maskCv = null; this.maskCtx = null;       // the object's albedo alpha, kept so the light multiply can be re-masked to its own pixels
     this.snapCv = null; this.snapCtx = null;   // a frozen copy of the last frame, for the beat crossfade
     this.frame = new Frame();
     this.drops = []; this.grain = null;     // rain particles + film-grain tile (persist across scenes)
@@ -31,6 +33,10 @@ export class Engine {
     this.lightCtx = this.lightCv.getContext('2d');
     this.shadowCv = document.createElement('canvas');
     this.shadowCtx = this.shadowCv.getContext('2d');
+    this.litCv = document.createElement('canvas');
+    this.litCtx = this.litCv.getContext('2d');
+    this.maskCv = document.createElement('canvas');
+    this.maskCtx = this.maskCv.getContext('2d');
     this.snapCv = document.createElement('canvas');
     this.snapCtx = this.snapCv.getContext('2d');
     addEventListener('resize', () => this.resize());
@@ -52,7 +58,7 @@ export class Engine {
     this.cssW = w; this.cssH = h;                                // the real band, in CSS px
     this.ls = Math.min(w, h) / REF_H;                           // logical -> CSS scale (the band is always REF_H tall)
     this.W = w / this.ls; this.H = h / this.ls;                 // the LOGICAL band (H == REF_H, W == REF_H * aspect)
-    for (const cv of [this.cv, this.lightCv, this.shadowCv, this.snapCv]) { cv.width = Math.floor(w * this.DPR); cv.height = Math.floor(h * this.DPR); }
+    for (const cv of [this.cv, this.lightCv, this.shadowCv, this.litCv, this.maskCv, this.snapCv]) { cv.width = Math.floor(w * this.DPR); cv.height = Math.floor(h * this.DPR); }
     this.cv.style.width = w + 'px'; this.cv.style.height = h + 'px';
     this.cv.style.left = Math.floor((vw - w) / 2) + 'px';
     this.cv.style.top = Math.floor((vh - h) / 2) + 'px';
@@ -81,7 +87,7 @@ export class Engine {
     const f = this.frame;
     f.W = this.W; f.H = this.H; f.unit = Math.min(this.W, this.H) / 360;
     f.t = now / 1000; f.dt = Math.min((now - this.last) / 1000, 0.05);
-    f.main = this.ctx; f.light = this.lightCtx; f.shadow = this.shadowCtx; f.ctx = this.ctx;
+    f.main = this.ctx; f.light = this.lightCtx; f.shadow = this.shadowCtx; f.lit = this.litCtx; f.mask = this.maskCtx; f.ctx = this.ctx;
     f.drops = this.drops; f.grain = this.grain; f.DPR = this.DPR; f.ls = this.ls;
     this.last = now;
     return f;
