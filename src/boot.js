@@ -10,7 +10,7 @@ import './library/index.js';
 import { STORIES } from '../stories/manifest.js';
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 45 · landscape prompt, no forced rotation'
+const BUILD = 'v2 build 46 · detective arms hang wider'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 
