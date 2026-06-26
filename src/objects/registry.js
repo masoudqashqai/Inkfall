@@ -11,7 +11,7 @@ import { Light } from './light.js';
 const BASES = { node: Node, actor: Actor, mover: Mover, prop: Prop, effect: Effect, light: Light };
 const registry = new Map();
 
-// methods: { draw, update?, emitLight?, shadowSil?, castsShadow?, shadowW?, shadowH?, shadowDensity?, depth? } as plain functions (use `this`)
+// methods: { draw, update?, emitLight?, shadowSil?, castsShadow?, shadowW?, shadowH?, shadowDensity?, depth?, spec? } as plain functions (use `this`)
 export function define(name, kind, methods = {}) { registry.set(name, { kind, methods }); }
 export const defineActor = (name, draw, m = {}) => define(name, 'actor', { draw, ...m });
 export const defineMover = (name, draw, m = {}) => define(name, 'mover', { draw, ...m });
@@ -33,6 +33,11 @@ export function create(name, params = {}) {
   const obj = new Base(params);
   const m = spec.methods;
   if (m.draw) obj.draw = m.draw;
+  if (m.glow) obj.glow = m.glow;          // optional emissive pass, painted unlit OVER the lit object
+  if (m.unlit != null) obj.unlit = m.unlit;   // skip whole-object lighting (additive effects: steam)
+  if (m.surface) obj.surface = m.surface;     // exposes a raised surface (a table top) others can sit/land on
+  if (m.xform) obj.xform = m.xform;           // declares an animated transform (a moving object's position), read by Frame.place
+  if (m.tracks && obj.tracks == null) obj.tracks = m.tracks;   // default keyframe tracks (a story can still override per placement)
   if (m.update) obj.update = m.update;
   if (m.emitLight) obj.emitLight = m.emitLight;
   if (m.shadowSil) obj.shadowSil = m.shadowSil;
@@ -41,6 +46,7 @@ export function create(name, params = {}) {
   if (m.shadowH != null && params.shadowH == null) obj.shadowH = m.shadowH;
   if (m.shadowDensity != null && params.shadowDensity == null) obj.shadowDensity = m.shadowDensity;
   if (m.depth != null && params.depth == null) obj.depth = m.depth;
+  if (m.spec != null && params.spec == null) obj.spec = m.spec;   // material specular response (a shiny object), read by the lit pass
   if (m.layer != null && params.layer == null) obj.layer = m.layer;
   return obj;
 }

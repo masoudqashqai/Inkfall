@@ -1,24 +1,36 @@
-// CASINO PROPS — card table, slots, roulette, drink, cash.
+// CASINO PROPS — card table, slots, roulette, drink, cash. Bodies are flat albedo (lit as a whole
+// by the compositor); the hot reds, marquees and backlit liquid are EMISSIVE, painted by glow().
 import { defineProp } from '../../objects/registry.js';
 import { PALETTE } from '../../style/palette.js';
 import { TWO_PI } from '../../engine/math.js';
-import { rimSign, shade } from '../shared.js';
+import { albedo } from '../shared.js';
 
 defineProp('cardTable', function (e) {
   const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, top = gy - 46 * s, w = 132 * s, h = 42 * s;
-  rimSign(e, this);                                            // read the light field so the table darkens in shadow, lifts under the bulb
-  const card = shade([232, 230, 220]);
-  c.fillStyle = shade([7, 7, 8]); c.fillRect(X - w * 0.5, top, w, 48 * s);
-  const felt = c.createRadialGradient(X, top, 4 * s, X, top, w * 0.5); felt.addColorStop(0, shade([28, 42, 34])); felt.addColorStop(1, shade([12, 19, 15]));
+  const card = albedo([236, 232, 222]), hot = this.glow !== false;
+  c.fillStyle = albedo([9, 9, 11]); c.fillRect(X - w * 0.5, top, w, 48 * s);
+  const felt = c.createRadialGradient(X, top, 4 * s, X, top, w * 0.5); felt.addColorStop(0, albedo([36, 92, 58])); felt.addColorStop(1, albedo([18, 48, 32]));
   c.fillStyle = felt; c.beginPath(); c.ellipse(X, top, w * 0.5, h * 0.5, 0, 0, TWO_PI); c.fill();
   c.strokeStyle = 'rgba(200,210,225,0.18)'; c.lineWidth = 2; c.beginPath(); c.ellipse(X, top, w * 0.5, h * 0.5, 0, 0, TWO_PI); c.stroke();
-  c.fillStyle = card; for (let i = 0; i < 4; i++) { c.save(); c.translate(X - 30 * s + i * 14 * s, top - 2 * s); c.rotate(-0.3 + i * 0.18); c.fillRect(-6 * s, -9 * s, 12 * s, 18 * s); c.strokeStyle = '#b22'; c.lineWidth = 1; if (i % 2) { c.fillStyle = '#b22'; c.beginPath(); c.arc(0, 0, 1.6 * s, 0, TWO_PI); c.fill(); c.fillStyle = card; } c.restore(); }
+  c.fillStyle = card; for (let i = 0; i < 4; i++) { c.save(); c.translate(X - 30 * s + i * 14 * s, top - 2 * s); c.rotate(-0.3 + i * 0.18); c.fillRect(-6 * s, -9 * s, 12 * s, 18 * s); if (i % 2) { c.fillStyle = '#b22'; c.beginPath(); c.arc(0, 0, 1.6 * s, 0, TWO_PI); c.fill(); c.fillStyle = card; } c.restore(); }
   c.fillStyle = card; for (const dx of [-10, 6]) { c.save(); c.translate(X + 16 * s + dx * s, top + 2 * s); c.fillRect(-3 * s, -3 * s, 6 * s, 6 * s); c.fillStyle = '#b00010'; c.beginPath(); c.arc(0, 0, 1 * s, 0, TWO_PI); c.fill(); c.fillStyle = card; c.restore(); }
-  const hot = this.glow !== false;
-  for (let i = 0; i < 5; i++) { c.fillStyle = (hot && i === 4) ? PALETTE.redHot : (i % 2 ? shade([207, 207, 207]) : shade([42, 42, 42])); c.beginPath(); c.ellipse(X + 42 * s, top - 2 * s - i * 3 * s, 7 * s, 3 * s, 0, 0, TWO_PI); c.fill(); }
-  if (hot) { c.save(); c.shadowColor = PALETTE.redHot; c.shadowBlur = 12; c.fillStyle = PALETTE.redHot; c.beginPath(); c.ellipse(X + 42 * s, top - 14 * s, 7 * s, 3 * s, 0, 0, TWO_PI); c.fill(); c.restore(); }
+  // the chip stack, matte. The lit top chip + its bloom are emissive, see glow().
+  for (let i = 0; i < 5; i++) { c.fillStyle = (hot && i === 4) ? albedo([172, 32, 36]) : (i % 2 ? albedo([216, 214, 208]) : albedo([46, 46, 50])); c.beginPath(); c.ellipse(X + 42 * s, top - 2 * s - i * 3 * s, 7 * s, 3 * s, 0, 0, TWO_PI); c.fill(); }
 }, {
   castsShadow: true, shadowW: 66, shadowH: 46,
+  // the felt is a raised surface others can sit on (a drink, chips) via on:'table', and a light beam
+  // pools on it. Declared once here, so nothing has to hardcode the table's height.
+  surface(e) {
+    const s = e.scaleOf(this), X = e.X(this), top = e.gy + (this.dy || 0) * e.unit - 46 * s;
+    return { id: 'table', x0: X - 60 * s, x1: X + 60 * s, y: top };
+  },
+  glow(e) {
+    if (this.glow === false) return;
+    const c = e.ctx, s = e.scaleOf(this), X = e.X(this), top = e.gy + (this.dy || 0) * e.unit - 46 * s;
+    c.save(); c.shadowColor = PALETTE.redHot; c.shadowBlur = 12; c.fillStyle = PALETTE.redHot;
+    c.beginPath(); c.ellipse(X + 42 * s, top - 14 * s, 7 * s, 3 * s, 0, 0, TWO_PI); c.fill();
+    c.restore();
+  },
   shadowSil(e, c) {                                            // the table body + top, cast on the floor
     const s = e.scaleOf(this), w = 132 * s;
     c.fillRect(-w * 0.5, -46 * s, w, 48 * s);
@@ -28,24 +40,30 @@ defineProp('cardTable', function (e) {
 
 defineProp('slotMachine', function (e) {
   const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, w = 46 * s, h = 86 * s;
-  rimSign(e, this);                                            // light field for shade(): cabinet + reels react, the marquee/buttons stay lit
-  const reel = shade([232, 230, 220]);
+  const reel = albedo([236, 232, 222]);
   c.save(); c.translate(X, gy);
-  const cab = c.createLinearGradient(-w / 2, 0, w / 2, 0); cab.addColorStop(0, shade([12, 14, 18])); cab.addColorStop(0.5, shade([27, 31, 37])); cab.addColorStop(1, shade([12, 14, 18]));
+  const cab = c.createLinearGradient(-w / 2, 0, w / 2, 0); cab.addColorStop(0, albedo([12, 14, 18])); cab.addColorStop(0.5, albedo([27, 31, 37])); cab.addColorStop(1, albedo([12, 14, 18]));
   c.fillStyle = cab; c.fillRect(-w / 2, -h, w, h);
   c.beginPath(); c.moveTo(-w / 2, -h); c.quadraticCurveTo(0, -h - 16 * s, w / 2, -h); c.closePath(); c.fill();
-  c.save(); c.shadowColor = PALETTE.redHot; c.shadowBlur = 12; c.fillStyle = PALETTE.redHot; c.fillRect(-w / 2 + 4 * s, -h - 6 * s, w - 8 * s, 5 * s); c.restore();
+  c.fillStyle = albedo([90, 16, 20]); c.fillRect(-w / 2 + 4 * s, -h - 6 * s, w - 8 * s, 5 * s);   // marquee, matte (lit bloom in glow)
   c.fillStyle = '#05060a'; c.fillRect(-w / 2 + 6 * s, -h + 14 * s, w - 12 * s, 26 * s);
   const syms = ['$', '7', '$'];
-  for (let i = 0; i < 3; i++) { const rx = -w / 2 + 6 * s + (i + 0.5) * (w - 12 * s) / 3; c.fillStyle = reel; c.fillRect(rx - 5 * s, -h + 16 * s, 10 * s, 22 * s); c.fillStyle = i === 1 ? PALETTE.redHot : '#1a1a1a'; c.font = `bold ${10 * s}px "Courier New",monospace`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(syms[i], rx, -h + 27 * s); }
+  for (let i = 0; i < 3; i++) { const rx = -w / 2 + 6 * s + (i + 0.5) * (w - 12 * s) / 3; c.fillStyle = reel; c.fillRect(rx - 5 * s, -h + 16 * s, 10 * s, 22 * s); c.fillStyle = i === 1 ? '#7a1418' : '#1a1a1a'; c.font = `bold ${10 * s}px "Courier New",monospace`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(syms[i], rx, -h + 27 * s); }
   c.fillStyle = '#05060a'; c.fillRect(-10 * s, -h + 50 * s, 20 * s, 3 * s);
   c.fillStyle = '#0a0c10'; c.fillRect(-w / 2 + 6 * s, -18 * s, w - 12 * s, 14 * s);
-  c.save(); c.globalAlpha = 0.85; c.fillStyle = PALETTE.amber; c.shadowColor = PALETTE.amber; c.shadowBlur = 8; c.beginPath(); c.arc(-6 * s, -11 * s, 2 * s, 0, TWO_PI); c.arc(2 * s, -11 * s, 2 * s, 0, TWO_PI); c.fill(); c.restore();
-  c.strokeStyle = shade([58, 63, 71]); c.lineWidth = 3 * s; c.beginPath(); c.moveTo(w / 2, -h + 22 * s); c.lineTo(w / 2 + 10 * s, -h + 10 * s); c.stroke();
-  c.fillStyle = PALETTE.redHot; c.shadowColor = PALETTE.redHot; c.shadowBlur = 8; c.beginPath(); c.arc(w / 2 + 10 * s, -h + 10 * s, 4 * s, 0, TWO_PI); c.fill(); c.shadowBlur = 0;
+  c.strokeStyle = albedo([58, 63, 71]); c.lineWidth = 3 * s; c.beginPath(); c.moveTo(w / 2, -h + 22 * s); c.lineTo(w / 2 + 10 * s, -h + 10 * s); c.stroke();
   c.restore();
 }, {
   castsShadow: true, shadowW: 24, shadowH: 92,
+  glow(e) {                                                   // EMISSIVE: marquee, the hot 7, the buttons, the lever knob
+    const c = e.ctx, s = e.scaleOf(this), X = e.X(this), gy = e.gy + (this.dy || 0) * e.unit, w = 46 * s, h = 86 * s;
+    c.save(); c.translate(X, gy);
+    c.shadowColor = PALETTE.redHot; c.shadowBlur = 12; c.fillStyle = PALETTE.redHot; c.fillRect(-w / 2 + 4 * s, -h - 6 * s, w - 8 * s, 5 * s);
+    c.shadowBlur = 0; c.fillStyle = PALETTE.redHot; c.font = `bold ${10 * s}px "Courier New",monospace`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('7', -w / 2 + 6 * s + 1.5 * (w - 12 * s) / 3, -h + 27 * s);
+    c.globalAlpha = 0.85; c.fillStyle = PALETTE.amber; c.shadowColor = PALETTE.amber; c.shadowBlur = 8; c.beginPath(); c.arc(-6 * s, -11 * s, 2 * s, 0, TWO_PI); c.arc(2 * s, -11 * s, 2 * s, 0, TWO_PI); c.fill();
+    c.globalAlpha = 1; c.fillStyle = PALETTE.redHot; c.shadowColor = PALETTE.redHot; c.shadowBlur = 8; c.beginPath(); c.arc(w / 2 + 10 * s, -h + 10 * s, 4 * s, 0, TWO_PI); c.fill();
+    c.restore();
+  },
   shadowSil(e, c) {                                            // the cabinet, cast on the floor
     const s = e.scaleOf(this), w = 46 * s, h = 86 * s;
     c.fillRect(-w / 2, -h, w, h);
@@ -64,28 +82,38 @@ defineProp('rouletteWheel', function (e) {
   c.save(); c.translate(X, y); c.scale(1, 0.5); c.strokeStyle = '#2a2e35'; c.lineWidth = 4 * s; c.beginPath(); c.arc(0, 0, R + 2 * s, 0, TWO_PI); c.stroke(); c.restore();
 });
 
-defineProp('drink', function (e) {                            // this.kind: 'martini' | 'whiskey'
-  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), y = (this.y != null ? this.y * e.H : e.gy - 2 * e.unit);
+defineProp('drink', function (e) {                            // this.kind: 'martini' | 'whiskey'. the glass is albedo, the backlit liquid is emissive
+  const c = e.ctx, s = e.scaleOf(this) * 0.8, X = e.X(this), y = e.baseY(this);   // 0.8: a tabletop glass / cash stack reads smaller
   c.save(); c.translate(X, y);
   if (this.kind === 'martini') {
     c.strokeStyle = 'rgba(210,220,235,0.7)'; c.lineWidth = 1.5 * s; c.fillStyle = 'rgba(200,215,235,0.12)';
     c.beginPath(); c.moveTo(-10 * s, -20 * s); c.lineTo(10 * s, -20 * s); c.lineTo(0, -8 * s); c.closePath(); c.fill(); c.stroke();
-    c.fillStyle = PALETTE.amber; c.globalAlpha = 0.8; c.beginPath(); c.moveTo(-7 * s, -17 * s); c.lineTo(7 * s, -17 * s); c.lineTo(0, -9 * s); c.closePath(); c.fill(); c.globalAlpha = 1;
     c.strokeStyle = 'rgba(210,220,235,0.7)'; c.beginPath(); c.moveTo(0, -8 * s); c.lineTo(0, 0); c.moveTo(-6 * s, 0); c.lineTo(6 * s, 0); c.stroke();
-    c.fillStyle = PALETTE.redHot; c.beginPath(); c.arc(2 * s, -12 * s, 1.6 * s, 0, TWO_PI); c.fill();
   } else {
     c.fillStyle = 'rgba(200,215,235,0.1)'; c.strokeStyle = 'rgba(210,220,235,0.6)'; c.lineWidth = 1.5 * s;
     c.fillRect(-7 * s, -14 * s, 14 * s, 14 * s); c.strokeRect(-7 * s, -14 * s, 14 * s, 14 * s);
-    c.save(); c.fillStyle = PALETTE.amber; c.globalAlpha = 0.85; c.shadowColor = PALETTE.amber; c.shadowBlur = 8; c.fillRect(-6 * s, -7 * s, 12 * s, 6 * s); c.restore();
     c.fillStyle = 'rgba(230,235,245,0.5)'; c.fillRect(-3 * s, -6 * s, 3 * s, 3 * s);
   }
   c.restore();
+}, {
+  spec: 0.45,                                                // glass catches a tight bright highlight
+  glow(e) {
+    const c = e.ctx, s = e.scaleOf(this) * 0.8, X = e.X(this), y = e.baseY(this);   // 0.8: a tabletop glass / cash stack reads smaller
+    c.save(); c.translate(X, y);
+    if (this.kind === 'martini') {
+      c.fillStyle = PALETTE.amber; c.globalAlpha = 0.8; c.beginPath(); c.moveTo(-7 * s, -17 * s); c.lineTo(7 * s, -17 * s); c.lineTo(0, -9 * s); c.closePath(); c.fill(); c.globalAlpha = 1;
+      c.fillStyle = PALETTE.redHot; c.beginPath(); c.arc(2 * s, -12 * s, 1.6 * s, 0, TWO_PI); c.fill();
+    } else {
+      c.fillStyle = PALETTE.amber; c.globalAlpha = 0.85; c.shadowColor = PALETTE.amber; c.shadowBlur = 8; c.fillRect(-6 * s, -7 * s, 12 * s, 6 * s);
+    }
+    c.restore();
+  },
 });
 
 defineProp('cash', function (e) {
-  const c = e.ctx, s = e.scaleOf(this), X = e.X(this), y = (this.y != null ? this.y * e.H : e.gy - 2 * e.unit);
+  const c = e.ctx, s = e.scaleOf(this) * 0.8, X = e.X(this), y = e.baseY(this);   // 0.8: a tabletop glass / cash stack reads smaller
   c.save(); c.translate(X, y);
   for (let i = 0; i < 4; i++) { c.fillStyle = i % 2 ? '#3c4a3a' : '#46553f'; c.fillRect(-14 * s, -i * 3 * s, 28 * s, 8 * s); c.strokeStyle = 'rgba(0,0,0,0.45)'; c.lineWidth = 1; c.strokeRect(-14 * s, -i * 3 * s, 28 * s, 8 * s); c.fillStyle = 'rgba(210,215,200,0.45)'; c.beginPath(); c.arc(0, -i * 3 * s + 4 * s, 2 * s, 0, TWO_PI); c.fill(); }
-  c.fillStyle = PALETTE.redHot; c.fillRect(-14 * s, -9 * s, 28 * s, 2.6 * s);
+  c.fillStyle = albedo([172, 30, 34]); c.fillRect(-14 * s, -9 * s, 28 * s, 2.6 * s);
   c.restore();
 });

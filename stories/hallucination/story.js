@@ -57,13 +57,13 @@ export default {
       title: 'THE&nbsp;ALLEY', ground: 0.8, keyLight: { x: 0.74, y: 0.3 }, moon: { x: 0.5, y: 0.11 },
       backdrop: { type: 'alley', seed: 77123 },
       lights: [
-        { type: 'neon', x: 0.72, y: 0.24, w: 64, h: 34, color: '#ff0018', label: 'EAT', seed: 5.2, par: 0.3, arrow: true, ignite: true }
+        { type: 'neon', x: 0.72, y: 0.24, w: 100, h: 46, color: '#ff0018', label: 'EAT', seed: 5.2, par: 0.3, arrow: true, ignite: true }
       ],
       cast: [
         { type: 'dumpster', x: 0.11, scale: 1, par: 0.4 },
         { type: 'manhole', x: 0.6, scale: 1.1, par: 0.2 },
         { type: 'steam', x: 0.6, seed: 0.9 },
-        { type: 'newspaper', x: 0, restX: 0.2, seed: 2.1 },
+        { type: 'newspaper', x: 0, restX: 0.2, scale: 0.62, seed: 2.1 },
         { type: 'gunman', x: 0.30, scale: 1, par: 0.5, raiseAt: 1 },
         { type: 'bodyOnGround', x: 0.5, scale: 1, par: 0.5, onFlag: 'blood' },
         { type: 'bloodSplat', x: 0.5, onFlag: 'blood', seed: 999 },

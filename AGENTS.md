@@ -27,11 +27,13 @@ src/
     compositor.js     ordered render: set → back light → cast (each caster's shadow just before it) → front light → weather → post → transition
     input.js          tap=advance, drag=look, hold=lightning
     math.js           rand32, lerp, clamp, clamp01, smooth01, hexRgb, cssRgb, TWO_PI
-  style/palette.js    PALETTE + ANIM (central look + timing)
-  style/materials.js  surface light model: rimSign (the per-figure light field), bodyGrad + shade (ambient fill + diffuse wrap)
-  style/shadows.js    SHADE + AMBIENT + WASH + ENV (shadow/ambient/wash knobs + the indoor vs outdoor profile)
-  render/stage.js     the shared floor + wall stage geometry both lighting and shadows read
-  render/lighting.js  light service: addLight, litTint, litColor, drawBackLight/drawFrontLight (beams, glow, washes, refl)
+    anim.js           sampleTrack: the keyframe track primitive (data-authored tweens on x/y/scale)
+  style/palette.js    PALETTE + ANIM + NOIR + FILM (look, timing, the noir grade and the filmic finish: bloom, temperature, contrast)
+  style/materials.js  lit-sprite model: albedo() (flat material fill), sampleLight()/lightFactor() (the per-object light field the compositor multiplies over the whole figure), MAT (colorRelax, wrap, rim, rimWidth, spec, bounce, floorBounce, depthHaze, depthScale) + HAZE
+  style/shadows.js    SHADE + AMBIENT + WASH + AIR + ENV (shadow/ambient/wash/air knobs + the indoor vs outdoor profile)
+  render/stage.js     the shared SURFACE model (floor + wall SEGMENTS + raised surfaces) every system reads; surfaceYAt
+  render/debug.js     the optional stage overlay (floor, wall segments, lights, anchors), toggled in the lab
+  render/lighting.js  light service: addLight, litColor, drawBackLight/drawFrontLight (beams, glow, washes, refl)
   render/shadows.js   shadow service: casterRecord, paintCaster, tintBuffer (silhouettes projected onto the stage)
   render/passes/      sky, lighting, weather, post, transition
   objects/            node + actor/mover/prop/effect/light + registry (define*, create, createBackdrop)
@@ -52,26 +54,60 @@ _legacy/              archived prior builds (do not edit)
    backdrop, e.g. the rooftop searchlight beam, so the buildings occlude it), backdrop, light
    fixtures.
 2. the BACK light buffer (camera applied, composited with `lighter` BEFORE the cast): a faint
-   ambient lift, the backdrop's distant window bloom (soft halos + the odd failing-tube flicker),
-   then per scene light its volumetric beam (the street lamp shaft), halo, floor + wall washes, and
-   the wet-floor reflection + ripples. Being behind the cast, a foreground figure correctly occludes
-   the light and the beams behind it. (A distant beam like the searchlight uses the same beam model
-   but draws in the back layer in step 1, so the buildings occlude it too.)
-3. the CAST → main, BACK TO FRONT. Each object whose `castsShadow` is true has its shadow painted
-   (to the shadow buffer, projected through the strongest lights onto the floor and, where the set
-   has one, up the back wall) and composited onto the scene RIGHT BEFORE the object is drawn. So a
-   shadow lands not only on the floor and wall but on the cast already drawn behind it (a figure in
-   front shadows a figure behind), and the object then draws over its own shadow. Brass last.
+   ambient lift, a low band of lit GROUND HAZE (`AIR`), the backdrop's distant window bloom (soft
+   halos + the odd failing-tube flicker), then per scene light its volumetric beam (the street lamp
+   shaft, with drifting dust MOTES in it), halo, floor + wall washes, and the wet-floor reflection +
+   ripples. A light may carry a `gobo` (blinds, a window frame), which restricts its washes and beam
+   to bright bands. Being behind the cast, a foreground figure correctly occludes the light and the
+   beams behind it. (A distant beam like the searchlight uses the same beam model but draws in the
+   back layer in step 1, so the buildings occlude it too.) The floor-to-wall CREASE (the junction's
+   ambient occlusion) is then drawn on main over the lit set, under the cast.
+3. the CAST → main, across its layers (`mid`, then `fore` in front), each BACK TO FRONT, as LIT
+   SPRITES. Each object whose `castsShadow` is true has its
+   shadow painted (to the shadow buffer, projected through the strongest lights onto the floor and,
+   where the set has one, up the back wall) and composited onto the scene RIGHT BEFORE the object, so
+   a shadow lands on the floor, the wall AND the cast already behind it (a figure in front shadows a
+   figure behind). The object itself is then drawn as a lit sprite: its `draw(e)` paints only flat
+   ALBEDO to an offscreen object layer, the compositor lights the WHOLE figure (so face, neck, arms
+   and coat all shade together): one masked MULTIPLY lays the form light (the key -> a COLOURED bounce
+   fill, the cool ambient pulled toward the key's hue), then an additive pass ADDS the RIM (light
+   wrapping the lit edge, scaled by how lit the figure is so it reads as the light touching the form),
+   a warm floor UP-BOUNCE on the lower body, and, for shiny objects that set `spec`, a tight specular
+   hotspot, all clipped to the figure. A far object (its `z`) is then veiled toward a cool depth HAZE
+   and shrunk by `depthScale`. It blits it in, then its optional `glow(e)` paints emissive accents
+   (an ember, a neon hot, a headlight) over the top, unlit. An `unlit` object (additive steam) skips
+   the lighting and draws straight to main. Brass last.
 4. the FRONT light buffer (composited with `lighter` AFTER the cast): only lights flagged `front`
    (a cigarette ember, a held match), so their glow reads over the figure.
 5. weather (rain, lightning) over the lit scene.
-6. screen-space post (grain, vignette) and transition (ink wipe + act card).
+6. screen-space post: the noir grade (desaturate + cool tint), then the FILMIC finish (bloom on the
+   highlights, a warm/cool temperature, a gentle contrast S), then grain + vignette, then transition
+   (ink wipe + act card).
 
-Light and shadow are two services over one shared stage (`render/stage.js`: the floor plane plus an
-optional near wall). A light is described once with `addLight({...})`, the lighting passes paint it.
-A shadow needs nothing from the object beyond `castsShadow` (and an optional `shadowSil`): the
-compositor turns each `castsShadow` object into a caster and paints it in depth order. The look is
+Light and shadow are two services over one shared stage (`render/stage.js`: the floor plus wall
+SEGMENTS and any raised surfaces). A light is described once with `addLight({...})`, the lighting
+passes paint it. A shadow needs nothing from the object beyond `castsShadow` (and an optional
+`shadowSil`): the compositor turns each `castsShadow` object into a caster and paints it. The look is
 tuned centrally in `style/shadows.js` (SHADE, AMBIENT, WASH).
+
+## Scene model (transform, layers, anchoring, animation)
+
+Every placed object resolves through one transform, `e.place(node)`, the single source the renderer
+(lit-sprite bounds), the shadow service, the depth sort and anchoring all read, so they agree with
+what the object draws. It returns `x` (with the walk path), `anchorY` (where the body is painted),
+`groundY` (the floor contact, for the shadow and sort), `s` and `flip`. A node with `attachTo: <id>`
+rides that parent's transform (`ax`/`ay` offset), so a prop can sit in an actor's hand.
+
+- Layers: `back` (behind the backdrop), `mid` (the cast, default), `fore` (in front of the cast).
+- Depth: within a layer the cast is sorted back to front by `groundY` (floor contact), so an object
+  lower on the stage occludes one further back. `depth` is an explicit bias in that space.
+- Anchoring: `e.baseY` resolves a node's y from an explicit `y`, else an `on: '<surface>'` anchor
+  (a prop exposes a surface via `surface(e)`), else the floor, so nothing floats by construction.
+- Animation: a node carries `tracks` (keyframes per `x`/`y`/`scale`, sampled by `engine/anim.js`),
+  read inside the coordinate helpers, so a tweened value flows through `place` to every system with
+  no per-asset code. A self-animating object instead declares an `xform(e)` (a paper, a crow).
+
+The growth point is richer per-track choreography on `Actor`; the Node contract already absorbs it.
 
 ## Viewport and HUD
 
@@ -121,14 +157,22 @@ Inside `fn`, `this` is the placed instance (its story params) and `e` is the Fra
 functions, not arrows (they rely on `this`).
 
 Frame API objects use: `e.ctx` (draw target), `e.W/e.H/e.unit/e.t/e.gy`, `e.X(this)`, `e.scaleOf(this)`,
-`e.walkX(this)`, `e.beat()`, `e.sceneT()`, `e.lineIdx`, `e.flags`, `e.palette`, `e.litTint(x)`,
-`e.litColor(...)`, `e.addLight({...})`, `e.walkSound(bool)`.
+`e.walkX(this)`, `e.beat()`, `e.sceneT()`, `e.lineIdx`, `e.flags`, `e.palette`, `e.litColor(...)`,
+`e.addLight({...})`, `e.walkSound(bool)`.
 
-`opts`: `castsShadow`, `depth`, the optional hooks `update(dt, e)`, `emitLight(e)`, `shadowSil(e, c)`,
-and shadow sizing `shadowW`/`shadowH`/`shadowDensity`. To emit light, `emitLight` calls
-`e.addLight({ x, y, col:'r,g,b', r, I, ew, eh, beam?, front?, shade?, ... })`; the lighting pass
-draws the halo, washes, reflection and the optional volumetric `beam` (a cone of light in the air),
-so objects never draw their own glow or beam. `front:true` paints a light in front of the cast (a
+A `draw(e)` paints only FLAT ALBEDO (use `albedo(colour)` from `library/shared.js`, or plain dark
+fills). It never shades by hand: the compositor lights the whole object as one. EMISSIVE accents (an
+ember, a neon hot, a headlight, a flame) go in an optional `glow(e)` hook, drawn unlit over the lit
+object. Set `unlit: true` for an object that should not be lit at all (additive steam).
+
+`opts`: `castsShadow`, `depth`, `unlit`, `spec` (0..1 specular response for a shiny material, default
+0 matte), `z` (0 near .. 1 far depth, shrinks the figure and veils it in cool haze), the optional
+hooks `update(dt, e)`, `emitLight(e)`,
+`glow(e)`, `shadowSil(e, c)`, and shadow sizing `shadowW`/`shadowH`/`shadowDensity`. To emit light, `emitLight` calls
+`e.addLight({ x, y, col:'r,g,b', r, I, ew, eh, beam?, front?, shade?, gobo?, ... })`; the lighting
+pass draws the halo, washes, reflection and the optional volumetric `beam` (a cone of light in the
+air). A `gobo: { type:'blinds'|'bars'|'window', count, duty }` casts the light through a mask, so the
+washes and beam land in bright bands. Objects never draw their own glow or beam. `front:true` paints a light in front of the cast (a
 cigarette ember), the default is behind it. `shade:true` caps the glow above the emitter (a hooded
 lamp). A backdrop may also paint distant window bloom on the light buffer via an optional `glow(e)`
 hook. Shadows are automatic: the compositor turns each `castsShadow` object into a caster and paints
@@ -198,13 +242,3 @@ A few conventions for working in this repo.
 - GitHub Pages serves `main`, so merging publishes to [the live build](https://masoudqashqai.github.io/Inkfall/).
 - Do not push or merge unless asked. Never force push or rewrite shared history, and never resolve a
   merge conflict without checking first.
-
-## Verify
-
-No test suite. Serve, open, confirm the console logs `INKFALL v2 build ...` with no errors, ENTER,
-tap through both stories, and check the STORY editor round-trips JSON. Fast headless check: load in
-headless Chrome and grep the console for errors.
-
-For HUD or viewport changes also check: the frame stays landscape (bars on a too tall or too wide
-window, no bars on a normal desktop), the STORY menu offers back to start and edit, REVIEW ACT is
-hidden until THE END and then drops open, and a narrow portrait window shows the rotate prompt.

@@ -31,13 +31,9 @@ defineMover('redCar', function (e) {
   c.strokeStyle = 'rgba(0,0,0,0.5)'; c.lineWidth = 1 * s; c.beginPath(); c.moveTo(-30 * s, -34 * s); c.lineTo(-30 * s, -9 * s); c.moveTo(8 * s, -35 * s); c.lineTo(8 * s, -9 * s); c.moveTo(40 * s, -37 * s); c.lineTo(40 * s, -9 * s); c.stroke();
   c.fillStyle = 'rgba(165,170,180,0.45)'; c.fillRect(-22 * s, -31 * s, 7 * s, 1.6 * s); c.fillRect(18 * s, -32 * s, 7 * s, 1.6 * s);
 
-  // FRONT (left): grille + sealed-beam headlight
+  // FRONT (left): grille (the sealed-beam headlight is emissive, drawn in glow())
   c.fillStyle = '#0c0e12'; c.fillRect(-78 * s, -30 * s, 7 * s, 14 * s);
   c.strokeStyle = 'rgba(92,98,110,0.5)'; c.lineWidth = 1; for (let i = 0; i < 3; i++) { c.beginPath(); c.moveTo((-77 + i * 2.4) * s, -30 * s); c.lineTo((-77 + i * 2.4) * s, -16 * s); c.stroke(); }
-  c.fillStyle = '#ffe7ad'; c.fillRect(-71 * s, -30 * s, 5 * s, 7 * s);
-
-  // REAR (right): red tail light
-  c.fillStyle = 'rgba(255,46,42,0.95)'; c.shadowColor = PALETTE.ember; c.shadowBlur = 10; c.fillRect(72 * s, -31 * s, 5 * s, 10 * s); c.shadowBlur = 0;
 
   // wheels: on top, sitting on the ground, with squared 80s wheel arches
   for (const wx of [-44, 46]) {
@@ -48,7 +44,14 @@ defineMover('redCar', function (e) {
   }
   c.restore();
 }, {
-  shadowW: 82, shadowH: 55,
+  shadowW: 82, shadowH: 55, spec: 0.22,                       // waxed bodywork catches a rolling highlight
+  glow(e) {                                                   // EMISSIVE: the sealed-beam headlight + the red tail light
+    const c = e.ctx, s = e.scaleOf(this), X = e.walkX(this), gy = e.gy + (this.dy || 0) * e.unit;
+    c.save(); c.translate(X, gy); c.scale(this.flip ? 1 : -1, 1);
+    c.fillStyle = '#ffe7ad'; c.shadowColor = '#ffe7ad'; c.shadowBlur = 8; c.fillRect(-71 * s, -30 * s, 5 * s, 7 * s);
+    c.fillStyle = 'rgba(255,46,42,0.95)'; c.shadowColor = PALETTE.ember; c.shadowBlur = 10; c.fillRect(72 * s, -31 * s, 5 * s, 10 * s);
+    c.restore();
+  },
   shadowSil(e, c) {                                            // the car body footprint, cast on the wet floor
     const s = e.scaleOf(this);
     const body = [[-78, -9], [-78, -21], [-72, -31], [-30, -34], [-26, -34], [-13, -54], [-7, -55], [29, -55], [41, -37], [71, -35], [76, -34], [78, -23], [78, -9]];

@@ -7,7 +7,16 @@ import { buildSkyline, paintSkyline, wetFloor, brickWall, fireEscape, balcony } 
 // no window glow here: the brick walls cover most of the skyline, so an additive bloom would leak
 // onto the brick. The far slice is tiny anyway.
 defineBackdrop('alley', data => ({
-  wallTop: 0,            // brick walls rise the full height, so a figure's shadow can climb them
+  // the two brick walls as explicit surface segments, with the central sky gap between them (no
+  // brick there). Light and shadow read these, so an effect only ever lands on real wall and never
+  // crosses the opening. Matches the gap the draw leaves (inner edges at vx +/- 0.1W).
+  walls(e) {
+    const vx = e.W * 0.5 + e.scene.camera.look * 0.3, gy = e.gy;
+    return [
+      { x0: -1e6, x1: vx - e.W * 0.1, top: 0, bottom: gy },   // left brick wall
+      { x0: vx + e.W * 0.1, x1: 1e6, top: 0, bottom: gy },    // right brick wall
+    ];
+  },
   // the brick walls hide the moon unless it sits in the central sky gap between them, so a moon to
   // the side lights nothing (no leaking floor reflection). Same gap the draw carves out.
   occludesMoon(e, mx, my) {

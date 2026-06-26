@@ -60,13 +60,33 @@ Common: `x` (0..1), `y` (0..1), `par` (parallax factor), `intensity`, `flicker`,
 
 Common: `x` (0..1), `y` (0..1, floating props), `scale`, `dy` (vertical nudge in units),
 `par` (parallax factor), `flip`. Reveal/hide by event flag: `onFlag` / `hideOnFlag` (flags
-are set by a line's `fx`). Optional `depth` controls draw order (lower drawn first).
+are set by a line's `fx`).
+
+Layer + depth: `layer` is `back` (behind the backdrop), `mid` (the cast, default) or `fore` (in
+front of the cast). Within a layer the cast is sorted back to front by its FLOOR-CONTACT point, so
+an object lower on the stage draws in front. `depth` is an explicit bias in that space to pin order.
+
+Anchoring: omit `y` to stand on the floor, or set `on: 'table'` to sit on a raised surface a prop
+exposes (a table top). An object can ride another: give the parent an `id` and the child
+`attachTo: <id>` with `ax` / `ay` offsets in the parent's scaled space (a prop in an actor's hand).
+
+Animation: `tracks` keyframes any of `x`, `y`, `scale` over time, e.g.
+`tracks: { x: [{ t: 0, v: 0.2 }, { t: 4, v: 0.6, ease: 'inout' }] }`. `t` is seconds since the scene
+(or since the line with `timebase: 'beat'`), `ease` is `linear` | `in` | `out` | `inout`. A track
+holds flat past its ends and overrides the static value, and the renderer, shadows and depth sort
+all follow it.
 
 Shadows are automatic: any object that casts (actors do) is projected through the strongest lights
 onto the floor and, where the set has a wall, up the wall. The shape comes from the object, so a
 story never draws a shadow. Rare per-cast overrides: `shadowDensity` (0..1, lighter for a
 translucent shape), `shadowW` / `shadowH` (the fallback billboard size in local px, only used by
 objects with no authored silhouette).
+
+Material: `spec` (0..1) gives an object a specular response, a tight highlight the lit pass adds
+toward the light for a shiny material (wet, metal, satin, glass). Matte cloth leaves it 0.
+
+Depth: `z` (0 near .. 1 far) pushes an object back, the lit pass shrinks it and veils it toward a
+cool haze, so a figure set deeper reads as further into the scene (atmospheric perspective).
 
 Per-type options used today: `walk` (array of x marks, one per line) + `walkDur`, `passX`
 (womanInRed, redCar), `raiseAt` / `lightAt` (trenchMan), `raiseAt` (gunman), `greenAt`
