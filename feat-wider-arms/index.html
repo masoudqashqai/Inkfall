@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="theme-color" content="#000000" />
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<title>INKFALL — a noir story engine</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Inkfall" />
+<link rel="apple-touch-icon" href="assets/icon.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Special+Elite&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles/inkfall.css">
+</head>
+<body data-stage="menu">
+<canvas id="c"></canvas>
+<div id="scenetag"></div>
+<div id="caption"></div>
+<div id="tapnote">TAP — NEXT&nbsp; ·&nbsp; DRAG — LOOK&nbsp; ·&nbsp; HOLD — LIGHTNING</div>
+<div id="intro" class="loading">
+  <h1>INK<span class="b">FALL</span></h1>
+  <p id="introsub">A NOIR STORY ENGINE</p>
+  <div class="sub" id="introblurb">Feed it a story. Get back a rain-soaked, black-and-white world where the only colour is the colour that bleeds.</div>
+  <div id="introloading"><span class="spin" aria-hidden="true"></span><span class="loadlabel">LOADING</span></div>
+  <div class="pick-label">CHOOSE YOUR TALE</div>
+  <div id="storypick"></div>
+  <button id="enter">ENTER THE CITY</button>
+</div>
+
+<div id="build"></div>
+<div id="topbar">
+  <div class="hud-row">
+    <button id="shoot" class="hud-btn hud-sm" title="save a poster of this frame"><i class="ic ic-poster"></i></button>
+    <button id="fsbtn" class="hud-btn hud-sm" title="fullscreen"><i class="ic ic-fs"></i></button>
+    <button id="menubtn" class="hud-btn hud-sm" title="menu"><i class="ic ic-menu"></i></button>
+  </div>
+</div>
+<div id="actsel">
+  <button id="actbtn" class="hud-btn">REVIEW ACT</button>
+  <div id="scenenav"></div>
+</div>
+
+<div id="rotate" class="overlay">
+  <div class="rotate-phone" aria-hidden="true"><span class="rotate-cam"></span></div>
+  <div class="rotate-text rt-fs">This story reads best in landscape. Turn your screen, or stay in portrait.</div>
+  <div class="rotate-text rt-nofs">Rotate your phone for the best view.</div>
+  <button id="rotate-fs" class="rotate-fs noir-item is-primary">ROTATE TO LANDSCAPE</button>
+  <button id="rotate-skip" class="rotate-skip noir-item">STAY IN PORTRAIT</button>
+</div>
+
+<div id="poster" class="overlay">
+  <img id="posterimg" alt="Inkfall poster" />
+  <div class="poster-row">
+    <a id="posterdl" download="inkfall.png">SAVE</a>
+    <button id="posterclose">BACK TO THE RAIN</button>
+  </div>
+</div>
+<div id="storymenu" class="overlay" data-view="main">
+  <div class="noir-panel sm-view v-main">
+    <div class="noir-title">PAUSED</div>
+    <button id="sm-resume" class="noir-item is-primary">RESUME</button>
+    <button id="sm-sound" class="noir-item">SOUND: ON</button>
+    <button id="sm-engine" class="noir-item">STORY ENGINE</button>
+    <button id="sm-controls" class="noir-item">CONTROLS</button>
+    <div class="noir-sep"></div>
+    <button id="sm-back" class="noir-item is-danger">EXIT TO START</button>
+  </div>
+  <div class="noir-panel sm-view v-engine">
+    <div class="noir-title">STORY ENGINE</div>
+    <button id="sm-edit" class="noir-item">EDIT STORY</button>
+    <button id="sm-hud" class="noir-item">HIDE HUD</button>
+    <div class="noir-sep"></div>
+    <button id="sm-engine-back" class="noir-item is-primary">BACK</button>
+  </div>
+  <div class="noir-panel sm-view v-controls">
+    <div class="noir-title">CONTROLS</div>
+    <div class="sm-keys">
+      <div class="sm-key"><b>TAP</b><span>advance the story</span></div>
+      <div class="sm-key"><b>DRAG</b><span>look around the scene</span></div>
+      <div class="sm-key"><b>HOLD</b><span>call down lightning</span></div>
+    </div>
+    <div class="noir-sep"></div>
+    <button id="sm-controls-back" class="noir-item is-primary">BACK</button>
+  </div>
+  <div class="noir-panel sm-view v-confirm">
+    <div class="noir-title">LEAVE THE STORY?</div>
+    <div class="noir-note">This returns you to the start screen.</div>
+    <button id="sm-confirm-yes" class="noir-item is-danger">EXIT TO START</button>
+    <button id="sm-confirm-no" class="noir-item is-primary">STAY</button>
+  </div>
+</div>
+<div id="editor">
+  <div class="ed-head noir-title">STORY EDITOR</div>
+  <textarea id="ed-text" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
+  <div id="ed-err"></div>
+  <div class="ed-help">backdrops: skyline · alley · rooftop · room &nbsp;|&nbsp; lights: lamp · neon · bulb · glow &nbsp;|&nbsp; people: trenchMan · thug · boss · gunman · dealer · womanInRed · singer &nbsp;|&nbsp; animals: cat · crow &nbsp;|&nbsp; movers: redCar &nbsp;|&nbsp; weapons: knife · pistol · tommyGun &nbsp;|&nbsp; casino: cardTable · slotMachine · rouletteWheel · drink · cash &nbsp;|&nbsp; street: trafficLight · barrelFire · fireHydrant · payphone · streetSign · waterTower · dumpster · manhole &nbsp;|&nbsp; effects: steam · searchlight · newspaper · bloodSplat · bodyOnGround · chalkOutline · bloodDrain &nbsp;|&nbsp; line fx: muzzle · blood · lightning · hammer · lighter &nbsp;|&nbsp; reveal/hide with onFlag / hideOnFlag</div>
+  <div class="ed-btns"><button id="ed-play" class="noir-item is-primary">PLAY</button><button id="ed-reset" class="noir-item">DEFAULT</button><button id="ed-close" class="noir-item">CLOSE</button></div>
+</div>
+
+<script type="module" src="src/boot.js"></script>
+</body>
+</html>
