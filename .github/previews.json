@@ -18,12 +18,6 @@
     "updated": "2026-06-25 20:56"
   },
   {
-    "branch": "feat/landscape-orientation",
-    "url": "https://masoudqashqai.github.io/Inkfall/feat-landscape-orientation/",
-    "sha": "9e8bb58",
-    "updated": "2026-06-25 21:28"
-  },
-  {
     "branch": "feat/rotate-prompt-fix",
     "url": "https://masoudqashqai.github.io/Inkfall/feat-rotate-prompt-fix/",
     "sha": "94b8a72",
