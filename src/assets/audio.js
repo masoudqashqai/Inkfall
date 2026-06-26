@@ -9,7 +9,7 @@
 // A story with no audio block is silent, so sounds never bleed between stories.
 export const Audio2 = (() => {
   const A = 'assets/audio/';
-  let on = true, started = false, cfg = null;
+  let on = true, started = false, cfg = null, suspended = false;
   let music = null, rain = null, amb = null;
   const pools = {}, loops = {};
 
@@ -29,7 +29,9 @@ export const Audio2 = (() => {
     }, 30);
   }
 
-  function resume(a) { if (!a || !on || !started) return; if (a._start && a.currentTime < a._start) { try { a.currentTime = a._start; } catch (e) {} } a.play().catch(() => {}); }
+  // the single choke point for starting a persistent sound. It refuses while suspended (gate/menu),
+  // so nothing, including a sound toggle, can bring audio back until resumeAll lifts the suspend.
+  function resume(a) { if (!a || !on || !started || suspended) return; if (a._start && a.currentTime < a._start) { try { a.currentTime = a._start; } catch (e) {} } a.play().catch(() => {}); }
 
   function setStory(c) {
     [music, rain, amb].forEach(stop); music = rain = amb = null;
@@ -76,14 +78,32 @@ export const Audio2 = (() => {
       a.volume = tgt; if (a.paused) a.play().catch(() => {});
     } else if (a && !a.paused) ramp(a, 0, 0.4);   // animation ended: fade out + pause
   }
+  // full pause for the orientation gate: hold every sound where it is. The persistent loops
+  // (music, rain, ambience, active animation loops) remember they were playing so resumeAll can
+  // bring them back. One-shots are just silenced, they are transient and re-fire on their own.
+  function suspend() {
+    if (suspended) return; suspended = true;
+    const keep = [music, rain, amb]; for (const k in loops) keep.push(loops[k]);
+    for (const a of keep) { if (a && !a.paused) { a._wasPlaying = true; try { a.pause(); } catch (e) {} } }
+    for (const k in pools) for (const a of pools[k].pool) { try { a.pause(); } catch (e) {} }
+  }
+  function resumeAll() {
+    if (!suspended) return; suspended = false;
+    if (!on || !started) return;
+    const keep = [music, rain, amb]; for (const k in loops) keep.push(loops[k]);
+    for (const a of keep) { if (a && a._wasPlaying) { a._wasPlaying = false; a.play().catch(() => {}); } }
+  }
   function toggle() {
     on = !on;
+    // while suspended (the gate or pause menu is up) only record the choice, do not start playback.
+    // resumeAll will apply it, respecting `on`, when the story resumes.
+    if (suspended) { if (!on) for (const k in loops) stop(loops[k]); return on; }
     [music, rain, amb].forEach(a => { if (a) { a.volume = on ? a._v : 0; if (on) resume(a); else stop(a); } });
     if (!on) for (const k in loops) stop(loops[k]);
     return on;
   }
   return {
-    setStory, start, scene, play, setLoop, stopLoops, duck, toggle, isOn: () => on,
+    setStory, start, scene, play, setLoop, stopLoops, duck, toggle, suspend, resumeAll, isOn: () => on,
     gun: () => play('gunshot', 1, 0.97 + Math.random() * 0.06),
     gunCock: () => play('hammer'),
     shellClink: () => play('shell', 0.8 + Math.random() * 0.3, 0.95 + Math.random() * 0.1),
