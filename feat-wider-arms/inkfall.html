@@ -437,7 +437,7 @@ __req("src/library/index.js");
 const { STORIES } = __req("stories/manifest.js");
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 49 · detective shoulders join sleeves'
+const BUILD = 'v2 build 50 · detective sleeves sit at shoulder'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 
@@ -2485,9 +2485,9 @@ defineActor('trenchMan', function (e) {                       // detective: tren
   const ex = lerp(23 * s, 26 * s, aim), ey = lerp(-62 * s, -73 * s, aim), hx = P.hx, hy = P.hy;
   c.lineCap = 'round'; c.lineJoin = 'round';
   c.strokeStyle = coat; c.lineWidth = 8.5 * s;
-  c.beginPath(); c.moveTo(20 * s, -89 * s); c.lineTo(ex, ey); c.lineTo(hx, hy); c.stroke();   // cigarette arm: tucked up under the shoulder, nearly straight, up to the mouth as it raises
-  c.beginPath(); c.moveTo(-20 * s, -89 * s); c.lineTo(-24 * s, -38 * s); c.stroke();           // other arm tucked under the shoulder, hangs nearly straight at his side
-  c.strokeStyle = 'rgba(150,160,178,0.3)'; c.lineWidth = 1.4 * s; c.beginPath(); c.moveTo(20 * s, -90 * s); c.lineTo(ex, ey); c.stroke();
+  c.beginPath(); c.moveTo(20 * s, -86 * s); c.lineTo(ex, ey); c.lineTo(hx, hy); c.stroke();   // cigarette arm: tucked just under the shoulder, nearly straight, up to the mouth as it raises
+  c.beginPath(); c.moveTo(-20 * s, -86 * s); c.lineTo(-24 * s, -38 * s); c.stroke();           // other arm tucked just under the shoulder, hangs nearly straight at his side
+  c.strokeStyle = 'rgba(150,160,178,0.3)'; c.lineWidth = 1.4 * s; c.beginPath(); c.moveTo(20 * s, -88 * s); c.lineTo(ex, ey); c.stroke();
   c.fillStyle = '#bcbab0'; c.beginPath(); c.arc(hx, hy, 2.9 * s, 0, TWO_PI); c.arc(-24 * s, -38 * s, 3.2 * s, 0, TWO_PI); c.fill();
   c.fillStyle = bodyGrad(c, 24, s, rim, tint);
   c.beginPath(); c.moveTo(-18 * s, -88 * s); c.quadraticCurveTo(0, -104 * s, 18 * s, -88 * s); c.lineTo(14 * s, -83 * s); c.quadraticCurveTo(0, -93 * s, -14 * s, -83 * s); c.closePath(); c.fill();

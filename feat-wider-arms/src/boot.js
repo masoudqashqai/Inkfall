@@ -10,7 +10,7 @@ import './library/index.js';
 import { STORIES } from '../stories/manifest.js';
 
 const el = id => document.getElementById(id);
-const BUILD = 'v2 build 49 · detective shoulders join sleeves'
+const BUILD = 'v2 build 50 · detective sleeves sit at shoulder'
 console.log('INKFALL', BUILD);
 el('build').textContent = BUILD;
 
